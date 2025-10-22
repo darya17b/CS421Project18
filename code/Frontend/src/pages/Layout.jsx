@@ -12,21 +12,23 @@ const Layout = () => {
 
   return (
     <>
-      <header style={{ padding: "1rem", borderBottom: "1px solid #ccc" }}>
-        <nav style={{ display: "flex", gap: "1rem" }}>
-          <Link to="/">Home</Link>
+      <header className="p-4 border-b border-gray-300">
+        <nav className="flex gap-4">
+          <Link to="/" className="text-blue-600 hover:underline">Home</Link>
           {user ? (
             <>
-              <Link to="/dashboard">Dashboard</Link>
-              <button onClick={handleLogout}>Logout</button>
+              <Link to="/dashboard" className="text-blue-600 hover:underline">Dashboard</Link>
+              <button onClick={handleLogout} className="px-3 py-1 rounded border border-gray-300 hover:bg-gray-100">
+                Logout
+              </button>
             </>
           ) : (
-            <Link to="/login">Login</Link>
+            <Link to="/login" className="text-blue-600 hover:underline">Login</Link>
           )}
         </nav>
       </header>
 
-      <main style={{ padding: "1rem" }}>
+      <main className="p-4">
         <Outlet />
       </main>
     </>

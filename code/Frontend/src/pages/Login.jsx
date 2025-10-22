@@ -20,23 +20,31 @@ const Login = () => {
   };
 
   return (
-    <section style={{ maxWidth: "400px", margin: "2rem auto" }}>
-      <h1>Login </h1>
-      <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+    <section className="max-w-md mx-auto my-8 p-6 bg-white rounded-lg shadow">
+      <h1 className="text-3xl font-bold mb-6">Login</h1>
+      <form onSubmit={handleLogin} className="flex flex-col gap-4">
         <input
           type="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <button type="submit">Login</button>
-        <button type="button" onClick={skipLogin}>Skip Login</button>
+        <div className="flex gap-3">
+          <button type="submit" className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700">
+            Login
+          </button>
+          <button type="button" onClick={skipLogin} className="inline-flex items-center justify-center rounded-md border border-gray-300 px-4 py-2 font-medium hover:bg-gray-50">
+            Skip Login
+          </button>
+        </div>
       </form>
     </section>
   );

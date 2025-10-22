@@ -5,13 +5,14 @@ import Dashboard from "./pages/Dashboard";
 import SpSearch from "./pages/SpSearch";
 import FormsReviewer from "./pages/FormsReviewer";
 import FormsSearch from "./pages/FormsSearch";
+import Home from "./pages/Home";
 
 const App = () => {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index element={<h2>Home Page</h2>} />
+          <Route index element={<Home />} />
           <Route path="login" element={<Login />} />
 
           
