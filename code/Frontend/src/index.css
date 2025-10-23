@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+
+button { color: #000 !important; }
+
+/* site wide */
+html, body { min-height: 100%; }
+body { background-color: rgba(220, 20, 60, 0.06); }
+
+/*override vite template centering */
+body { display: block !important; place-items: initial !important; min-width: 0 !important; width: 100% !important; margin: 0 !important; }
+#root { width: 100% !important; }
+main { width: 100%; }
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;

@@ -6,26 +6,60 @@ import SpSearch from "./pages/SpSearch";
 import FormsReviewer from "./pages/FormsReviewer";
 import FormsSearch from "./pages/FormsSearch";
 import Home from "./pages/Home";
+import RequestNew from "./pages/RequestNew";
+import ScriptDetail from "./pages/ScriptDetail";
+import { MockStoreProvider } from "./store/mockStore";
+import { ToastProvider } from "./components/Toast";
+import RequireAuth from "./components/RequireAuth";
 
 const App = () => {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Home />} />
-          <Route path="login" element={<Login />} />
-
-          
-          <Route path="dashboard" element={<Dashboard />}>
-            <Route path="sp-search" element={<SpSearch />} />
-            <Route path="forms-reviewer" element={<FormsReviewer />} />
-          </Route>
-
-          
-          <Route path="forms-search" element={<FormsSearch />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <MockStoreProvider>
+      <ToastProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={
+                <RequireAuth>
+                  <Home />
+                </RequireAuth>
+              } />
+              <Route path="login" element={<Login />} />
+              <Route path="dashboard" element={
+                <RequireAuth>
+                  <Dashboard />
+                </RequireAuth>
+              } />
+              <Route path="forms-search" element={
+                <RequireAuth>
+                  <FormsSearch />
+                </RequireAuth>
+              } />
+              <Route path="request-new" element={
+                <RequireAuth>
+                  <RequestNew />
+                </RequireAuth>
+              } />
+              <Route path="forms/:id" element={
+                <RequireAuth>
+                  <ScriptDetail />
+                </RequireAuth>
+              } />
+              <Route path="sp-search" element={
+                <RequireAuth>
+                  <SpSearch />
+                </RequireAuth>
+              } />
+              <Route path="forms-reviewer" element={
+                <RequireAuth>
+                  <FormsReviewer />
+                </RequireAuth>
+              } />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
+    </MockStoreProvider>
   );
 };
 
