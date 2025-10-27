@@ -27,6 +27,7 @@ func main() {
 	}
 	if client != nil {
 		// Ensure we disconnect when main exits
+		log.Println("connected to MongoDB")
 		defer func() {
 			if err := db.MustDisconnect(context.Background(), client); err != nil {
 				log.Printf("error disconnecting mongo client: %v", err)
