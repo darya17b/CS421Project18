@@ -1,11 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { useMockStore } from "../store/mockStore";
+import { useStore } from "../store";
 import { useToast } from "../components/Toast";
 
 const RequestNew = () => {
   const navigate = useNavigate();
-  const { addItem } = useMockStore();
+  const { addItem } = useStore();
   const toast = useToast();
   const [form, setForm] = useState({
     title: "",
