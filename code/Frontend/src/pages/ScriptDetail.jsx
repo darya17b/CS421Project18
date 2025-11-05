@@ -1,6 +1,6 @@
 import { useParams, Link } from "react-router-dom";
 import { useState } from "react";
-import { useMockStore } from "../store/mockStore";
+import { useStore } from "../store";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { exportScriptAsPdf } from "../utils/print";
@@ -8,7 +8,7 @@ import { downloadScriptPdf, downloadResourcePdf } from "../utils/pdf";
 
 const ScriptDetail = () => {
   const { id } = useParams();
-  const { getById, toggleProposed } = useMockStore();
+  const { getById, toggleProposed } = useStore();
   const toast = useToast();
   const item = getById(id);
   const [version, setVersion] = useState(item?.versions?.[0]?.version || "v1");

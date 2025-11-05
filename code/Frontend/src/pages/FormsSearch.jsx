@@ -1,12 +1,12 @@
 import { useState } from "react";
 import FormsListRow from "./FormsListRow";
 import Modal from "../components/Modal";
-import { useMockStore } from "../store/mockStore";
+import { useStore } from "../store";
 import { useToast } from "../components/Toast";
 import { downloadResourcePdf } from "../utils/pdf";
 
 const FormsSearch = () => {
-  const { items, toggleProposed } = useMockStore();
+  const { items, toggleProposed } = useStore();
   const toast = useToast();
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [current, setCurrent] = useState(null);
