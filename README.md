@@ -13,28 +13,29 @@ With the importance that the scripts play in the VCC, the file management system
 
 ## Installation
 
-Currently, we have not begun development so there are no necessary installations. 
-
 ### Prerequisites
 
 ### Add-ons
 
 ### Installation Steps
 
-
 ## Functionality
 
-Currently, we do not have any functionality implemented.
+Our current functionality is the UI frontend, as well as the backend which connects to the database. 
 
 ## Known Problems
 
-Currently, we do not have any code implemented. 
+Currently, we do not have any known problems in what is implemented. 
 
 ## Additional Documentation
 
-  * Sprint report 1: found in github
-  * Sprint report video: https://wsu.zoom.us/rec/share/7Cc0iUsm9x1lwttFchLfB1PRf-Uxs5_q9nS2Rev8zL9UJ8Q0LK5QfFZxG4BDP9bG.FjzCEcx27-cbwzKm?startTime=1759604683000
-  * Trello kanban: https://trello.com/invite/b/68c7a3b4bfa57287b7440aa7/ATTI4a0922bacbc3e3c98925d62a0e50d30d83D0FB70/vcc-database
+  * Sprint Report 1: see Docs/Reports/SprintReport1
+  * Sprint Report 2: see Docs/Reports/SprintReport2
+  * Sprint 1 Demo Video: https://wsu.zoom.us/rec/share/7Cc0iUsm9x1lwttFchLfB1PRf-Uxs5_q9nS2Rev8zL9UJ8Q0LK5QfFZxG4BDP9bG.FjzCEcx27-cbwzKm?startTime=1759604683000
+  * Sprint 2 Demo Video:
+    https://youtu.be/PnNy0X9g1Lo
+  * Trello Kanban: https://trello.com/invite/b/68c7a3b4bfa57287b7440aa7/ATTI4a0922bacbc3e3c98925d62a0e50d30d83D0FB70/vcc-database
 
-  We were unable to upload the video to youtube since we used zoom to record, but it should be accessible. 
+
+  
   
