@@ -10,6 +10,6 @@ type VitalSigns struct {
 	Temp         Measurements.Tempature `json:"temp"`
 }
 type bloodPressure struct {
-	top    int16 `json:"top"`
-	bottom int16 `json:"bottom"`
+	Top    int16 `json:"top"`
+	Bottom int16 `json:"bottom"`
 }
