@@ -1,7 +1,13 @@
 import { Link } from "react-router-dom";
 
-const FormsListRow = ({ item, onArtifacts, onPropose }) => {
-  const proposed = Boolean(item.proposed);
+const FormsListRow = ({ item, onArtifacts, onPropose, onDelete }) => {
+  const proposed = Boolean(item?.proposed);
+  const title = item?.title || item?.admin?.reson_for_visit || item?.admin?.reason_for_visit || 'Untitled';
+  const patient = typeof item?.patient === 'string'
+    ? item.patient
+    : (item?.patient?.name || item?.patient_name || 'Unknown');
+  const department = item?.department || item?.admin?.class || 'General';
+  const createdAt = item?.createdAt || item?.admin?.event_dates || '';
   return (
     <div
       className={`relative flex items-start justify-between border rounded-md p-3 bg-white w-full ${
@@ -10,8 +16,8 @@ const FormsListRow = ({ item, onArtifacts, onPropose }) => {
       title={proposed ? "Edits have been proposed for this draft" : undefined}
     >
       <div>
-        <div className="font-semibold">{item.title}</div>
-        <div className="text-sm text-gray-600">{item.patient} • {item.department} • {item.createdAt}</div>
+        <div className="font-semibold">{title}</div>
+        <div className="text-sm text-gray-600">{patient} • {department} • {createdAt}</div>
         {item.draftOf && (
           <div className="mt-1 inline-block rounded bg-yellow-100 text-yellow-800 px-2 py-0.5 text-xs">Draft of {item.draftOf}</div>
         )}
@@ -30,6 +36,11 @@ const FormsListRow = ({ item, onArtifacts, onPropose }) => {
         <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => onArtifacts(item)}>
           Resources
         </button>
+        {onDelete ? (
+          <button className="rounded border px-3 py-1 hover:bg-red-50 text-red-700 border-red-300" onClick={() => onDelete(item)}>
+            Delete
+          </button>
+        ) : null}
       </div>
       {proposed && (
         <span

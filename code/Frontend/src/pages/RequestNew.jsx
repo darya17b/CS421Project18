@@ -28,16 +28,113 @@ const RequestNew = () => {
     patient: {
       name: "",
       vitals: {
-        heart_rate: 0,
-        respirations: 0,
-        pressure: { top: 0, bottom: 0 },
-        blood_oxygen: 0,
-        temp: { reading: 0, unit: "Celcius" },
+        heart_rate: '',
+        respirations: '',
+        pressure: { top: '', bottom: '' },
+        blood_oxygen: '',
+        temp: { reading: '', unit: '' },
       },
       visit_reason: "",
       context: "",
       task: "",
       encounter_duration: "",
+    },
+    sp: {
+      opening_statement: "",
+      attributes: {
+        anxiety: '',
+        suprise: '',
+        confusion: '',
+        guilt: '',
+        sadness: '',
+        indecision: '',
+        assertiveness: '',
+        frustration: '',
+        fear: '',
+        anger: '',
+      },
+      physical_chars: "",
+      current_ill_history: {
+        body_location: "",
+        symptom_settings: "",
+        symptom_timing: "",
+        associated_symptoms: "",
+        radiation_of_symptoms: "",
+        symptom_quality: "",
+        alleviating_factors: "",
+        aggravating_factors: "",
+        pain: '',
+      },
+    },
+    med_hist: {
+      medications: {
+        name: "",
+        brand: "",
+        generic: "",
+        dose: "",
+        frequency: "",
+        reason: "",
+        startDate: "",
+        otherNotes: "",
+      },
+      allergies: "",
+      past_med_his: {
+        child_hood_illness: "",
+        illness_and_hospital: "",
+        surgeries: "",
+        obe_and_gye: "",
+        transfusion: "",
+        psychiatric: "",
+        trauma: "",
+      },
+      preventative_measure: {
+        immunization: "",
+        alternate_health_care: "",
+        travel_exposure: "",
+      },
+      family_hist: {
+        health_status: "",
+        age: "",
+        cause_of_death: "",
+        additonal_info: "",
+      },
+      social_hist: {
+        personal_background: "",
+        nutrion_and_exercise: "",
+        community_and_employment: "",
+        safety_measure: "",
+        life_stressors: "",
+        substance_use: "",
+        sex_history: {
+          current_partners: "",
+          past_partners: "",
+          contraceptives: "",
+          hiv_risk_history: "",
+          safety_in_relations: "",
+        },
+      },
+      sympton_review: {
+        general: "",
+        skin: "",
+        heent: "",
+        neck: "",
+        breast: "",
+        respiratory: "",
+        cardiovascular: "",
+        gastrointestinal: "",
+        peripheral_vascular: "",
+        musculoskeletal: "",
+        psychiatric: "",
+        neurologival: "",
+        endocine: "",
+      },
+    },
+    special: {
+      provoking_question: "",
+      must_ask: "",
+      oppurtunity: "",
+      opening_statement: "",
+      feed_back: "",
     },
   };
 
@@ -56,25 +153,23 @@ const RequestNew = () => {
   }
 
   const setField = (path, value) => setForm(prev => setDeep(prev, path, value));
+  const setNumberField = (path, value) => setForm(prev => setDeep(prev, path, value === '' ? '' : Number(value)));
   const getField = (path) => path.reduce((acc, k) => (acc ? acc[k] : undefined), form);
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
-    const id = `SCR-${Math.floor(100 + Math.random() * 900)}`;
-    const now = new Date().toISOString().slice(0, 10);
     const script = buildScriptFromForm(form);
-    addItem({
-      id,
-      title: form.admin.reson_for_visit || "Untitled",
-      patient: form.patient.name || "Unknown",
-      department: form.admin.class || "General",
-      createdAt: now,
-      summary: form.admin.summory_of_story || "",
-      artifacts: [],
-      versions: [{ version: "v1", notes: "Initial", fields: script }],
-    });
-    toast.show("Request submitted (stub)", { type: "success" });
-    navigate("/forms-search");
+
+    try {
+      const { api } = await import("../api/client");
+      await api.createDocument(script);
+      toast.show("Request submitted", { type: "success" });
+      navigate("/forms-search");
+      // list reloads from backend on arrival
+      setTimeout(() => window.location.reload(), 0);
+    } catch (err) {
+      toast.show("Creation failed", { type: "error" });
+    }
   };
 
   return (
@@ -168,32 +263,215 @@ const RequestNew = () => {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Heart Rate</label>
-              <input type="number" value={getField(['patient','vitals','heart_rate']) || 0} onChange={(e) => setField(['patient','vitals','heart_rate'], Number(e.target.value))} className="w-full rounded border px-3 py-2" />
+              <input type="number" value={getField(['patient','vitals','heart_rate']) ?? ''} onChange={(e) => setNumberField(['patient','vitals','heart_rate'], e.target.value)} className="w-full rounded border px-3 py-2" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Respirations</label>
-              <input type="number" value={getField(['patient','vitals','respirations']) || 0} onChange={(e) => setField(['patient','vitals','respirations'], Number(e.target.value))} className="w-full rounded border px-3 py-2" />
+              <input type="number" value={getField(['patient','vitals','respirations']) ?? ''} onChange={(e) => setNumberField(['patient','vitals','respirations'], e.target.value)} className="w-full rounded border px-3 py-2" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Blood Oxygen</label>
-              <input type="number" value={getField(['patient','vitals','blood_oxygen']) || 0} onChange={(e) => setField(['patient','vitals','blood_oxygen'], Number(e.target.value))} className="w-full rounded border px-3 py-2" />
+              <input type="number" value={getField(['patient','vitals','blood_oxygen']) ?? ''} onChange={(e) => setNumberField(['patient','vitals','blood_oxygen'], e.target.value)} className="w-full rounded border px-3 py-2" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Pressure Top</label>
-              <input type="number" value={getField(['patient','vitals','pressure','top']) || 0} onChange={(e) => setField(['patient','vitals','pressure','top'], Number(e.target.value))} className="w-full rounded border px-3 py-2" />
+              <input type="number" value={getField(['patient','vitals','pressure','top']) ?? ''} onChange={(e) => setNumberField(['patient','vitals','pressure','top'], e.target.value)} className="w-full rounded border px-3 py-2" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Pressure Bottom</label>
-              <input type="number" value={getField(['patient','vitals','pressure','bottom']) || 0} onChange={(e) => setField(['patient','vitals','pressure','bottom'], Number(e.target.value))} className="w-full rounded border px-3 py-2" />
+              <input type="number" value={getField(['patient','vitals','pressure','bottom']) ?? ''} onChange={(e) => setNumberField(['patient','vitals','pressure','bottom'], e.target.value)} className="w-full rounded border px-3 py-2" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Temperature Reading</label>
-              <input type="number" value={getField(['patient','vitals','temp','reading']) || 0} onChange={(e) => setField(['patient','vitals','temp','reading'], Number(e.target.value))} className="w-full rounded border px-3 py-2" />
+              <input type="number" value={getField(['patient','vitals','temp','reading']) ?? ''} onChange={(e) => setNumberField(['patient','vitals','temp','reading'], e.target.value)} className="w-full rounded border px-3 py-2" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Temperature Unit</label>
-              <input value={getField(['patient','vitals','temp','unit']) || 'Celcius'} onChange={(e) => setField(['patient','vitals','temp','unit'], e.target.value)} className="w-full rounded border px-3 py-2" />
+              <select value={getField(['patient','vitals','temp','unit']) ?? ''} onChange={(e) => setNumberField(['patient','vitals','temp','unit'], e.target.value)} className="w-full rounded border px-3 py-2">
+                <option value="">Select unit</option>
+                <option value="0">Celcius</option>
+                <option value="1">Fahrenheit</option>
+              </select>
             </div>
+          </div>
+        </div>
+
+        <div className="rounded border p-4 bg-white">
+          <h3 className="font-semibold mb-3">SP Info</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium mb-1">Opening Statement</label>
+              <textarea rows={2} value={getField(['sp','opening_statement']) || ''} onChange={(e) => setField(['sp','opening_statement'], e.target.value)} className="w-full rounded border px-3 py-2" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium mb-1">Physical Characteristics</label>
+              <textarea rows={2} value={getField(['sp','physical_chars']) || ''} onChange={(e) => setField(['sp','physical_chars'], e.target.value)} className="w-full rounded border px-3 py-2" />
+            </div>
+            {['anxiety','suprise','confusion','guilt','sadness','indecision','assertiveness','frustration','fear','anger'].map((k) => (
+              <div key={k}>
+                <label className="block text-sm font-medium mb-1">{k[0].toUpperCase()+k.slice(1)}</label>
+                <input type="number" min={0} max={10} value={getField(['sp','attributes',k]) ?? ''} onChange={(e) => setNumberField(['sp','attributes',k], e.target.value)} className="w-full rounded border px-3 py-2" />
+              </div>
+            ))}
+            <div className="sm:col-span-2 font-medium">Current Illness History</div>
+            {[
+              ['body_location','Body Location'],
+              ['symptom_settings','Symptom Settings'],
+              ['symptom_timing','Symptom Timing'],
+              ['associated_symptoms','Associated Symptoms'],
+              ['radiation_of_symptoms','Radiation of Symptoms'],
+              ['symptom_quality','Symptom Quality'],
+              ['alleviating_factors','Alleviating Factors'],
+              ['aggravating_factors','Aggravating Factors'],
+            ].map(([k,label]) => (
+              <div key={k}>
+                <label className="block text-sm font-medium mb-1">{label}</label>
+                <input value={getField(['sp','current_ill_history',k]) || ''} onChange={(e) => setField(['sp','current_ill_history',k], e.target.value)} className="w-full rounded border px-3 py-2" />
+              </div>
+            ))}
+            <div>
+              <label className="block text-sm font-medium mb-1">Pain</label>
+              <input type="number" min={0} max={10} value={getField(['sp','current_ill_history','pain']) ?? ''} onChange={(e) => setNumberField(['sp','current_ill_history','pain'], e.target.value)} className="w-full rounded border px-3 py-2" />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded border p-4 bg-white">
+          <h3 className="font-semibold mb-3">Medical History</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2 font-medium">Medications</div>
+            {[
+              ['name','Name'],
+              ['brand','Brand'],
+              ['generic','Generic Name'],
+              ['dose','Dose'],
+              ['frequency','Frequency'],
+              ['reason','Reason'],
+              ['startDate','Date Started'],
+              ['otherNotes','Other Notes'],
+            ].map(([k,label]) => (
+              <div key={k}>
+                <label className="block text-sm font-medium mb-1">{label}</label>
+                <input value={getField(['med_hist','medications',k]) || ''} onChange={(e) => setField(['med_hist','medications',k], e.target.value)} className="w-full rounded border px-3 py-2" />
+              </div>
+            ))}
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium mb-1">Allergies</label>
+              <input value={getField(['med_hist','allergies']) || ''} onChange={(e) => setField(['med_hist','allergies'], e.target.value)} className="w-full rounded border px-3 py-2" />
+            </div>
+            <div className="sm:col-span-2 font-medium">Past Medical History</div>
+            {[
+              ['child_hood_illness','Childhood Illness'],
+              ['illness_and_hospital','Medical Illnesses and Hospitalizations'],
+              ['surgeries','Surgeries'],
+              ['obe_and_gye','Obstetric or Gynecologic History'],
+              ['transfusion','Transfusion History'],
+              ['psychiatric','Psychiatric History'],
+              ['trauma','Trauma'],
+            ].map(([k,label]) => (
+              <div key={k}>
+                <label className="block text-sm font-medium mb-1">{label}</label>
+                <input value={getField(['med_hist','past_med_his',k]) || ''} onChange={(e) => setField(['med_hist','past_med_his',k], e.target.value)} className="w-full rounded border px-3 py-2" />
+              </div>
+            ))}
+            <div className="sm:col-span-2 font-medium">Preventative Measures</div>
+            {[
+              ['immunization','Immunizations'],
+              ['alternate_health_care','Alternative/Complementary Health Care'],
+              ['travel_exposure','Travel/Exposure History'],
+            ].map(([k,label]) => (
+              <div key={k}>
+                <label className="block text-sm font-medium mb-1">{label}</label>
+                <input value={getField(['med_hist','preventative_measure',k]) || ''} onChange={(e) => setField(['med_hist','preventative_measure',k], e.target.value)} className="w-full rounded border px-3 py-2" />
+              </div>
+            ))}
+            <div className="sm:col-span-2 font-medium">Family History (single entry)</div>
+            {[
+              ['health_status','Health Status'],
+              ['cause_of_death','Cause of Death'],
+              ['additonal_info','Additional Info'],
+            ].map(([k,label]) => (
+              <div key={k}>
+                <label className="block text-sm font-medium mb-1">{label}</label>
+                <input value={getField(['med_hist','family_hist',k]) || ''} onChange={(e) => setField(['med_hist','family_hist',k], e.target.value)} className="w-full rounded border px-3 py-2" />
+              </div>
+            ))}
+            <div>
+              <label className="block text-sm font-medium mb-1">age</label>
+              <input type="number" value={getField(['med_hist','family_hist','age']) ?? ''} onChange={(e) => setNumberField(['med_hist','family_hist','age'], e.target.value)} className="w-full rounded border px-3 py-2" />
+            </div>
+            <div className="sm:col-span-2 font-medium">Social History</div>
+            {[
+              ['personal_background','Personal Background'],
+              ['nutrion_and_exercise','Nutritional and Exercise History'],
+              ['community_and_employment','Community and Employment History'],
+              ['safety_measure','Safety Measures'],
+              ['life_stressors','Significant Life Stressors'],
+              ['substance_use','Substance Use'],
+            ].map(([k,label]) => (
+              <div key={k}>
+                <label className="block text-sm font-medium mb-1">{label}</label>
+                <input value={getField(['med_hist','social_hist',k]) || ''} onChange={(e) => setField(['med_hist','social_hist',k], e.target.value)} className="w-full rounded border px-3 py-2" />
+              </div>
+            ))}
+            <div className="sm:col-span-2 font-medium">Sexual History</div>
+            <div>
+              <label className="block text-sm font-medium mb-1">current_partners</label>
+              <input type="number" value={getField(['med_hist','social_hist','sex_history','current_partners']) ?? ''} onChange={(e) => setNumberField(['med_hist','social_hist','sex_history','current_partners'], e.target.value)} className="w-full rounded border px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">past_partners</label>
+              <input type="number" value={getField(['med_hist','social_hist','sex_history','past_partners']) ?? ''} onChange={(e) => setNumberField(['med_hist','social_hist','sex_history','past_partners'], e.target.value)} className="w-full rounded border px-3 py-2" />
+            </div>
+            {[
+              ['contraceptives','Contraceptives'],
+              ['hiv_risk_history','HIV Risk History'],
+              ['safety_in_relations','Safety in Relationships'],
+            ].map(([k,label]) => (
+              <div key={k}>
+                <label className="block text-sm font-medium mb-1">{label}</label>
+                <input value={getField(['med_hist','social_hist','sex_history',k]) || ''} onChange={(e) => setField(['med_hist','social_hist','sex_history',k], e.target.value)} className="w-full rounded border px-3 py-2" />
+              </div>
+            ))}
+            <div className="sm:col-span-2 font-medium">Review Of Symptoms</div>
+            {[
+              ['general','General'],
+              ['skin','Skin'],
+              ['heent','HEENT'],
+              ['neck','Neck'],
+              ['breast','Breast'],
+              ['respiratory','Respiratory'],
+              ['cardiovascular','Cardiovascular'],
+              ['gastrointestinal','Gastrointestinal'],
+              ['peripheral_vascular','Peripheral Vascular'],
+              ['musculoskeletal','Musculoskeletal'],
+              ['psychiatric','Psychiatric'],
+              ['neurologival','Neurological'],
+              ['endocine','Endocrine'],
+            ].map(([k,label]) => (
+              <div key={k}>
+                <label className="block text-sm font-medium mb-1">{label}</label>
+                <input value={getField(['med_hist','sympton_review',k]) || ''} onChange={(e) => setField(['med_hist','sympton_review',k], e.target.value)} className="w-full rounded border px-3 py-2" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded border p-4 bg-white">
+          <h3 className="font-semibold mb-3">Special Instructions</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[
+              ['provoking_question','Provoking Question'],
+              ['must_ask','Must Ask'],
+              ['oppurtunity','Opportunity'],
+              ['opening_statement','Opening Statement'],
+              ['feed_back','Feedback'],
+            ].map(([k,label]) => (
+              <div key={k}>
+                <label className="block text-sm font-medium mb-1">{label}</label>
+                <input value={getField(['special',k]) || ''} onChange={(e) => setField(['special',k], e.target.value)} className="w-full rounded border px-3 py-2" />
+              </div>
+            ))}
           </div>
         </div>
         <div className="flex gap-3">

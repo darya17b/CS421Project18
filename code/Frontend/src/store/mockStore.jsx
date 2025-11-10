@@ -20,7 +20,7 @@ export const MockStoreProvider = ({ children }) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
     } catch {
-      // ignore storage errors
+
     }
   }, [items]);
 

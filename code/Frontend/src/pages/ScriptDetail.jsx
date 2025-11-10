@@ -1,5 +1,5 @@
 import { useParams, Link } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
@@ -8,11 +8,18 @@ import { downloadScriptPdf, downloadResourcePdf } from "../utils/pdf";
 
 const ScriptDetail = () => {
   const { id } = useParams();
-  const { getById, toggleProposed } = useStore();
+  const store = useStore();
+  const { getById } = store;
   const toast = useToast();
   const item = getById(id);
   const [version, setVersion] = useState(item?.versions?.[0]?.version || "v1");
   const [artifactsOpen, setArtifactsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!item && typeof store.fetchById === 'function') {
+      store.fetchById(id);
+    }
+  }, [id, item, store]);
 
   if (!item) {
     return (
@@ -62,12 +69,35 @@ const ScriptDetail = () => {
       <div className="flex gap-2">
         <button
           className="rounded bg-indigo-600 px-4 py-2 text-white font-medium hover:bg-indigo-700"
-          onClick={() => {
-            toggleProposed(item.id);
-            toast.show("Edits proposed (stub)", { type: "success" });
+          onClick={async () => {
+            try {
+              // Use backend update path
+              const { api } = await import("../api/client");
+              const payload = current?.fields || {};
+              await api.updateDocument(item.id, payload);
+              toast.show("Updated", { type: "success" });
+            } catch {
+              toast.show("Update failed", { type: "error" });
+            }
           }}
         >
-          Propose Edits
+          Save Update
+        </button>
+        <button
+          className="rounded border px-4 py-2 hover:bg-gray-50"
+          onClick={async () => {
+            if (!confirm("Delete this document? This cannot be undone.")) return;
+            try {
+              const { api } = await import("../api/client");
+              await api.deleteDocument(item.id);
+              toast.show("Deleted", { type: "success" });
+              window.location.href = "/forms-search";
+            } catch {
+              toast.show("Delete failed", { type: "error" });
+            }
+          }}
+        >
+          Delete
         </button>
         <button className="rounded border px-4 py-2 hover:bg-gray-50" onClick={() => setArtifactsOpen(true)}>Open Resources</button>
       </div>

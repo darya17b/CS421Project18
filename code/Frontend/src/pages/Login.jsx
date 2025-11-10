@@ -20,7 +20,7 @@ const Login = () => {
 
     try {
       const { api } = await import("../api/client");
-      const res = await api.login(email, password); // expects { token, user }
+      const res = await api.login(email, password); //  { token, user }
       if (res?.token) localStorage.setItem("token", res.token);
       if (res?.user?.email || email) localStorage.setItem("user", res.user?.email || email);
       navigate("/dashboard");
