@@ -12,7 +12,7 @@ export function downloadScriptPdf(item, versionObj) {
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  const meta = `${item.id} • ${item.patient} • ${item.department} • ${item.createdAt}`;
+  const meta = `${item.id} | ${item.patient} | ${item.department} | ${item.createdAt}`;
   wrapLines(doc, meta, margin, y, 515).forEach((line) => {
     doc.text(line, margin, y);
     y += 14;
@@ -47,7 +47,7 @@ export function downloadResourcePdf(item, resourceName) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   const rows = [
-    ["Script", `${item.id} — ${item.title}`],
+    ["Script", `${item.id} - ${item.title}`],
     ["Resource", resourceName],
     ["Note", "This is a placeholder export (no backend)."],
   ];
@@ -78,4 +78,3 @@ function wrapLines(doc, text, x, y, width) {
   if (!text) return [];
   return doc.splitTextToSize(String(text), width);
 }
-

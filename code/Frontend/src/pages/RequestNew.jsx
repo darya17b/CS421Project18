@@ -161,12 +161,9 @@ const RequestNew = () => {
     const script = buildScriptFromForm(form);
 
     try {
-      const { api } = await import("../api/client");
-      await api.createDocument(script);
+      await addItem(script);
       toast.show("Request submitted", { type: "success" });
       navigate("/forms-search");
-      // list reloads from backend on arrival
-      setTimeout(() => window.location.reload(), 0);
     } catch (err) {
       toast.show("Creation failed", { type: "error" });
     }

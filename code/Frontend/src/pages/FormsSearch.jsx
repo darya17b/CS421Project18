@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import FormsListRow from "./FormsListRow";
 import Modal from "../components/Modal";
 import { useStore } from "../store";
@@ -13,7 +14,7 @@ const FormsSearch = () => {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-  const [q, setQ] = useState({ title: '', author: '', diagnosis: '', learner_level: '', patient_name: '', search: '' });
+  const [q, setQ] = useState({ title: "", author: "", diagnosis: "", learner_level: "", patient_name: "", search: "" });
 
   const onArtifacts = (item) => {
     setCurrent(item);
@@ -23,7 +24,6 @@ const FormsSearch = () => {
   const onPropose = async (item) => {
     try {
       const { api } = await import("../api/client");
-      // Fetch latest doc and send it back as an update 
       const doc = await api.getDocument(item.id);
       const payload = doc || {};
       await api.updateDocument(item.id, payload);
@@ -39,7 +39,6 @@ const FormsSearch = () => {
       const { api } = await import("../api/client");
       await api.deleteDocument(item.id);
       toast.show("Deleted", { type: "success" });
-      // Refresh results or base list
       if (results) {
         const fresh = await api.searchDocuments(q);
         setResults(Array.isArray(fresh) ? fresh : []);
@@ -61,7 +60,7 @@ const FormsSearch = () => {
       const { title, ...serverParams } = q;
       const serverRes = await api.searchDocuments(serverParams);
       const arr = Array.isArray(serverRes) ? serverRes : [];
-      const needle = (s) => String(s || '').toLowerCase();
+      const needle = (s) => String(s || "").toLowerCase();
       const filtered = title
         ? arr.filter((doc) => {
             const a = doc?.admin || {};
@@ -78,7 +77,7 @@ const FormsSearch = () => {
   };
 
   const clearSearch = async () => {
-    setQ({ title: '', author: '', diagnosis: '', learner_level: '', patient_name: '', search: '' });
+    setQ({ title: "", author: "", diagnosis: "", learner_level: "", patient_name: "", search: "" });
     try {
       const { api } = await import("../api/client");
       setLoading(true);
@@ -94,30 +93,49 @@ const FormsSearch = () => {
   const visible = (results || items).filter((it) => !it.draftOf);
 
   return (
-    <section className="w-full p-4 text-center">
-      <div className="flex items-center justify-center mb-3">
-        <h2 className="text-2xl font-semibold">Forms Search</h2>
+    <section className="w-full space-y-5">
+      <div className="flex items-center justify-between text-left">
+        <h1 className="text-2xl font-semibold text-[#b4152b]">Script Library</h1>
+        <Link to="/" className="text-sm text-[#981e32] font-semibold hover:underline">Home</Link>
       </div>
 
-      <form onSubmit={runSearch} className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-left">
-        <input placeholder="Title" value={q.title} onChange={(e) => setQ({ ...q, title: e.target.value })} className="rounded border px-3 py-2" />
-        <input placeholder="Author" value={q.author} onChange={(e) => setQ({ ...q, author: e.target.value })} className="rounded border px-3 py-2" />
-        <input placeholder="Diagnosis" value={q.diagnosis} onChange={(e) => setQ({ ...q, diagnosis: e.target.value })} className="rounded border px-3 py-2" />
-        <input placeholder="Learner Level" value={q.learner_level} onChange={(e) => setQ({ ...q, learner_level: e.target.value })} className="rounded border px-3 py-2" />
-        <input placeholder="Patient Name" value={q.patient_name} onChange={(e) => setQ({ ...q, patient_name: e.target.value })} className="rounded border px-3 py-2" />
-        <input placeholder="Search (multi-field)" value={q.search} onChange={(e) => setQ({ ...q, search: e.target.value })} className="rounded border px-3 py-2" />
-        <div className="col-span-full flex gap-2">
-          <button type="submit" className="rounded bg-blue-600 text-white px-3 py-2" disabled={loading}>{loading ? 'Searching…' : 'Search'}</button>
-          <button type="button" onClick={clearSearch} className="rounded border px-3 py-2 hover:bg-gray-50">Reset</button>
+      <form onSubmit={runSearch} className="search-panel p-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-left">
+        {[
+          ["title", "Title"],
+          ["author", "Author"],
+          ["diagnosis", "Diagnosis"],
+          ["learner_level", "Learner Level"],
+          ["patient_name", "Patient Name"],
+          ["search", "Multi-field Search"],
+        ].map(([key, label]) => (
+          <label key={key} className="text-xs text-gray-600 font-semibold flex flex-col gap-2 uppercase tracking-[0.15em]">
+            {label}
+            <input
+              value={q[key] || ""}
+              onChange={(e) => setQ({ ...q, [key]: e.target.value })}
+              className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1b76d2]"
+              placeholder={`Filter by ${label.toLowerCase()}`}
+            />
+          </label>
+        ))}
+        <div className="col-span-full flex flex-wrap gap-3 justify-end pt-2">
+          <button type="submit" className="rounded-full bg-[#981e32] text-white px-5 py-2 font-semibold" disabled={loading}>
+            {loading ? "Searching..." : "Run Search"}
+          </button>
+          <button type="button" onClick={clearSearch} className="rounded-full border border-gray-400 px-5 py-2 font-semibold text-gray-700 hover:border-[#981e32]">
+            Clear Filters
+          </button>
         </div>
       </form>
 
-      {err ? <div className="mb-3 text-sm text-red-600">{err}</div> : null}
+      {err ? <div className="text-sm text-red-600 font-semibold">{err}</div> : null}
 
       {visible.length === 0 ? (
-        <div className="text-gray-600 border rounded-md p-6 text-center">No scripts found. Try creating one via Request New.</div>
+        <div className="text-gray-600 border border-dashed border-gray-400 rounded-2xl p-8 text-center bg-white">
+          No scripts found. Try adjusting filters or create a new script request.
+        </div>
       ) : (
-        <div className="space-y-3 w-full mx-auto">
+        <div className="space-y-4">
           {visible.slice(0, 10).map((it) => (
             <FormsListRow key={it.id} item={it} onArtifacts={onArtifacts} onPropose={onPropose} onDelete={onDelete} />
           ))}
@@ -130,7 +148,7 @@ const FormsSearch = () => {
             {(current.artifacts && current.artifacts.length ? current.artifacts : ["Placeholder.pdf", "Placeholder.png"]).map((a, idx) => (
               <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100">📄</span>
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">PDF</span>
                   <span>{a}</span>
                 </div>
                 <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Create PDF" onClick={() => downloadResourcePdf(current, a)}>

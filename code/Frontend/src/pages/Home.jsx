@@ -1,20 +1,32 @@
 import { Link } from "react-router-dom";
 
-const Home = () => {
+export const LandingSections = () => {
   return (
-    <section className="w-full p-4 text-center">
-      <h1 className="text-3xl font-bold mb-3">Welcome</h1>
-      <p className="text-gray-600 mb-6">Click on buttons below user</p>
-      <div className="flex flex-wrap gap-3 justify-center">
-        <Link to="/forms-search">
-          <button className="rounded-md bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700">Forms Search</button>
-        </Link>
-        <Link to="/request-new">
-          <button className="rounded-md bg-emerald-600 px-4 py-2 text-white font-medium hover:bg-emerald-700">Request New</button>
-        </Link>
+    <section className="w-full">
+      <div className="flex flex-col gap-6">
+        <div className="landing-card landing-card--accent">
+          <h2>Script Library</h2>
+          <p>Search for and access Standardized Patient scripts.</p>
+          <p>Find actors that have previously played Standardized Patients.</p>
+          <p>Download documentation like full scripts, door notes, and medication cards.</p>
+          <Link to="/forms-search" className="landing-action">
+            Enter Script Library &rsaquo;
+          </Link>
+        </div>
+
+        <div className="landing-card">
+          <h2>Script Request</h2>
+          <p>Fill out form for creation of new script.</p>
+          <p>Will be reviewed by Virtual Clinical Center administration.</p>
+          <Link to="/request-new" className="landing-action text-[#981e32]">
+            Submit Script Request &rsaquo;
+          </Link>
+        </div>
       </div>
     </section>
   );
 };
+
+const Home = () => <LandingSections />;
 
 export default Home;

@@ -16,7 +16,7 @@ const ScriptDetail = () => {
   const [artifactsOpen, setArtifactsOpen] = useState(false);
 
   useEffect(() => {
-    if (!item && typeof store.fetchById === 'function') {
+    if (!item && typeof store.fetchById === "function") {
       store.fetchById(id);
     }
   }, [id, item, store]);
@@ -24,12 +24,15 @@ const ScriptDetail = () => {
   if (!item) {
     return (
       <section className="w-full p-4 text-center">
-        <div className="text-gray-600">Not found. <Link className="text-blue-600 hover:underline" to="/forms-search">Back to search</Link></div>
+        <div className="text-gray-600">
+          Not found. <Link className="text-blue-600 hover:underline" to="/forms-search">Back to search</Link>
+        </div>
       </section>
     );
   }
 
   const current = item.versions?.find((v) => v.version === version) || item.versions?.[0];
+  const meta = [item.id, item.patient, item.department, item.createdAt].filter(Boolean).join(" | ");
 
   return (
     <section className="w-full p-4 space-y-4 text-center">
@@ -37,9 +40,9 @@ const ScriptDetail = () => {
         <h2 className="text-2xl font-semibold">{item.title}</h2>
         <Link to="/forms-search" className="text-blue-600 hover:underline">Back</Link>
       </div>
-      <div className="text-sm text-gray-600">{item.id} • {item.patient} • {item.department} • {item.createdAt}</div>
+      <div className="text-sm text-gray-600">{meta}</div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap justify-center">
         <label className="text-sm text-gray-700">Version</label>
         <select className="rounded border px-2 py-1" value={version} onChange={(e) => setVersion(e.target.value)}>
           {(item.versions || []).map((v) => (
@@ -66,12 +69,11 @@ const ScriptDetail = () => {
         <pre className="text-sm bg-gray-50 p-2 rounded overflow-auto">{JSON.stringify(current?.fields || {}, null, 2)}</pre>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap justify-center">
         <button
           className="rounded bg-indigo-600 px-4 py-2 text-white font-medium hover:bg-indigo-700"
           onClick={async () => {
             try {
-              // Use backend update path
               const { api } = await import("../api/client");
               const payload = current?.fields || {};
               await api.updateDocument(item.id, payload);
@@ -107,7 +109,7 @@ const ScriptDetail = () => {
           {(item.artifacts && item.artifacts.length ? item.artifacts : ["Placeholder.pdf"]).map((a, idx) => (
             <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
               <div className="flex items-center gap-2">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100">📄</span>
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">PDF</span>
                 <span>{a}</span>
               </div>
               <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Create PDF" onClick={() => downloadResourcePdf(item, a)}>

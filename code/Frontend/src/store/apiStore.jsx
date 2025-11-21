@@ -50,7 +50,24 @@ export const ApiStoreProvider = ({ children }) => {
 
   const apiValue = useMemo(() => ({
     items,
-    addItem: () => { console.warn('addItem disabled: backend create endpoint required'); },
+    addItem: async (payload) => {
+      try {
+        const created = await api.createDocument(payload);
+        const mapped = mapDocToItem(created);
+        if (mapped) {
+          setItems((prev) => [mapped, ...prev]);
+        } else {
+          // fallback: refetch all docs if mapping failed
+          const docs = await api.listDocuments();
+          const remapped = (Array.isArray(docs) ? docs : []).map(mapDocToItem).filter(Boolean);
+          setItems(remapped);
+        }
+        return mapped;
+      } catch (err) {
+        console.warn("Failed to create document", err);
+        throw err;
+      }
+    },
     getById: (id) => items.find((it) => it.id === id),
     // helper in case call from pages later
     fetchById: async (id) => {
