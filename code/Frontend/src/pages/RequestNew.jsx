@@ -163,7 +163,7 @@ const RequestNew = () => {
     try {
       await addItem(script);
       toast.show("Request submitted", { type: "success" });
-      navigate("/forms-search");
+      navigate("/dashboard");
     } catch (err) {
       toast.show("Creation failed", { type: "error" });
     }
@@ -473,7 +473,7 @@ const RequestNew = () => {
         </div>
         <div className="flex gap-3">
           <button type="submit" className="rounded bg-emerald-600 text-white px-4 py-2 font-medium hover:bg-emerald-700">Submit</button>
-          <button type="button" className="rounded border px-4 py-2 hover:bg-gray-50" onClick={() => navigate("/forms-search")}>Cancel</button>
+          <button type="button" className="rounded border px-4 py-2 hover:bg-gray-50" onClick={() => navigate("/dashboard")}>Cancel</button>
           <button
             type="button"
             className="rounded border px-4 py-2 hover:bg-gray-50"

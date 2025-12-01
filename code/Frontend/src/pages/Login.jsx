@@ -7,12 +7,18 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const signInAdmin = () => {
+    localStorage.setItem("user", "admin");
+    localStorage.setItem("role", "admin");
+    navigate("/dashboard");
+  };
 
   // all login info works here, this will need to be changed
   const handleLogin = async (e) => {
     e.preventDefault();
 
     if (useMock) {
+      localStorage.removeItem("role");
       localStorage.setItem("user", email || "guest");
       navigate("/dashboard");
       return;
@@ -23,6 +29,7 @@ const Login = () => {
       const res = await api.login(email, password); //  { token, user }
       if (res?.token) localStorage.setItem("token", res.token);
       if (res?.user?.email || email) localStorage.setItem("user", res.user?.email || email);
+      localStorage.removeItem("role");
       navigate("/dashboard");
     } catch (err) {
       alert("Login failed");
@@ -30,6 +37,7 @@ const Login = () => {
   };
 
   const skipLogin = () => {
+    localStorage.removeItem("role");
     localStorage.setItem("user", "guest");
     navigate("/dashboard");
   };
@@ -58,6 +66,9 @@ const Login = () => {
           </button>
           <button type="button" onClick={skipLogin} className="inline-flex items-center justify-center rounded-md border border-gray-300 px-4 py-2 font-medium hover:bg-gray-50">
             Skip Login
+          </button>
+          <button type="button" onClick={signInAdmin} className="inline-flex items-center justify-center rounded-md border border-[#981e32] px-4 py-2 font-medium text-[#981e32] hover:bg-[#981e32] hover:text-white">
+            Sign in as Admin
           </button>
         </div>
       </form>

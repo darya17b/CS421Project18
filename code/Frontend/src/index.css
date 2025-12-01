@@ -50,8 +50,13 @@ button {
 }
 
 .landing-card--accent {
-  border: 2px solid #1b76d2;
-  box-shadow: 0 20px 32px rgba(27, 118, 210, 0.2);
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+.landing-card--accent:hover,
+.landing-card--accent:focus-within {
+  border: 1px solid rgba(27, 118, 210, 0.55);
+  box-shadow: 0 14px 26px rgba(27, 118, 210, 0.14), 0 6px 14px rgba(0, 0, 0, 0.04);
 }
 
 .landing-card h2 {

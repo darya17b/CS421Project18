@@ -13,6 +13,7 @@ const Layout = () => {
 
   const handleLogout = () => {
     localStorage.removeItem("user");
+    localStorage.removeItem("role");
     navigate("/login");
   };
 
