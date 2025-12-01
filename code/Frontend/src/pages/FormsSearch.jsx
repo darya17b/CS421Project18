@@ -15,6 +15,7 @@ const FormsSearch = () => {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [q, setQ] = useState({ title: "", author: "", diagnosis: "", learner_level: "", patient_name: "", search: "" });
+  const [showFilters, setShowFilters] = useState(false);
 
   const onArtifacts = (item) => {
     setCurrent(item);
@@ -96,37 +97,52 @@ const FormsSearch = () => {
     <section className="w-full space-y-5">
       <div className="flex items-center justify-between text-left">
         <h1 className="text-2xl font-semibold text-[#b4152b]">Script Library</h1>
-        <Link to="/" className="text-sm text-[#981e32] font-semibold hover:underline">Home</Link>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-[#981e32]"
+          >
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current">
+              <circle cx="9" cy="9" r="6" strokeWidth="2" />
+              <path d="M13.5 13.5 18 18" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            {showFilters ? "Hide search" : "Search library"}
+          </button>
+          <Link to="/" className="text-sm text-[#981e32] font-semibold hover:underline">Home</Link>
+        </div>
       </div>
 
-      <form onSubmit={runSearch} className="search-panel p-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-left">
-        {[
-          ["title", "Title"],
-          ["author", "Author"],
-          ["diagnosis", "Diagnosis"],
-          ["learner_level", "Learner Level"],
-          ["patient_name", "Patient Name"],
-          ["search", "Multi-field Search"],
-        ].map(([key, label]) => (
-          <label key={key} className="text-xs text-gray-600 font-semibold flex flex-col gap-2 uppercase tracking-[0.15em]">
-            {label}
-            <input
-              value={q[key] || ""}
-              onChange={(e) => setQ({ ...q, [key]: e.target.value })}
-              className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1b76d2]"
-              placeholder={`Filter by ${label.toLowerCase()}`}
-            />
-          </label>
-        ))}
-        <div className="col-span-full flex flex-wrap gap-3 justify-end pt-2">
-          <button type="submit" className="rounded-full bg-[#981e32] text-white px-5 py-2 font-semibold" disabled={loading}>
-            {loading ? "Searching..." : "Run Search"}
-          </button>
-          <button type="button" onClick={clearSearch} className="rounded-full border border-gray-400 px-5 py-2 font-semibold text-gray-700 hover:border-[#981e32]">
-            Clear Filters
-          </button>
-        </div>
-      </form>
+      {showFilters ? (
+        <form onSubmit={runSearch} className="search-panel p-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-left">
+          {[
+            ["title", "Title"],
+            ["author", "Author"],
+            ["diagnosis", "Diagnosis"],
+            ["learner_level", "Learner Level"],
+            ["patient_name", "Patient Name"],
+            ["search", "Multi-field Search"],
+          ].map(([key, label]) => (
+            <label key={key} className="text-xs text-gray-600 font-semibold flex flex-col gap-2 uppercase tracking-[0.15em]">
+              {label}
+              <input
+                value={q[key] || ""}
+                onChange={(e) => setQ({ ...q, [key]: e.target.value })}
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1b76d2]"
+                placeholder={`Filter by ${label.toLowerCase()}`}
+              />
+            </label>
+          ))}
+          <div className="col-span-full flex flex-wrap gap-3 justify-end pt-2">
+            <button type="submit" className="rounded-full bg-[#981e32] text-white px-5 py-2 font-semibold" disabled={loading}>
+              {loading ? "Searching..." : "Run Search"}
+            </button>
+            <button type="button" onClick={clearSearch} className="rounded-full border border-gray-400 px-5 py-2 font-semibold text-gray-700 hover:border-[#981e32]">
+              Clear Filters
+            </button>
+          </div>
+        </form>
+      ) : null}
 
       {err ? <div className="text-sm text-red-600 font-semibold">{err}</div> : null}
 
@@ -135,7 +151,7 @@ const FormsSearch = () => {
           No scripts found. Try adjusting filters or create a new script request.
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2">
           {visible.slice(0, 10).map((it) => (
             <FormsListRow key={it.id} item={it} onArtifacts={onArtifacts} onPropose={onPropose} onDelete={onDelete} />
           ))}
