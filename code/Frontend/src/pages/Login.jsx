@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+const useMock = import.meta.env.VITE_USE_MOCK === "true";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -8,10 +9,24 @@ const Login = () => {
 
 
   // all login info works here, this will need to be changed
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    localStorage.setItem("user", email || "guest");
-    navigate("/dashboard");
+
+    if (useMock) {
+      localStorage.setItem("user", email || "guest");
+      navigate("/dashboard");
+      return;
+    }
+
+    try {
+      const { api } = await import("../api/client");
+      const res = await api.login(email, password); // expects { token, user }
+      if (res?.token) localStorage.setItem("token", res.token);
+      if (res?.user?.email || email) localStorage.setItem("user", res.user?.email || email);
+      navigate("/dashboard");
+    } catch (err) {
+      alert("Login failed");
+    }
   };
 
   const skipLogin = () => {

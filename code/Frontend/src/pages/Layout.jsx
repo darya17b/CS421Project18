@@ -1,11 +1,11 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
-import { useMockStore } from "../store/mockStore";
+import { useStore } from "../store";
 
 const Layout = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const store = useMockStore();
+  const store = useStore();
 
   const handleLogout = () => {
     localStorage.removeItem("user");

@@ -8,13 +8,13 @@ import FormsSearch from "./pages/FormsSearch";
 import Home from "./pages/Home";
 import RequestNew from "./pages/RequestNew";
 import ScriptDetail from "./pages/ScriptDetail";
-import { MockStoreProvider } from "./store/mockStore";
+import { StoreProvider } from "./store";
 import { ToastProvider } from "./components/Toast";
 import RequireAuth from "./components/RequireAuth";
 
 const App = () => {
   return (
-    <MockStoreProvider>
+    <StoreProvider>
       <ToastProvider>
         <BrowserRouter>
           <Routes>
@@ -59,7 +59,7 @@ const App = () => {
           </Routes>
         </BrowserRouter>
       </ToastProvider>
-    </MockStoreProvider>
+    </StoreProvider>
   );
 };
 
