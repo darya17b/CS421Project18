@@ -11,3 +11,4 @@ type PresentIllnessHistory struct {
 	AggravatingFactors  string `json:"aggravating_factors"`
 	Pain                uint8  `json:"pain"`
 }
+
