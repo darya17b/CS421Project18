@@ -1,12 +1,12 @@
 package api
 
 import (
+	"VCCwebsite/internal/model"
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
-
-	"VCCwebsite/internal/model"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -14,19 +14,42 @@ import (
 )
 
 // DocumentHandler handles all document-related REST API endpoints
+
 func DocumentHandler(client *mongo.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		// If client is nil, return error
 		if client == nil {
 			respondWithError(w, http.StatusServiceUnavailable, "Database connection not available")
 			return
 		}
 
-		// Get the documents collection
 		collection := client.Database("vccwebsite").Collection("scripts")
 
+		// Parse the path to check for sub-resources
+		path := r.URL.Path
+
+		// Check for /api/document/medications
+		if strings.HasSuffix(path, "/medications") {
+			if r.Method == http.MethodGet {
+				HandleGetMedications(w, r, collection)
+				return
+			}
+			respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		// Check for /api/document/vitals
+		if strings.HasSuffix(path, "/vitals") {
+			if r.Method == http.MethodGet {
+				HandleGetVitals(w, r, collection)
+				return
+			}
+			respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		// Original routing for base /api/document
 		switch r.Method {
 		case http.MethodGet:
 			handleGetDocuments(w, r, collection)
@@ -40,9 +63,7 @@ func DocumentHandler(client *mongo.Client) http.HandlerFunc {
 			respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 	}
-}
-
-// DocumentWithID wraps StandardizedScript with MongoDB ID
+} // DocumentWithID wraps StandardizedScript with MongoDB ID
 type DocumentWithID struct {
 	ID string `json:"id"`
 	scripts.StandardizedScript
