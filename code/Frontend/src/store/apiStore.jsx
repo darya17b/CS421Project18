@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 
 import { api } from '../api/client';
 import { normalizeScript } from '../utils/normalize';
@@ -64,6 +64,7 @@ function mapRequestToItem(req) {
 export const ApiStoreProvider = ({ children }) => {
   const [items, setItems] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [requestsLoaded, setRequestsLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,15 +85,51 @@ export const ApiStoreProvider = ({ children }) => {
         }
       } catch (err) {
         console.warn('Failed to load script requests', err);
+      } finally {
+        if (!cancelled) setRequestsLoaded(true);
       }
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  const refreshRequests = useCallback(async () => {
+    if (!api.listScriptRequests) return [];
+    const reqs = await api.listScriptRequests();
+    const mapped = (Array.isArray(reqs) ? reqs : reqs ? [reqs] : []).map(mapRequestToItem).filter(Boolean);
+    setRequests(mapped);
+    return mapped;
+  }, []);
+
+  const createRequest = useCallback(async (payload) => {
+    if (!api.createScriptRequest) return null;
+    const created = await api.createScriptRequest(payload);
+    const mapped = mapRequestToItem(created);
+    if (mapped) setRequests((prev) => [mapped, ...prev]);
+    return mapped;
+  }, []);
+
+  const updateRequest = useCallback(async (id, payload) => {
+    if (!api.updateScriptRequest) return null;
+    const updated = await api.updateScriptRequest(id, payload);
+    const mapped = mapRequestToItem(updated);
+    if (mapped) {
+      setRequests((prev) => prev.map((it) => (it.id === mapped.id ? mapped : it)));
+    }
+    return mapped;
+  }, []);
+
+  const deleteRequest = useCallback(async (id) => {
+    if (!api.deleteScriptRequest) return false;
+    await api.deleteScriptRequest(id);
+    setRequests((prev) => prev.filter((it) => it.id !== id));
+    return true;
   }, []);
 
   const apiValue = useMemo(() => ({
     items,
     requests,
     getRequestById: (id) => requests.find((r) => r.id === id),
+    requestsLoaded,
     refreshDocuments: async () => {
       const docs = await api.listDocuments();
       const mapped = (Array.isArray(docs) ? docs : []).map(mapDocToItem).filter(Boolean);
@@ -133,35 +170,10 @@ export const ApiStoreProvider = ({ children }) => {
       }
     },
     //script request helpers
-    refreshRequests: async () => {
-      if (!api.listScriptRequests) return [];
-      const reqs = await api.listScriptRequests();
-      const mapped = (Array.isArray(reqs) ? reqs : reqs ? [reqs] : []).map(mapRequestToItem).filter(Boolean);
-      setRequests(mapped);
-      return mapped;
-    },
-    createRequest: async (payload) => {
-      if (!api.createScriptRequest) return null;
-      const created = await api.createScriptRequest(payload);
-      const mapped = mapRequestToItem(created);
-      if (mapped) setRequests((prev) => [mapped, ...prev]);
-      return mapped;
-    },
-    updateRequest: async (id, payload) => {
-      if (!api.updateScriptRequest) return null;
-      const updated = await api.updateScriptRequest(id, payload);
-      const mapped = mapRequestToItem(updated);
-      if (mapped) {
-        setRequests((prev) => prev.map((it) => (it.id === mapped.id ? mapped : it)));
-      }
-      return mapped;
-    },
-    deleteRequest: async (id) => {
-      if (!api.deleteScriptRequest) return false;
-      await api.deleteScriptRequest(id);
-      setRequests((prev) => prev.filter((it) => it.id !== id));
-      return true;
-    },
+    refreshRequests,
+    createRequest,
+    updateRequest,
+    deleteRequest,
     
     toggleProposed: () => { console.warn('toggleProposed disabled: backend propose endpoint required'); },
     clearDrafts: () => {
@@ -180,7 +192,7 @@ export const ApiStoreProvider = ({ children }) => {
       setItems([]);
       setRequests([]);
     },
-  }), [items, requests]);
+  }), [items, requests, refreshRequests, createRequest, updateRequest, deleteRequest, requestsLoaded]);
 
   return (
     <ApiStoreContext.Provider value={apiValue}>{children}</ApiStoreContext.Provider>

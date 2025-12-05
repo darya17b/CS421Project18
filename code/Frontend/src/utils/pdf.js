@@ -177,7 +177,7 @@ function buildScriptPdfDoc(item, versionObj) {
   // Compose pages
   header();
 
-  section("Part 1 — Administrative Details");
+  section("Administrative Details");
   subhead("Patient's Reason for Visit", get(fields, ["admin", "reson_for_visit"], ""));
   subhead("Chief Complaint", get(fields, ["admin", "chief_concern"], ""));
   subhead("Diagnosis", get(fields, ["admin", "diagnosis"], ""));
@@ -197,7 +197,7 @@ function buildScriptPdfDoc(item, versionObj) {
   paragraph(get(fields, ["admin", "summory_of_story"], ""));
 
   ensureSpace(60);
-  section("Part 4 — Content for Standardized Patients");
+  section("Content for Standardized Patients");
   subhead("Opening Statement", get(fields, ["sp", "opening_statement"], ""));
   characterAttributes();
 

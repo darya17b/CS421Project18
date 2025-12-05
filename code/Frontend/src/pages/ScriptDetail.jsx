@@ -405,14 +405,14 @@ const labelMap = (() => {
 const ScriptDetail = () => {
   const { id } = useParams();
   const store = useStore();
-  const { getById, getRequestById } = store;
+  const { getById, getRequestById, requestsLoaded } = store;
   const toast = useToast();
   const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
   const useMock = import.meta.env.VITE_USE_MOCK === "true";
   const item = getById ? getById(id) : null;
   const requestFallback = !item && getRequestById ? getRequestById(id) : null;
   const isRequestView = Boolean(!item && requestFallback);
-  const mappedRequest = (() => {
+  const mappedRequest = useMemo(() => {
     if (!requestFallback) return null;
     const req = requestFallback.raw || requestFallback;
     const fields = requestToScript(req);
@@ -425,7 +425,7 @@ const ScriptDetail = () => {
       summary: requestFallback.summary || req?.summary_patient_story || "",
       versions: [{ version: "request", notes: requestFallback.note || "From request", fields }],
     };
-  })();
+  }, [requestFallback]);
   const activeItem = item || mappedRequest;
   const [versions, setVersions] = useState(activeItem?.versions || []);
   const [version, setVersion] = useState(activeItem?.versions?.[0]?.version || "current");
@@ -436,19 +436,25 @@ const ScriptDetail = () => {
   const [highlightPath, setHighlightPath] = useState(null);
 
   useEffect(() => {
-    if (!item && typeof store.fetchById === "function" && !requestFallback) {
+    if (!item && requestsLoaded && typeof store.fetchById === "function" && !requestFallback) {
       store.fetchById(id);
     }
-  }, [id, item, store, requestFallback]);
+  }, [id, item, store, requestFallback, requestsLoaded]);
 
   useEffect(() => {
     if (activeItem?.versions?.length) {
       setVersions(activeItem.versions);
-      if (!activeItem.versions.some((v) => v.version === version)) {
-        setVersion(activeItem.versions[0].version);
-      }
+    } else {
+      setVersions([]);
     }
-  }, [activeItem, version]);
+  }, [activeItem]);
+
+  useEffect(() => {
+    if (!versions.length) return;
+    if (!versions.some((v) => v.version === version)) {
+      setVersion(versions[0].version);
+    }
+  }, [versions, version]);
 
   useEffect(() => {
     const currentVersion = versions.find((v) => v.version === version) || versions[0];
