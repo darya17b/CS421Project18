@@ -25,9 +25,39 @@ func DocumentHandler(client *mongo.Client) http.HandlerFunc {
 		}
 
 		collection := client.Database("vccwebsite").Collection("scripts")
+		versionsCollection := client.Database("vccwebsite").Collection("scripts_versions")
 
-		// Parse the path to check for sub-resources
 		path := r.URL.Path
+
+		// Check for /api/document/versions (get all versions of a document)
+		if strings.HasSuffix(path, "/versions") {
+			if r.Method == http.MethodGet {
+				HandleGetVersionHistory(w, r, versionsCollection)
+				return
+			}
+			respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		// Check for /api/document/version (get specific version)
+		if strings.HasSuffix(path, "/version") {
+			if r.Method == http.MethodGet {
+				HandleGetSpecificVersion(w, r, versionsCollection)
+				return
+			}
+			respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		// Check for /api/document/restore (restore to specific version)
+		if strings.HasSuffix(path, "/restore") {
+			if r.Method == http.MethodPost {
+				HandleRestoreVersion(w, r, collection, versionsCollection)
+				return
+			}
+			respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
 
 		// Check for /api/document/medications
 		if strings.HasSuffix(path, "/medications") {
@@ -56,7 +86,8 @@ func DocumentHandler(client *mongo.Client) http.HandlerFunc {
 		case http.MethodPost:
 			handleCreateDocument(w, r, collection)
 		case http.MethodPut:
-			handleUpdateDocument(w, r, collection)
+			// Use the new versioning update handler
+			handleUpdateDocumentWithVersioning(w, r, collection, versionsCollection)
 		case http.MethodDelete:
 			handleDeleteDocument(w, r, collection)
 		default:
