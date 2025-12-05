@@ -433,6 +433,41 @@ const ScriptDetail = () => {
     );
   };
 
+  const renderDisplayInput = (field) => {
+    const key = pathKey(field.path);
+    const value = getDeep(form, field.path) ?? "";
+    const ringClass = highlightPath === key ? "ring-2 ring-[#1b76d2]" : "";
+    const shared = {
+      className: `w-full rounded-full border border-gray-300 bg-white px-4 py-2 text-sm shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] ${ringClass}`,
+      ref: (el) => { if (el) fieldRefs.current[key] = el; },
+      readOnly: true,
+      disabled: true,
+    };
+
+    if (field.type === "textarea") {
+      return <textarea {...shared} className={`w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] ${ringClass}`} rows={field.rows || 3} value={value} readOnly disabled />;
+    }
+
+    if (field.type === "select") {
+      return (
+        <select {...shared} className={`${shared.className} pr-8`} value={value}>
+          {(field.options || []).map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      );
+    }
+
+    const inputType = field.type === "number" ? "number" : "text";
+    return (
+      <input
+        {...shared}
+        type={inputType}
+        value={value}
+      />
+    );
+  };
+
   const buildJsonLines = (val) => {
     const lines = [];
     const walk = (node, indent, path, isLast) => {
@@ -567,25 +602,40 @@ const ScriptDetail = () => {
   }
 
   return (
-    <section className="w-full p-4 space-y-4 text-center">
+    <section className="w-full px-4 py-6 space-y-4 text-center">
       {header}
       <div className="text-sm text-gray-600">{meta}</div>
-      <div className="rounded border p-3 bg-white w-full mx-auto text-left">
-        <div className="font-medium mb-2">Summary</div>
-        <div className="text-gray-700">{item.summary || "No summary provided."}</div>
-      </div>
-      <div className="rounded border p-3 bg-white w-full mx-auto text-left">
-        <div className="font-medium mb-2">Version Notes</div>
-        <div className="text-gray-700">{current?.notes || "N/A"}</div>
-      </div>
-      <div className="rounded border p-3 bg-white">
-        <div className="font-medium mb-2">Fields</div>
-        <div className="text-xs font-mono bg-gray-50 rounded p-[1px] space-y-[1px] text-left">
-          {jsonLines.map((line, idx) => (
-            <div key={idx} className="whitespace-pre px-[1px] py-[1px] text-gray-800">
-              {line.text}
-            </div>
-          ))}
+      <div className="max-w-5xl mx-auto space-y-4 text-left">
+        <div className="rounded-2xl border border-gray-300 bg-white shadow-sm p-8 space-y-6">
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900">Script Request</h3>
+            <p className="text-sm text-gray-600">Review the standardized patient details.</p>
+          </div>
+
+          <div className="space-y-6">
+            {fieldSections.map((group) => (
+              <div key={group.title} className="space-y-3">
+                <div className="text-sm font-semibold text-gray-800">{group.title}</div>
+                <div className={group.title === "Review of Symptoms" ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" : "space-y-4"}>
+                  {group.fields.map((f) => (
+                    <label key={pathKey(f.path)} className="block space-y-1">
+                      <span className="text-sm text-gray-700">{f.label}</span>
+                      {renderDisplayInput(f)}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded border p-3 bg-white">
+          <div className="font-medium mb-2">Summary</div>
+          <div className="text-gray-700">{item.summary || "No summary provided."}</div>
+        </div>
+        <div className="rounded border p-3 bg-white">
+          <div className="font-medium mb-2">Version Notes</div>
+          <div className="text-gray-700">{current?.notes || "N/A"}</div>
         </div>
       </div>
 
