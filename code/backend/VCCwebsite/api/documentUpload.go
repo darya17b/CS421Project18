@@ -1,12 +1,12 @@
 package api
 
 import (
+	"VCCwebsite/internal/model"
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
-
-	"VCCwebsite/internal/model"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -14,35 +14,87 @@ import (
 )
 
 // DocumentHandler handles all document-related REST API endpoints
+
 func DocumentHandler(client *mongo.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		// If client is nil, return error
 		if client == nil {
 			respondWithError(w, http.StatusServiceUnavailable, "Database connection not available")
 			return
 		}
 
-		// Get the documents collection
 		collection := client.Database("vccwebsite").Collection("scripts")
+		versionsCollection := client.Database("vccwebsite").Collection("scripts_versions")
 
+		path := r.URL.Path
+
+		// Check for /api/document/versions (get all versions of a document)
+		if strings.HasSuffix(path, "/versions") {
+			if r.Method == http.MethodGet {
+				HandleGetVersionHistory(w, r, versionsCollection)
+				return
+			}
+			respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		// Check for /api/document/version (get specific version)
+		if strings.HasSuffix(path, "/version") {
+			if r.Method == http.MethodGet {
+				HandleGetSpecificVersion(w, r, versionsCollection)
+				return
+			}
+			respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		// Check for /api/document/restore (restore to specific version)
+		if strings.HasSuffix(path, "/restore") {
+			if r.Method == http.MethodPost {
+				HandleRestoreVersion(w, r, collection, versionsCollection)
+				return
+			}
+			respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		// Check for /api/document/medications
+		if strings.HasSuffix(path, "/medications") {
+			if r.Method == http.MethodGet {
+				HandleGetMedications(w, r, collection)
+				return
+			}
+			respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		// Check for /api/document/vitals
+		if strings.HasSuffix(path, "/vitals") {
+			if r.Method == http.MethodGet {
+				HandleGetVitals(w, r, collection)
+				return
+			}
+			respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		// Original routing for base /api/document
 		switch r.Method {
 		case http.MethodGet:
 			handleGetDocuments(w, r, collection)
 		case http.MethodPost:
 			handleCreateDocument(w, r, collection)
 		case http.MethodPut:
-			handleUpdateDocument(w, r, collection)
+			// Use the new versioning update handler
+			handleUpdateDocumentWithVersioning(w, r, collection, versionsCollection)
 		case http.MethodDelete:
 			handleDeleteDocument(w, r, collection)
 		default:
 			respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 	}
-}
-
-// DocumentWithID wraps StandardizedScript with MongoDB ID
+} // DocumentWithID wraps StandardizedScript with MongoDB ID
 type DocumentWithID struct {
 	ID string `json:"id"`
 	scripts.StandardizedScript
