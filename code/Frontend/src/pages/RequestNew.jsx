@@ -2,11 +2,46 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useStore } from "../store";
 import { useToast } from "../components/Toast";
-import { buildScriptFromForm, downloadScriptJson } from "../utils/scriptFormat";
+import { buildScriptFromForm } from "../utils/scriptFormat";
+
+const ratingOptions = [
+  { label: "None (0)", value: 0 },
+  { label: "Mild (1)", value: 1 },
+  { label: "Moderate (2)", value: 2 },
+  { label: "Concerning (3)", value: 3 },
+  { label: "Severe (4)", value: 4 },
+  { label: "Extreme (5)", value: 5 },
+];
+
+const severityScale = Array.from({ length: 11 }).map((_, idx) => ({
+  label: `${idx} / 10`,
+  value: idx,
+}));
+
+const buildScriptRequestPayload = (form = {}) => ({
+  simulation_modal: "Standardized Patient",
+  case_setting: form.patient?.context || "",
+  chief_concern: form.admin?.chief_concern || "",
+  diagnosis: form.admin?.diagnosis || "",
+  event: form.admin?.medical_event || "",
+  pedagogy: form.admin?.learner_level || "",
+  class: form.admin?.class || "",
+  learner_level: form.admin?.learner_level || "",
+  summary_patient_story: form.admin?.summory_of_story || "",
+  pert_aspects_patient_case: form.admin?.case_factors || "",
+  physical_chars: form.sp?.physical_chars || "",
+  student_expec: form.admin?.student_expectations || "",
+  spec_phyis_findings: form.sp?.current_ill_history?.symptom_quality || "",
+  patient_demog: form.admin?.patient_demographic || "",
+  special_needs: form.special?.oppurtunity || "",
+  case_factors: form.admin?.case_factors || "",
+  additonal_ins: form.special?.feed_back || "",
+  sympt_review: form.med_hist?.sympton_review || {},
+});
 
 const RequestNew = () => {
   const navigate = useNavigate();
-  const { addItem } = useStore();
+  const { addItem, createRequest } = useStore();
   const toast = useToast();
   const initialForm = {
     admin: {
@@ -163,9 +198,17 @@ const RequestNew = () => {
   const onSubmit = async (e) => {
     e.preventDefault();
     const script = buildScriptFromForm(form);
+    const requestPayload = buildScriptRequestPayload(form);
 
     try {
       await addItem(script);
+      if (typeof createRequest === "function") {
+        try {
+          await createRequest(requestPayload);
+        } catch (err) {
+          console.warn("Script request log failed", err);
+        }
+      }
       toast.show("Request submitted", { type: "success" });
       navigate("/dashboard");
     } catch (err) {
@@ -313,7 +356,11 @@ const RequestNew = () => {
                 {["anxiety", "suprise", "confusion", "guilt", "sadness", "indecision", "assertiveness", "frustration", "fear", "anger"].map((k) => (
                   <label key={k} className="block space-y-1">
                     <span className="text-sm text-gray-700">{k[0].toUpperCase() + k.slice(1)}</span>
-                    <input type="number" min={0} max={10} className={inputClass} value={getField(["sp", "attributes", k]) ?? ""} onChange={(e) => setNumberField(["sp", "attributes", k], e.target.value)} />
+                    <select className={`${inputClass} pr-8`} value={getField(["sp", "attributes", k]) ?? 0} onChange={(e) => setNumberField(["sp", "attributes", k], e.target.value)}>
+                      {ratingOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
                   </label>
                 ))}
               </div>
@@ -334,8 +381,12 @@ const RequestNew = () => {
                 </label>
               ))}
               <label className="block space-y-1">
-                <span className="text-sm text-gray-700">Pain</span>
-                <input type="number" min={0} max={10} className={inputClass} value={getField(["sp", "current_ill_history", "pain"]) ?? ""} onChange={(e) => setNumberField(["sp", "current_ill_history", "pain"], e.target.value)} />
+                <span className="text-sm text-gray-700">Pain / Severity</span>
+                <select className={`${inputClass} pr-8`} value={getField(["sp", "current_ill_history", "pain"]) ?? 0} onChange={(e) => setNumberField(["sp", "current_ill_history", "pain"], e.target.value)}>
+                  {severityScale.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </label>
             </div>
 
@@ -484,23 +535,186 @@ const RequestNew = () => {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <button type="submit" className="rounded-full bg-emerald-600 text-white px-5 py-2 text-sm font-semibold hover:bg-emerald-700">Submit</button>
-            <button type="button" className="rounded-full border border-gray-300 px-5 py-2 text-sm font-semibold hover:bg-gray-50" onClick={() => navigate("/dashboard")}>Cancel</button>
-            <button
-              type="button"
-              className="rounded-full border border-gray-300 px-5 py-2 text-sm font-semibold hover:bg-gray-50"
-              onClick={() => {
-                const script = buildScriptFromForm(form);
-                downloadScriptJson(script, `script-${Date.now()}.json`);
-              }}
+          <button type="submit" className="rounded-full bg-emerald-600 text-white px-5 py-2 text-sm font-semibold hover:bg-emerald-700">Submit</button>
+          <button type="button" className="rounded-full border border-gray-300 px-5 py-2 text-sm font-semibold hover:bg-gray-50" onClick={() => navigate("/dashboard")}>Cancel</button>
+          <button
+            type="button"
+            className="rounded-full border border-gray-300 px-5 py-2 text-sm font-semibold hover:bg-gray-50"
+            onClick={async () => {
+              const script = buildScriptFromForm(form);
+              const { downloadScriptPdf } = await import("../utils/pdf");
+              const item = {
+                id: `draft-${Date.now()}`,
+                title: script?.patient?.name || "Draft Script",
+                patient: script?.patient?.name || "Patient",
+                department: script?.admin?.class || "Course",
+                createdAt: new Date().toISOString().slice(0, 10),
+                summary: script?.admin?.summory_of_story || "",
+                versions: [{ version: "draft", notes: "Draft", fields: script }],
+              };
+              downloadScriptPdf(item, item.versions[0]);
+            }}
             >
-              Download Script
+              Download PDF
             </button>
           </div>
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6 space-y-4">
+            <div className="text-center space-y-1">
+              <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Virtual Clinical Center</div>
+              <h3 className="text-xl font-semibold text-[#981e32]">{getField(["admin", "reson_for_visit"]) || "Script Preview"}</h3>
+              <div className="text-sm text-gray-700">
+                {getField(["admin", "diagnosis"]) || "Diagnosis TBD"} • {getField(["admin", "class"]) || "Course"} • {getField(["admin", "author"]) || "Author N/A"}
+              </div>
+            </div>
 
-          <div className="rounded-2xl border border-gray-300 bg-white shadow-sm p-4">
-            <div className="font-medium mb-2">Live Script JSON Preview</div>
-            <pre className="text-sm bg-gray-50 p-2 rounded overflow-auto">{JSON.stringify(buildScriptFromForm(form), null, 2)}</pre>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <div className="font-semibold text-gray-900">Administrative Details</div>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li><span className="font-semibold">Reason for Visit:</span> {getField(["admin", "reson_for_visit"]) || "—"}</li>
+                  <li><span className="font-semibold">Chief Complaint:</span> {getField(["admin", "chief_concern"]) || "—"}</li>
+                  <li><span className="font-semibold">Diagnosis:</span> {getField(["admin", "diagnosis"]) || "—"}</li>
+                  <li><span className="font-semibold">Event:</span> {getField(["admin", "medical_event"]) || "—"}</li>
+                  <li><span className="font-semibold">Learner Level:</span> {getField(["admin", "learner_level"]) || "—"}</li>
+                  <li><span className="font-semibold">Academic Year:</span> {getField(["admin", "academic_year"]) || "—"}</li>
+                  <li><span className="font-semibold">Author:</span> {getField(["admin", "author"]) || "—"}</li>
+                </ul>
+                <div className="text-sm text-gray-700">
+                  <div className="font-semibold">Summary of Patient Story</div>
+                  <p className="text-gray-800">{getField(["admin", "summory_of_story"]) || "Add a short narrative to summarize the case."}</p>
+                </div>
+                <div className="text-sm text-gray-700">
+                  <div className="font-semibold">Student Expectations</div>
+                  <p className="text-gray-800">{getField(["admin", "student_expectations"]) || "List expectations for learners."}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="font-semibold text-gray-900">Patient Snapshot</div>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li><span className="font-semibold">Patient:</span> {getField(["patient", "name"]) || "—"}</li>
+                  <li><span className="font-semibold">Visit Reason:</span> {getField(["patient", "visit_reason"]) || getField(["admin", "reson_for_visit"]) || "—"}</li>
+                  <li><span className="font-semibold">Context:</span> {getField(["patient", "context"]) || "—"}</li>
+                  <li><span className="font-semibold">Task:</span> {getField(["patient", "task"]) || "—"}</li>
+                  <li><span className="font-semibold">Encounter Duration:</span> {getField(["patient", "encounter_duration"]) || "—"}</li>
+                </ul>
+                <div className="text-sm text-gray-700">
+                  <div className="font-semibold">Vitals</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>HR: {getField(["patient", "vitals", "heart_rate"]) || "—"}</div>
+                    <div>RR: {getField(["patient", "vitals", "respirations"]) || "—"}</div>
+                    <div>BP: {getField(["patient", "vitals", "pressure", "top"]) || "—"}/{getField(["patient", "vitals", "pressure", "bottom"]) || "—"}</div>
+                    <div>SpO₂: {getField(["patient", "vitals", "blood_oxygen"]) || "—"}</div>
+                    <div>Temp: {getField(["patient", "vitals", "temp", "reading"]) || "—"} {getField(["patient", "vitals", "temp", "unit"]) || ""}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <div className="font-semibold text-gray-900">SP Content</div>
+                <div className="text-sm text-gray-700">
+                  <div className="font-semibold">Opening Statement</div>
+                  <p className="text-gray-800">{getField(["sp", "opening_statement"]) || "—"}</p>
+                </div>
+                <div className="text-sm text-gray-700">
+                  <div className="font-semibold">Character Attributes</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {["anxiety", "suprise", "confusion", "guilt", "sadness", "indecision", "assertiveness", "frustration", "fear", "anger"].map((k) => (
+                      <div key={k} className="flex items-center justify-between rounded border px-2 py-1">
+                        <span className="capitalize">{k}</span>
+                        <span className="text-sm font-semibold text-[#981e32]">{getField(["sp", "attributes", k]) ?? 0}/5</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="font-semibold text-gray-900">Symptoms</div>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li><span className="font-semibold">Setting:</span> {getField(["sp", "current_ill_history", "symptom_settings"]) || "—"}</li>
+                  <li><span className="font-semibold">Timing:</span> {getField(["sp", "current_ill_history", "symptom_timing"]) || "—"}</li>
+                  <li><span className="font-semibold">Associated Symptoms:</span> {getField(["sp", "current_ill_history", "associated_symptoms"]) || "—"}</li>
+                  <li><span className="font-semibold">Radiation:</span> {getField(["sp", "current_ill_history", "radiation_of_symptoms"]) || "—"}</li>
+                  <li><span className="font-semibold">Quality:</span> {getField(["sp", "current_ill_history", "symptom_quality"]) || "—"}</li>
+                  <li><span className="font-semibold">Alleviating Factors:</span> {getField(["sp", "current_ill_history", "alleviating_factors"]) || "—"}</li>
+                  <li><span className="font-semibold">Aggravating Factors:</span> {getField(["sp", "current_ill_history", "aggravating_factors"]) || "—"}</li>
+                  <li><span className="font-semibold">Severity (0-10):</span> {getField(["sp", "current_ill_history", "pain"]) ?? 0}</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <div className="font-semibold text-gray-900">Medications & Allergies</div>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li><span className="font-semibold">Medication:</span> {getField(["med_hist", "medications", "name"]) || "—"} {getField(["med_hist", "medications", "dose"]) ? `(${getField(["med_hist", "medications", "dose"])})` : ""}</li>
+                  <li><span className="font-semibold">Frequency:</span> {getField(["med_hist", "medications", "frequency"]) || "—"}</li>
+                  <li><span className="font-semibold">Reason:</span> {getField(["med_hist", "medications", "reason"]) || "—"}</li>
+                  <li><span className="font-semibold">Allergies:</span> {getField(["med_hist", "allergies"]) || "—"}</li>
+                </ul>
+              </div>
+              <div className="space-y-2">
+                <div className="font-semibold text-gray-900">Case Factors & Supplies</div>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li><span className="font-semibold">Special Supplies:</span> {getField(["admin", "special_supplies"]) || "—"}</li>
+                  <li><span className="font-semibold">Case Factors:</span> {getField(["admin", "case_factors"]) || "—"}</li>
+                  <li><span className="font-semibold">Patient Demographic:</span> {getField(["admin", "patient_demographic"]) || "—"}</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <div className="font-semibold text-gray-900">Social History</div>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li><span className="font-semibold">Background:</span> {getField(["med_hist", "social_hist", "personal_background"]) || "—"}</li>
+                  <li><span className="font-semibold">Nutrition/Exercise:</span> {getField(["med_hist", "social_hist", "nutrion_and_exercise"]) || "—"}</li>
+                  <li><span className="font-semibold">Community/Employment:</span> {getField(["med_hist", "social_hist", "community_and_employment"]) || "—"}</li>
+                  <li><span className="font-semibold">Safety Measures:</span> {getField(["med_hist", "social_hist", "safety_measure"]) || "—"}</li>
+                  <li><span className="font-semibold">Life Stressors:</span> {getField(["med_hist", "social_hist", "life_stressors"]) || "—"}</li>
+                  <li><span className="font-semibold">Substance Use:</span> {getField(["med_hist", "social_hist", "substance_use"]) || "—"}</li>
+                </ul>
+              </div>
+              <div className="space-y-2">
+                <div className="font-semibold text-gray-900">Review of Systems</div>
+                <div className="grid grid-cols-2 gap-2 text-sm text-gray-700">
+                  {[
+                    ["general", "General"],
+                    ["skin", "Skin"],
+                    ["heent", "HEENT"],
+                    ["neck", "Neck"],
+                    ["breast", "Breast"],
+                    ["respiratory", "Respiratory"],
+                    ["cardiovascular", "Cardiovascular"],
+                    ["gastrointestinal", "Gastrointestinal"],
+                    ["peripheral_vascular", "Peripheral Vascular"],
+                    ["musculoskeletal", "Musculoskeletal"],
+                    ["psychiatric", "Psychiatric"],
+                    ["neurologival", "Neurological"],
+                    ["endocine", "Endocrine"],
+                  ].map(([k, label]) => (
+                    <div key={k} className="rounded border px-2 py-1 bg-gray-50">
+                      <div className="font-semibold text-gray-800">{label}</div>
+                      <div>{getField(["med_hist", "sympton_review", k]) || "—"}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="font-semibold text-gray-900">Prompts & Special Instructions</div>
+              <ul className="text-sm text-gray-700 space-y-1">
+                <li><span className="font-semibold">Provoking Question:</span> {getField(["special", "provoking_question"]) || "—"}</li>
+                <li><span className="font-semibold">Must Ask:</span> {getField(["special", "must_ask"]) || "—"}</li>
+                <li><span className="font-semibold">Opportunity:</span> {getField(["special", "oppurtunity"]) || "—"}</li>
+                <li><span className="font-semibold">Opening Statement:</span> {getField(["special", "opening_statement"]) || "—"}</li>
+                <li><span className="font-semibold">Feedback Notes:</span> {getField(["special", "feed_back"]) || "—"}</li>
+              </ul>
+            </div>
           </div>
         </form>
       </div>

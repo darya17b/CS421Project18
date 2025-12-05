@@ -1,14 +1,14 @@
-// Build a script object (matching your provided structure)
+// builds script object
 // from the minimal Request New form fields.
 
 export function buildScriptFromForm(f = {}) {
-  // Helper to coerce temperature unit to numeric (0=Celcius,1=Fahrenheit)
+  //  temperature unit to numeric 
   const unitRaw = f.patient?.vitals?.temp?.unit;
   const tempUnit = typeof unitRaw === 'number'
     ? unitRaw
     : String(unitRaw || 'Celcius').toLowerCase().startsWith('f') ? 1 : 0;
 
-  // Normalize medications to an array if any field present
+  //normalizes medications to an array if any field present
   const med = {
     name: f.med_hist?.medications?.name || '',
     brand: f.med_hist?.medications?.brand || '',
@@ -22,7 +22,7 @@ export function buildScriptFromForm(f = {}) {
   const hasMed = Object.values(med).some(v => (typeof v === 'number' ? v !== 0 : String(v).trim() !== ''));
   const medicationsArr = hasMed ? [med] : [];
 
-  // Normalize family history to an array if any field present
+  //normalizes family history to an array if any field present
   const fam = {
     health_status: f.med_hist?.family_hist?.health_status || '',
     age: Number(f.med_hist?.family_hist?.age || 0),

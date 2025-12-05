@@ -5,6 +5,8 @@ import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { exportScriptAsPdf } from "../utils/print";
 import { downloadScriptPdf, downloadResourcePdf } from "../utils/pdf";
+import { buildScriptFromForm } from "../utils/scriptFormat";
+import { normalizeScript, mapVersionHistory } from "../utils/normalize";
 
 const initialForm = {
   admin: {
@@ -164,6 +166,76 @@ function mergeDeep(base, incoming) {
   return result;
 }
 
+function requestToScript(req = {}) {
+  return {
+    admin: {
+      reson_for_visit: req.chief_concern || req.diagnosis || "",
+      chief_concern: req.chief_concern || "",
+      diagnosis: req.diagnosis || "",
+      class: req.class || "",
+      medical_event: req.event || "",
+      event_dates: req.event_dates || "",
+      learner_level: req.learner_level || "",
+      academic_year: req.academic_year || "",
+      author: req.case_authors || "",
+      summory_of_story: req.summary_patient_story || "",
+      student_expectations: req.student_expec || "",
+      patient_demographic: req.patient_demog || "",
+      special_supplies: req.special_needs || "",
+      case_factors: req.case_factors || "",
+    },
+    patient: {
+      name: req.patient_demog || "Patient",
+      vitals: {
+        heart_rate: "",
+        respirations: "",
+        pressure: { top: "", bottom: "" },
+        blood_oxygen: "",
+        temp: { reading: "", unit: "" },
+      },
+      visit_reason: req.chief_concern || "",
+      context: req.case_setting || "",
+      task: "",
+      encounter_duration: "",
+    },
+    sp: {
+      opening_statement: req.opening_statement || "",
+      attributes: {
+        anxiety: 0, suprise: 0, confusion: 0, guilt: 0, sadness: 0,
+        indecision: 0, assertiveness: 0, frustration: 0, fear: 0, anger: 0,
+      },
+      physical_chars: req.physical_chars || "",
+      current_ill_history: {
+        symptom_settings: req.case_setting || "",
+        symptom_timing: req.symptom_timing || "",
+        associated_symptoms: req.associated_symptoms || "",
+        radiation_of_symptoms: "",
+        symptom_quality: req.symptom_quality || "",
+        alleviating_factors: req.alleviating_factors || "",
+        aggravating_factors: req.aggravating_factors || "",
+        pain: 0,
+        body_location: req.body_location || "",
+      },
+    },
+    med_hist: {
+      medications: [],
+      allergies: "",
+      past_med_his: {},
+      preventative_measure: {},
+      family_hist: [],
+      social_hist: {},
+      sympton_review: req.sympt_review || {},
+    },
+    special: {
+      provoking_question: req.provoking_question || "",
+      must_ask: req.must_ask || "",
+      oppurtunity: req.opportunity || req.special_needs || "",
+      opening_statement: req.opening_statement || "",
+      feed_back: req.additonal_ins || "",
+    },
+  };
+}
+
 const fieldSections = [
   {
     title: "Professional",
@@ -218,7 +290,7 @@ const fieldSections = [
       ...["anxiety","suprise","confusion","guilt","sadness","indecision","assertiveness","frustration","fear","anger"].map((k) => ({
         label: k.charAt(0).toUpperCase() + k.slice(1),
         path: ["sp", "attributes", k],
-        type: "number",
+        type: "rating",
       })),
       { label: "Body Location", path: ["sp", "current_ill_history", "body_location"] },
       { label: "Symptom Settings", path: ["sp", "current_ill_history", "symptom_settings"] },
@@ -228,7 +300,7 @@ const fieldSections = [
       { label: "Symptom Quality", path: ["sp", "current_ill_history", "symptom_quality"] },
       { label: "Alleviating Factors", path: ["sp", "current_ill_history", "alleviating_factors"] },
       { label: "Aggravating Factors", path: ["sp", "current_ill_history", "aggravating_factors"] },
-      { label: "Pain", path: ["sp", "current_ill_history", "pain"], type: "number" },
+      { label: "Pain / Severity", path: ["sp", "current_ill_history", "pain"], type: "scale10" },
     ],
   },
   {
@@ -333,11 +405,30 @@ const labelMap = (() => {
 const ScriptDetail = () => {
   const { id } = useParams();
   const store = useStore();
-  const { getById } = store;
+  const { getById, getRequestById } = store;
   const toast = useToast();
   const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
-  const item = getById(id);
-  const [version, setVersion] = useState(item?.versions?.[0]?.version || "v1");
+  const useMock = import.meta.env.VITE_USE_MOCK === "true";
+  const item = getById ? getById(id) : null;
+  const requestFallback = !item && getRequestById ? getRequestById(id) : null;
+  const isRequestView = Boolean(!item && requestFallback);
+  const mappedRequest = (() => {
+    if (!requestFallback) return null;
+    const req = requestFallback.raw || requestFallback;
+    const fields = requestToScript(req);
+    return {
+      id: requestFallback.id,
+      title: requestFallback.title || "Script Request",
+      patient: requestFallback.patient || req?.patient_demog || "Patient",
+      department: requestFallback.department || req?.class || "General",
+      createdAt: requestFallback.updatedAt || requestFallback.createdAt || new Date().toISOString().slice(0, 10),
+      summary: requestFallback.summary || req?.summary_patient_story || "",
+      versions: [{ version: "request", notes: requestFallback.note || "From request", fields }],
+    };
+  })();
+  const activeItem = item || mappedRequest;
+  const [versions, setVersions] = useState(activeItem?.versions || []);
+  const [version, setVersion] = useState(activeItem?.versions?.[0]?.version || "current");
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [versionNotes, setVersionNotes] = useState("");
@@ -345,20 +436,57 @@ const ScriptDetail = () => {
   const [highlightPath, setHighlightPath] = useState(null);
 
   useEffect(() => {
-    if (!item && typeof store.fetchById === "function") {
+    if (!item && typeof store.fetchById === "function" && !requestFallback) {
       store.fetchById(id);
     }
-  }, [id, item, store]);
+  }, [id, item, store, requestFallback]);
 
   useEffect(() => {
-    const current = item?.versions?.find((v) => v.version === version) || item?.versions?.[0];
-    if (!current) return;
-    const fields = current?.fields || {};
-    setForm(mergeDeep(initialForm, fields));
-    setVersionNotes(current?.notes || "");
-  }, [item, version]);
+    if (activeItem?.versions?.length) {
+      setVersions(activeItem.versions);
+      if (!activeItem.versions.some((v) => v.version === version)) {
+        setVersion(activeItem.versions[0].version);
+      }
+    }
+  }, [activeItem, version]);
 
-  if (!item) {
+  useEffect(() => {
+    const currentVersion = versions.find((v) => v.version === version) || versions[0];
+    if (!currentVersion) return;
+    const fields = normalizeScript(currentVersion?.fields || {});
+    setForm(mergeDeep(initialForm, fields));
+    setVersionNotes(currentVersion?.notes || "");
+  }, [versions, version]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (useMock || requestFallback) return;
+      try {
+        const { api } = await import("../api/client");
+        const history = await api.listDocumentVersions(id);
+        if (cancelled) return;
+        const historyVersions = mapVersionHistory(history);
+        setVersions((prev) => {
+          const currentEntry = prev.find((v) => v.version === "current") || prev[0] || {
+            version: "current",
+            notes: item?.versions?.[0]?.notes || "Current",
+            fields: normalizeScript(item?.versions?.[0]?.fields || {}),
+          };
+          const merged = [currentEntry, ...historyVersions];
+          if (!merged.some((v) => v.version === version) && merged.length) {
+            setVersion(merged[0].version);
+          }
+          return merged;
+        });
+      } catch (err) {
+        console.warn("Failed to load version history", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id, item, version, useMock]);
+
+  if (!activeItem) {
     return (
       <section className="w-full p-4 text-center">
         <div className="text-gray-600">
@@ -368,8 +496,8 @@ const ScriptDetail = () => {
     );
   }
 
-  const current = item.versions?.find((v) => v.version === version) || item.versions?.[0];
-  const meta = [item.id, item.patient, item.department, item.createdAt].filter(Boolean).join(" | ");
+  const current = versions.find((v) => v.version === version) || versions[0];
+  const meta = [activeItem.id, activeItem.patient, activeItem.department, activeItem.createdAt].filter(Boolean).join(" | ");
   const backTarget = isAdmin ? "/dashboard" : "/forms-search";
 
   const setField = (path, value) => {
@@ -388,12 +516,36 @@ const ScriptDetail = () => {
 
   const saveEdits = async () => {
     try {
-      if (current) {
-        current.fields = form;
-        current.notes = versionNotes;
+      const payload = buildScriptFromForm(form);
+      const changeNote = versionNotes || "Updated";
+      const createdBy = (typeof window !== "undefined" && localStorage.getItem("user")) || "admin";
+      if (isRequestView) {
+        toast.show("Create or load a script before saving edits from a request.", { type: "error" });
+        return;
+      }
+      if (useMock) {
+        setVersions((prev) => {
+          const rest = prev.filter((v) => v.version !== "current");
+          return [{ version: "current", notes: changeNote, fields: normalizeScript(payload) }, ...rest];
+        });
+        toast.show("Updated", { type: "success" });
+        return;
       }
       const { api } = await import("../api/client");
-      await api.updateDocument(item.id, { ...form, notes: versionNotes });
+      await api.updateDocument(activeItem.id, payload, { change_note: changeNote, created_by: createdBy });
+      if (typeof store.fetchById === "function") {
+        await store.fetchById(activeItem.id);
+      }
+      try {
+        const history = await api.listDocumentVersions(item.id);
+        const historyVersions = mapVersionHistory(history);
+        setVersions([
+          { version: "current", notes: changeNote, fields: normalizeScript(payload) },
+          ...historyVersions,
+        ]);
+      } catch (err) {
+        console.warn("Failed to refresh version history after update", err);
+      }
       toast.show("Updated", { type: "success" });
     } catch {
       toast.show("Update failed", { type: "error" });
@@ -403,6 +555,18 @@ const ScriptDetail = () => {
   const renderInput = (field) => {
     const key = pathKey(field.path);
     const value = getDeep(form, field.path) ?? "";
+    const ratingOptions = [
+      { label: "None (0)", value: 0 },
+      { label: "Mild (1)", value: 1 },
+      { label: "Moderate (2)", value: 2 },
+      { label: "Concerning (3)", value: 3 },
+      { label: "Severe (4)", value: 4 },
+      { label: "Extreme (5)", value: 5 },
+    ];
+    const scaleOptions = Array.from({ length: 11 }).map((_, idx) => ({
+      label: `${idx} / 10`,
+      value: idx,
+    }));
     const common = {
       className: `rounded border px-3 py-2 text-sm ${highlightPath === key ? "ring-2 ring-[#1b76d2]" : ""}`,
       ref: (el) => { if (el) fieldRefs.current[key] = el; },
@@ -416,6 +580,26 @@ const ScriptDetail = () => {
       return (
         <select {...common} value={value} onChange={(e) => setField(field.path, e.target.value)}>
           {(field.options || []).map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      );
+    }
+
+    if (field.type === "rating") {
+      return (
+        <select {...common} value={value} onChange={(e) => setField(field.path, Number(e.target.value))}>
+          {ratingOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      );
+    }
+
+    if (field.type === "scale10") {
+      return (
+        <select {...common} value={value} onChange={(e) => setField(field.path, Number(e.target.value))}>
+          {scaleOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
@@ -496,27 +680,221 @@ const ScriptDetail = () => {
     return lines;
   };
 
-  const jsonLines = useMemo(
-    () => buildJsonLines(isAdmin ? form : current?.fields || {}),
-    [form, current, isAdmin]
-  );
+  const padVal = (s) => {
+    if (s === 0) return "0";
+    if (s === undefined || s === null || s === "") return "—";
+    return String(s);
+  };
+
+  const ratingLabel = (n) => {
+    const v = Number(n);
+    if (Number.isNaN(v)) return "None";
+    return ["None", "Mild", "Moderate", "Concerning", "Severe", "Extreme"][v] || "None";
+  };
+
+  const ScriptHtmlView = () => {
+    const data = form || initialForm;
+    const medVal = data?.med_hist?.medications;
+    const medCard = Array.isArray(medVal) ? medVal[0] || {} : (medVal || {});
+    const ros = data?.med_hist?.sympton_review || {};
+    const family = data?.med_hist?.family_hist;
+    const familyInfo = Array.isArray(family)
+      ? family.map((f) => `${padVal(f?.health_status)} • Age ${padVal(f?.age)} • ${padVal(f?.cause_of_death)}`).join(" | ")
+      : (family && typeof family === "object")
+        ? Object.values(family || {}).filter(Boolean).join(" | ")
+        : "";
+
+    return (
+      <div className="rounded border bg-white p-6 space-y-6 text-left">
+        <div className="text-sm text-gray-600">
+          {[activeItem.id, activeItem.patient, activeItem.department, activeItem.createdAt].filter(Boolean).join(" | ")}
+        </div>
+
+        <div className="space-y-3">
+          <div className="text-[#981e32] font-semibold text-lg">Administrative Details</div>
+          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
+            {[
+              ["Patient's Reason for Visit", data?.admin?.reson_for_visit],
+              ["Chief Complaint", data?.admin?.chief_concern],
+              ["Diagnosis", data?.admin?.diagnosis],
+              ["Class", data?.admin?.class],
+              ["Event", data?.admin?.medical_event],
+              ["Learner Level", data?.admin?.learner_level],
+              ["Academic Year", data?.admin?.academic_year],
+              ["Author", data?.admin?.author],
+              ["Student Expectations", data?.admin?.student_expectations],
+              ["Patient Demographic", data?.admin?.patient_demographic],
+              ["Special Supplies", data?.admin?.special_supplies],
+              ["Case Factors", data?.admin?.case_factors],
+              ["Additional Instructions", data?.special?.feed_back],
+            ].map(([label, value]) => (
+              <div key={label} className="space-y-1">
+                <dt className="font-semibold text-gray-900">{label}</dt>
+                <dd className="text-gray-700">{value || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+          <div>
+            <div className="font-semibold text-gray-900">Summary of patient story</div>
+            <p className="text-gray-700 text-sm">{data?.admin?.summory_of_story || "—"}</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="text-[#981e32] font-semibold text-lg"> Content for Standardized Patients</div>
+          <div className="space-y-1">
+            <div className="font-semibold text-gray-900">Opening Statement</div>
+            <div className="text-gray-700 text-sm">{data?.sp?.opening_statement || "—"}</div>
+          </div>
+          <div className="space-y-2">
+            <div className="font-semibold text-gray-900">Character Attributes</div>
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
+              {["anxiety","suprise","confusion","guilt","sadness","indecision","assertiveness","frustration","fear","anger"].map((k) => (
+                <div key={k} className="flex items-center justify-between rounded border px-3 py-2 text-sm">
+                  <span className="capitalize text-gray-800">{k}</span>
+                  <span className="font-semibold text-[#981e32]">{ratingLabel(data?.sp?.attributes?.[k])}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-[#981e32] font-semibold text-lg">History of Present Illness</div>
+          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
+            {[
+              ["Setting", data?.sp?.current_ill_history?.symptom_settings],
+              ["Timing", data?.sp?.current_ill_history?.symptom_timing],
+              ["Associated Symptoms", data?.sp?.current_ill_history?.associated_symptoms],
+              ["Radiation", data?.sp?.current_ill_history?.radiation_of_symptoms],
+              ["Quality", data?.sp?.current_ill_history?.symptom_quality],
+              ["Alleviating Factors", data?.sp?.current_ill_history?.alleviating_factors],
+              ["Aggravating Factors", data?.sp?.current_ill_history?.aggravating_factors],
+              ["Severity (0-10)", data?.sp?.current_ill_history?.pain],
+            ].map(([label, value]) => (
+              <div key={label} className="space-y-1">
+                <dt className="font-semibold text-gray-900">{label}</dt>
+                <dd className="text-gray-700">{value === 0 ? "0" : value || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-[#981e32] font-semibold text-lg">Medications & Allergies</div>
+          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
+            <div className="space-y-1">
+              <dt className="font-semibold text-gray-900">Medication</dt>
+              <dd className="text-gray-700">{[medCard.name, medCard.dose, medCard.frequency].filter(Boolean).join(" • ") || "—"}</dd>
+            </div>
+            <div className="space-y-1">
+              <dt className="font-semibold text-gray-900">Reason</dt>
+              <dd className="text-gray-700">{medCard.reason || "—"}</dd>
+            </div>
+            <div className="space-y-1">
+              <dt className="font-semibold text-gray-900">Allergies</dt>
+              <dd className="text-gray-700">{data?.med_hist?.allergies || "—"}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-[#981e32] font-semibold text-lg">Past Medical History</div>
+          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
+            {Object.entries(data?.med_hist?.past_med_his || {}).map(([label, value]) => (
+              <div key={label} className="space-y-1">
+                <dt className="font-semibold text-gray-900">{label.replace(/_/g, " ")}</dt>
+                <dd className="text-gray-700">{value || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-[#981e32] font-semibold text-lg">Preventative Medicine</div>
+          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
+            {Object.entries(data?.med_hist?.preventative_measure || {}).map(([label, value]) => (
+              <div key={label} className="space-y-1">
+                <dt className="font-semibold text-gray-900">{label.replace(/_/g, " ")}</dt>
+                <dd className="text-gray-700">{value || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-[#981e32] font-semibold text-lg">Family History</div>
+          <div className="text-sm text-gray-700">{familyInfo || "—"}</div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-[#981e32] font-semibold text-lg">Social History</div>
+          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
+            {[
+              ["Personal Background", data?.med_hist?.social_hist?.personal_background],
+              ["Nutrition & Exercise", data?.med_hist?.social_hist?.nutrion_and_exercise],
+              ["Community & Employment", data?.med_hist?.social_hist?.community_and_employment],
+              ["Safety Measures", data?.med_hist?.social_hist?.safety_measure],
+              ["Life Stressors", data?.med_hist?.social_hist?.life_stressors],
+              ["Substance Use", data?.med_hist?.social_hist?.substance_use],
+            ].map(([label, value]) => (
+              <div key={label} className="space-y-1">
+                <dt className="font-semibold text-gray-900">{label}</dt>
+                <dd className="text-gray-700">{value || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-[#981e32] font-semibold text-lg">Review of Systems</div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+            {Object.entries(ros).map(([label, value]) => (
+              <div key={label} className="rounded border px-3 py-2 bg-gray-50">
+                <div className="font-semibold text-gray-900">{label}</div>
+                <div className="text-gray-700">{value || "—"}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-[#981e32] font-semibold text-lg">Prompts & Special Instructions</div>
+          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
+            {[
+              ["Provoking Question", data?.special?.provoking_question],
+              ["Must Ask", data?.special?.must_ask],
+              ["Opportunity", data?.special?.oppurtunity],
+              ["Opening Statement", data?.special?.opening_statement],
+              ["Feedback", data?.special?.feed_back],
+            ].map(([label, value]) => (
+              <div key={label} className="space-y-1">
+                <dt className="font-semibold text-gray-900">{label}</dt>
+                <dd className="text-gray-700">{value || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </div>
+    );
+  };
 
   const header = (
     <div className="flex items-center justify-between flex-wrap gap-2">
       <div className="flex items-center gap-3">
-        <h2 className="text-2xl font-semibold">{item.title}</h2>
+        <h2 className="text-2xl font-semibold">{activeItem.title}</h2>
         <Link to={backTarget} className="text-blue-600 hover:underline">Back</Link>
       </div>
       <div className="flex items-center gap-3">
         <label className="text-sm text-gray-700">Version</label>
         <select className="rounded border px-2 py-1" value={version} onChange={(e) => setVersion(e.target.value)}>
-          {(item.versions || []).map((v) => (
+          {(versions || []).map((v) => (
             <option key={v.version} value={v.version}>{v.version}</option>
           ))}
         </select>
         <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => setArtifactsOpen(true)}>Resources</button>
-        <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => exportScriptAsPdf(item, current)}>Print</button>
-        <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => downloadScriptPdf(item, current)}>Download PDF</button>
+        <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => exportScriptAsPdf(activeItem, current)}>Print</button>
+        <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => downloadScriptPdf(activeItem, current)}>Download PDF</button>
       </div>
     </div>
   );
@@ -526,71 +904,17 @@ const ScriptDetail = () => {
       <section className="w-full p-4 space-y-4">
         {header}
         <div className="text-sm text-gray-600">{meta}</div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded border bg-white p-4 space-y-3">
-            <h3 className="text-lg font-semibold text-[#b4152b]">Edit Script (Admin)</h3>
-            {fieldSections.map((group) => (
-              <div key={group.title} className="space-y-2">
-                <div className="text-sm font-semibold text-gray-800">{group.title}</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {group.fields.map((f) => (
-                    <label key={pathKey(f.path)} className="text-sm text-gray-700 flex flex-col gap-1">
-                      {f.label}
-                      {renderInput(f)}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <label className="text-sm text-gray-700 flex flex-col gap-1">
-              Version notes
-              <textarea className="rounded border px-3 py-2" rows={3} value={versionNotes} onChange={(e) => setVersionNotes(e.target.value)} />
-            </label>
-            <div className="flex gap-2 justify-end">
-              <button className="rounded bg-indigo-600 px-4 py-2 text-white font-medium hover:bg-indigo-700" onClick={saveEdits}>Save Update</button>
-              <button className="rounded border px-4 py-2 hover:bg-gray-50" onClick={() => setArtifactsOpen(true)}>Resources</button>
-            </div>
-          </div>
-          <div className="space-y-3 text-left">
-            <div className="rounded border p-3 bg-white">
-              <div className="font-medium mb-2">Summary</div>
-              <div className="text-gray-700">{item.summary || "No summary provided."}</div>
-            </div>
-            <div className="rounded border p-3 bg-white">
-              <div className="font-medium mb-2">Version Notes</div>
-              <div className="text-gray-700">{versionNotes || current?.notes || "N/A"}</div>
-            </div>
-            <div className="rounded border p-3 bg-white">
-              <div className="font-medium mb-2">Fields</div>
-              <div className="text-xs font-mono bg-gray-50 rounded p-[1px] space-y-[1px] text-left">
-                {jsonLines.map((line, idx) => {
-                  const clickable = Boolean(line.path);
-                  const Comp = clickable ? "button" : "div";
-                  return (
-                    <Comp
-                      key={idx}
-                      type={clickable ? "button" : undefined}
-                      onClick={clickable ? () => scrollToField(line.path) : undefined}
-                      className={clickable ? "w-full text-left rounded px-[1px] py-[1px] hover:bg-blue-50 hover:text-[#1b76d2] border border-transparent hover:border-[#1b76d2] whitespace-pre" : "whitespace-pre px-[1px] py-[1px]"}
-                    >
-                      {line.text}
-                    </Comp>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+        <ScriptHtmlView />
 
-        <Modal open={artifactsOpen} title={`Resources for ${item.id}`} onClose={() => setArtifactsOpen(false)}>
+        <Modal open={artifactsOpen} title={`Resources for ${activeItem.id}`} onClose={() => setArtifactsOpen(false)}>
           <div className="space-y-2">
-            {(item.artifacts && item.artifacts.length ? item.artifacts : ["Placeholder.pdf"]).map((a, idx) => (
+            {(activeItem.artifacts && activeItem.artifacts.length ? activeItem.artifacts : ["Placeholder.pdf"]).map((a, idx) => (
               <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
                 <div className="flex items-center gap-2">
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">PDF</span>
                   <span>{a}</span>
                 </div>
-                <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Create PDF" onClick={() => downloadResourcePdf(item, a)}>
+                <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Create PDF" onClick={() => downloadResourcePdf(activeItem, a)}>
                   Download PDF
                 </button>
               </div>
@@ -605,43 +929,10 @@ const ScriptDetail = () => {
     <section className="w-full px-4 py-6 space-y-4 text-center">
       {header}
       <div className="text-sm text-gray-600">{meta}</div>
-      <div className="max-w-5xl mx-auto space-y-4 text-left">
-        <div className="rounded-2xl border border-gray-300 bg-white shadow-sm p-8 space-y-6">
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900">Script Request</h3>
-            <p className="text-sm text-gray-600">Review the standardized patient details.</p>
-          </div>
-
-          <div className="space-y-6">
-            {fieldSections.map((group) => (
-              <div key={group.title} className="space-y-3">
-                <div className="text-sm font-semibold text-gray-800">{group.title}</div>
-                <div className={group.title === "Review of Symptoms" ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" : "space-y-4"}>
-                  {group.fields.map((f) => (
-                    <label key={pathKey(f.path)} className="block space-y-1">
-                      <span className="text-sm text-gray-700">{f.label}</span>
-                      {renderDisplayInput(f)}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded border p-3 bg-white">
-          <div className="font-medium mb-2">Summary</div>
-          <div className="text-gray-700">{item.summary || "No summary provided."}</div>
-        </div>
-        <div className="rounded border p-3 bg-white">
-          <div className="font-medium mb-2">Version Notes</div>
-          <div className="text-gray-700">{current?.notes || "N/A"}</div>
-        </div>
-      </div>
-
-      <Modal open={artifactsOpen} title={`Resources for ${item.id}`} onClose={() => setArtifactsOpen(false)}>
+      <ScriptHtmlView />
+      <Modal open={artifactsOpen} title={`Resources for ${activeItem.id}`} onClose={() => setArtifactsOpen(false)}>
         <div className="space-y-2">
-          {(item.artifacts && item.artifacts.length ? item.artifacts : ["Placeholder.pdf"]).map((a, idx) => (
+          {(activeItem.artifacts && activeItem.artifacts.length ? activeItem.artifacts : ["Placeholder.pdf"]).map((a, idx) => (
             <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">PDF</span>
