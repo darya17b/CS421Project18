@@ -48,7 +48,12 @@ func main() {
 		}*/
 	fs := http.FileServer(http.Dir("../../../../Frontend/dist"))
 	mux.Handle("/", fs)
-	mux.Handle("/api/", api.NewHomePageHandler(client))
+	mux.Handle("/api/script-request", api.ScriptRequestHandler(client))
+	mux.Handle("/api/document/versions", api.DocumentHandler(client))
+	mux.Handle("/api/document/version", api.DocumentHandler(client))
+	mux.Handle("/api/document/restore", api.DocumentHandler(client))
+	mux.Handle("/api/document/medications", api.DocumentHandler(client))
+	mux.Handle("/api/document/vitals", api.DocumentHandler(client))
 	mux.Handle("/api/document", api.DocumentHandler(client))
 	//mux.Handle("/api/login",api.LoginHandler(userDB))
 
