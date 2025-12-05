@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { downloadScriptPdf } from "../utils/pdf";
+import { downloadScriptPdf, getScriptPdfUrl } from "../utils/pdf";
 
 const FormsListRow = ({ item, onArtifacts, onPropose, onDelete }) => {
   const title = item?.title || item?.admin?.reson_for_visit || item?.admin?.reason_for_visit || "Untitled";
@@ -14,7 +14,15 @@ const FormsListRow = ({ item, onArtifacts, onPropose, onDelete }) => {
     try {
       downloadScriptPdf(item, item?.versions?.[0]);
     } catch {
-      // ignored when running without backend/pdf context
+     
+    }
+  };
+  const handlePreview = () => {
+    try {
+      const url = getScriptPdfUrl(item, item?.versions?.[0]);
+      window.open(url, "_blank", "noopener");
+    } catch {
+    
     }
   };
   return (
@@ -29,6 +37,7 @@ const FormsListRow = ({ item, onArtifacts, onPropose, onDelete }) => {
         </div>
         <div className="list-row__buttons flex flex-wrap gap-2 md:justify-end">
           <Link to={`/forms/${encodeURIComponent(item.id)}`}>View</Link>
+          <button onClick={handlePreview}>Preview</button>
           <button onClick={handleDownload}>Download</button>
           {onDelete ? (
             <button

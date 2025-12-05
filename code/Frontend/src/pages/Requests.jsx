@@ -19,35 +19,43 @@ const saveStatus = (data) => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch {
-    // ignore persistence errors
+   
   }
 };
 
 const Requests = () => {
-  const { items } = useStore();
+  const { items, requests, refreshRequests } = useStore();
   const toast = useToast();
   const [statusMap, setStatusMap] = useState(() => loadStatus());
   const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
+
+  useEffect(() => {
+    if (typeof refreshRequests === "function") {
+      refreshRequests().catch((err) => console.warn("Failed to refresh requests", err));
+    }
+  }, [refreshRequests]);
 
   useEffect(() => {
     saveStatus(statusMap);
   }, [statusMap]);
 
   useEffect(() => {
-    if (!items?.length) return;
+    const source = requests?.length ? requests : items;
+    if (!source?.length) return;
     setStatusMap((prev) => {
       const next = { ...prev };
-      items.forEach((it) => {
+      source.forEach((it) => {
         if (!next[it.id]) {
           next[it.id] = { status: "Pending", note: "", updatedAt: new Date().toISOString() };
         }
       });
       return next;
     });
-  }, [items]);
+  }, [items, requests]);
 
   const list = useMemo(() => {
-    return (items || []).map((it) => {
+    const source = requests?.length ? requests : items;
+    return (source || []).map((it) => {
       const meta = statusMap[it.id] || { status: "Pending" };
       return {
         ...it,
@@ -56,7 +64,7 @@ const Requests = () => {
         updatedAt: meta.updatedAt,
       };
     });
-  }, [items, statusMap]);
+  }, [items, requests, statusMap]);
 
   const updateStatus = (id, status) => {
     setStatusMap((prev) => ({

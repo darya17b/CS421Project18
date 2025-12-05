@@ -15,6 +15,7 @@ export const MockStoreProvider = ({ children }) => {
       return defaultItems;
     }
   });
+  const [requests, setRequests] = useState([]);
 
   useEffect(() => {
     try {
@@ -26,6 +27,22 @@ export const MockStoreProvider = ({ children }) => {
 
   const api = useMemo(() => ({
     items,
+    requests,
+    getRequestById: (id) => requests.find((r) => r.id === id),
+    refreshRequests: async () => requests,
+    createRequest: async (payload) => {
+      const req = { id: `REQ-${Date.now()}`, ...payload };
+      setRequests((prev) => [req, ...prev]);
+      return req;
+    },
+    updateRequest: async (id, payload) => {
+      setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, ...payload } : r)));
+      return { id, ...payload };
+    },
+    deleteRequest: async (id) => {
+      setRequests((prev) => prev.filter((r) => r.id !== id));
+      return true;
+    },
     addItem: (item) => setItems((prev) => [item, ...prev]),
     getById: (id) => items.find((it) => it.id === id),
     flagProposed: (id) => {
@@ -67,8 +84,9 @@ export const MockStoreProvider = ({ children }) => {
     resetData: () => {
       try { localStorage.removeItem(STORAGE_KEY); } catch {}
       setItems(JSON.parse(JSON.stringify(defaultItems)));
+      setRequests([]);
     },
-  }), [items]);
+  }), [items, requests]);
 
   return (
     <MockStoreContext.Provider value={api}>{children}</MockStoreContext.Provider>
