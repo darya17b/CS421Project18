@@ -2,6 +2,36 @@
 // from the minimal Request New form fields.
 
 export function buildScriptFromForm(f = {}) {
+  // Helper to coerce temperature unit to numeric (0=Celcius,1=Fahrenheit)
+  const unitRaw = f.patient?.vitals?.temp?.unit;
+  const tempUnit = typeof unitRaw === 'number'
+    ? unitRaw
+    : String(unitRaw || 'Celcius').toLowerCase().startsWith('f') ? 1 : 0;
+
+  // Normalize medications to an array if any field present
+  const med = {
+    name: f.med_hist?.medications?.name || '',
+    brand: f.med_hist?.medications?.brand || '',
+    generic: f.med_hist?.medications?.generic || '',
+    dose: f.med_hist?.medications?.dose || '',
+    frequency: f.med_hist?.medications?.frequency || '',
+    reason: f.med_hist?.medications?.reason || '',
+    startDate: f.med_hist?.medications?.startDate || '',
+    otherNotes: f.med_hist?.medications?.otherNotes || '',
+  };
+  const hasMed = Object.values(med).some(v => (typeof v === 'number' ? v !== 0 : String(v).trim() !== ''));
+  const medicationsArr = hasMed ? [med] : [];
+
+  // Normalize family history to an array if any field present
+  const fam = {
+    health_status: f.med_hist?.family_hist?.health_status || '',
+    age: Number(f.med_hist?.family_hist?.age || 0),
+    cause_of_death: f.med_hist?.family_hist?.cause_of_death || '',
+    additonal_info: f.med_hist?.family_hist?.additonal_info || '',
+  };
+  const hasFam = Object.values(fam).some(v => (typeof v === 'number' ? v !== 0 : String(v).trim() !== ''));
+  const familyArr = hasFam ? [fam] : [];
+
   return {
     admin: {
       reson_for_visit: f.admin?.reson_for_visit || '',
@@ -31,7 +61,7 @@ export function buildScriptFromForm(f = {}) {
         blood_oxygen: Number(f.patient?.vitals?.blood_oxygen || 0),
         temp: {
           reading: Number(f.patient?.vitals?.temp?.reading || 0),
-          unit: f.patient?.vitals?.temp?.unit || 'Celcius',
+          unit: tempUnit,
         },
       },
       visit_reason: f.patient?.visit_reason || f.admin?.reson_for_visit || '',
@@ -67,16 +97,7 @@ export function buildScriptFromForm(f = {}) {
       },
     },
     med_hist: {
-      medications: {
-        name: f.med_hist?.medications?.name || '',
-        brand: f.med_hist?.medications?.brand || '',
-        generic: f.med_hist?.medications?.generic || '',
-        dose: f.med_hist?.medications?.dose || '',
-        frequency: f.med_hist?.medications?.frequency || '',
-        reason: f.med_hist?.medications?.reason || '',
-        startDate: f.med_hist?.medications?.startDate || '',
-        otherNotes: f.med_hist?.medications?.otherNotes || '',
-      },
+      medications: medicationsArr,
       allergies: f.med_hist?.allergies || '',
       past_med_his: {
         child_hood_illness: f.med_hist?.past_med_his?.child_hood_illness || '',
@@ -92,12 +113,7 @@ export function buildScriptFromForm(f = {}) {
         alternate_health_care: f.med_hist?.preventative_measure?.alternate_health_care || '',
         travel_exposure: f.med_hist?.preventative_measure?.travel_exposure || '',
       },
-      family_hist: {
-        health_status: f.med_hist?.family_hist?.health_status || '',
-        age: Number(f.med_hist?.family_hist?.age || 0),
-        cause_of_death: f.med_hist?.family_hist?.cause_of_death || '',
-        additonal_info: f.med_hist?.family_hist?.additonal_info || '',
-      },
+      family_hist: familyArr,
       social_hist: {
         personal_background: f.med_hist?.social_hist?.personal_background || '',
         nutrion_and_exercise: f.med_hist?.social_hist?.nutrion_and_exercise || '',

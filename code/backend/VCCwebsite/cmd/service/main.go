@@ -55,9 +55,10 @@ func main() {
 	mux.Handle("/api/document/medications", api.DocumentHandler(client))
 	mux.Handle("/api/document/vitals", api.DocumentHandler(client))
 	mux.Handle("/api/document", api.DocumentHandler(client))
-	mux.Handle("/api/", api.NewHomePageHandler(client))
-	log.Println("starting server on :8081")
-	if err := http.ListenAndServe(":8081", mux); err != nil {
-		log.Fatalf("server failed: %v", err)
-	}
+	//mux.Handle("/api/login",api.LoginHandler(userDB))
+
+    log.Println("starting server on :8080")
+    if err := http.ListenAndServe(":8080", mux); err != nil {
+        log.Fatalf("server failed: %v", err)
+    }
 }

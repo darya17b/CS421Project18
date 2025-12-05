@@ -1,0 +1,32 @@
+{
+  "admin": {
+    "reson_for_visit": "Chest pain",
+    "chief_concern": "Tightness",
+    "diagnosis": "Angina",
+    "class": "General",
+    "event_dates": "2025-01-01",
+    "learner_level": "MS3",
+    "academic_year": "2025",
+    "author": "admin@example.com",
+    "summory_of_story": "Patient with intermittent chest pain.",
+    "student_expectations": "Gather history; form differential.",
+    "patient_demographic": "Adult male",
+    "special_supplies": "",
+    "case_factors": ""
+  },
+  "patient": {
+    "name": "John Doe",
+    "vitals": {
+      "heart_rate": 78,
+      "respirations": 16,
+      "pressure": { "top": 128, "bottom": 78 },
+      "blood_oxygen": 98,
+      "temp": { "reading": 37, "unit": "Celcius" }
+    },
+    "visit_reason": "Chest pain",
+    "context": "Exertional",
+    "task": "Initial evaluation",
+    "encounter_duration": "15m"
+  }
+}
+

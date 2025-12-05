@@ -34,7 +34,7 @@ export const ToastProvider = ({ children }) => {
               className="absolute top-1 right-1 text-white/80 hover:text-white"
               onClick={() => api.hide(t.id)}
             >
-              ✕
+              x
             </button>
           </div>
         ))}

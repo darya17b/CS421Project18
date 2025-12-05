@@ -6,6 +6,7 @@ import SpSearch from "./pages/SpSearch";
 import FormsReviewer from "./pages/FormsReviewer";
 import FormsSearch from "./pages/FormsSearch";
 import Home from "./pages/Home";
+import Requests from "./pages/Requests";
 import RequestNew from "./pages/RequestNew";
 import ScriptDetail from "./pages/ScriptDetail";
 import { StoreProvider } from "./store";
@@ -33,6 +34,11 @@ const App = () => {
               <Route path="forms-search" element={
                 <RequireAuth>
                   <FormsSearch />
+                </RequireAuth>
+              } />
+              <Route path="requests" element={
+                <RequireAuth>
+                  <Requests />
                 </RequireAuth>
               } />
               <Route path="request-new" element={

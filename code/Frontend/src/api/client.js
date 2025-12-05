@@ -32,10 +32,32 @@ async function request(path, { method = 'GET', body, headers } = {}) {
 export const api = {
   login: (email, password) =>
     request('/auth/login', { method: 'POST', body: { email, password } }),
+  // Existing script APIs 
   listScripts: () => request('/scripts'),
   getScript: (id) => request(`/scripts/${id}`),
   createScript: (payload) =>
     request('/scripts', { method: 'POST', body: payload }),
   proposeEdits: (id, payload = {}) =>
     request(`/scripts/${id}/propose`, { method: 'POST', body: payload }),
+
+  // document APIs (readonly)
+  listDocuments: () => request('/document'),
+  searchDocuments: (params = {}) => {
+    const qs = Object.entries(params)
+      .filter(([, v]) => v != null && String(v).trim() !== '')
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&');
+    const path = qs ? `/document?${qs}` : '/document';
+    return request(path);
+  },
+  getDocument: async (id) => {
+    const res = await request(`/document?id=${encodeURIComponent(id)}`);
+    return Array.isArray(res) ? res[0] : res;
+  },
+  createDocument: (payload) =>
+    request('/document', { method: 'POST', body: payload }),
+  updateDocument: (id, payload) =>
+    request(`/document?id=${encodeURIComponent(id)}`, { method: 'PUT', body: payload }),
+  deleteDocument: (id) =>
+    request(`/document?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };
