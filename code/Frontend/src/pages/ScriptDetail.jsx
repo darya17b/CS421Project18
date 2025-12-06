@@ -1,4 +1,4 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import Modal from "../components/Modal";
@@ -405,12 +405,14 @@ const labelMap = (() => {
 const ScriptDetail = () => {
   const { id } = useParams();
   const store = useStore();
+  const location = useLocation();
+  const requestFromState = location.state?.request;
   const { getById, getRequestById, requestsLoaded } = store;
   const toast = useToast();
   const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
   const useMock = import.meta.env.VITE_USE_MOCK === "true";
   const item = getById ? getById(id) : null;
-  const requestFallback = !item && getRequestById ? getRequestById(id) : null;
+  const requestFallback = (!item && getRequestById ? getRequestById(id) : null) || requestFromState || null;
   const isRequestView = Boolean(!item && requestFallback);
   const mappedRequest = useMemo(() => {
     if (!requestFallback) return null;

@@ -156,6 +156,7 @@ const Requests = () => {
                 </button>
                 <Link
                   to={`/forms/${encodeURIComponent(req.id)}`}
+                  state={{ request: req }}
                   className="rounded border border-gray-300 px-3 py-1 text-sm font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
                 >
                   View script
