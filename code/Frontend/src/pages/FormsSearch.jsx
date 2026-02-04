@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import FormsListRow from "./FormsListRow";
 import Modal from "../components/Modal";
@@ -7,7 +7,7 @@ import { useToast } from "../components/Toast";
 import { downloadResourcePdf } from "../utils/pdf";
 
 const FormsSearch = () => {
-  const { items } = useStore();
+  const { items, refreshDocuments } = useStore();
   const toast = useToast();
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [current, setCurrent] = useState(null);
@@ -16,6 +16,14 @@ const FormsSearch = () => {
   const [err, setErr] = useState("");
   const [q, setQ] = useState({ title: "", author: "", diagnosis: "", learner_level: "", patient_name: "", search: "" });
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    if (typeof refreshDocuments === "function") {
+      refreshDocuments().catch((err) => console.warn("Failed to refresh documents", err));
+    }
+    // refresh on page load to pick up newly approved scripts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onArtifacts = (item) => {
     setCurrent(item);

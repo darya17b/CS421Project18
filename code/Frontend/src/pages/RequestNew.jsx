@@ -18,30 +18,39 @@ const severityScale = Array.from({ length: 11 }).map((_, idx) => ({
   value: idx,
 }));
 
-const buildScriptRequestPayload = (form = {}) => ({
-  simulation_modal: "Standardized Patient",
-  case_setting: form.patient?.context || "",
-  chief_concern: form.admin?.chief_concern || "",
-  diagnosis: form.admin?.diagnosis || "",
-  event: form.admin?.medical_event || "",
-  pedagogy: form.admin?.learner_level || "",
-  class: form.admin?.class || "",
-  learner_level: form.admin?.learner_level || "",
-  summary_patient_story: form.admin?.summory_of_story || "",
-  pert_aspects_patient_case: form.admin?.case_factors || "",
-  physical_chars: form.sp?.physical_chars || "",
-  student_expec: form.admin?.student_expectations || "",
-  spec_phyis_findings: form.sp?.current_ill_history?.symptom_quality || "",
-  patient_demog: form.admin?.patient_demographic || "",
-  special_needs: form.special?.oppurtunity || "",
-  case_factors: form.admin?.case_factors || "",
-  additonal_ins: form.special?.feed_back || "",
-  sympt_review: form.med_hist?.sympton_review || {},
-});
+const buildScriptRequestPayload = (form = {}, draftScript = null) => {
+  const now = new Date().toISOString();
+  return {
+    reason_for_visit: form.admin?.reson_for_visit || form.patient?.visit_reason || "",
+    simulation_modal: "Standardized Patient",
+    case_setting: form.patient?.context || "",
+    chief_concern: form.admin?.chief_concern || "",
+    diagnosis: form.admin?.diagnosis || "",
+    event: form.admin?.medical_event || "",
+    pedagogy: form.admin?.learner_level || "",
+    class: form.admin?.class || "",
+    learner_level: form.admin?.learner_level || "",
+    summary_patient_story: form.admin?.summory_of_story || "",
+    pert_aspects_patient_case: form.admin?.case_factors || "",
+    physical_chars: form.sp?.physical_chars || "",
+    student_expec: form.admin?.student_expectations || "",
+    spec_phyis_findings: form.sp?.current_ill_history?.symptom_quality || "",
+    patient_demog: form.admin?.patient_demographic || "",
+    special_needs: form.special?.oppurtunity || "",
+    case_factors: form.admin?.case_factors || "",
+    additonal_ins: form.special?.feed_back || "",
+    sympt_review: form.med_hist?.sympton_review || {},
+    status: "Pending",
+    note: "",
+    created_at: now,
+    updated_at: now,
+    draft_script: draftScript,
+  };
+};
 
 const RequestNew = () => {
   const navigate = useNavigate();
-  const { addItem, createRequest } = useStore();
+  const { createRequest } = useStore();
   const toast = useToast();
   const initialForm = {
     admin: {
@@ -198,17 +207,13 @@ const RequestNew = () => {
   const onSubmit = async (e) => {
     e.preventDefault();
     const script = buildScriptFromForm(form);
-    const requestPayload = buildScriptRequestPayload(form);
+    const requestPayload = buildScriptRequestPayload(form, script);
 
     try {
-      await addItem(script);
-      if (typeof createRequest === "function") {
-        try {
-          await createRequest(requestPayload);
-        } catch (err) {
-          console.warn("Script request log failed", err);
-        }
+      if (typeof createRequest !== "function") {
+        throw new Error("Request submission is not configured");
       }
+      await createRequest(requestPayload);
       toast.show("Request submitted", { type: "success" });
       navigate("/dashboard");
     } catch (err) {

@@ -3,8 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
-import { exportScriptAsPdf } from "../utils/print";
-import { downloadScriptPdf, downloadResourcePdf } from "../utils/pdf";
+import { downloadScriptPdf, downloadResourcePdf, getScriptPdfUrl } from "../utils/pdf";
 import { buildScriptFromForm } from "../utils/scriptFormat";
 import { normalizeScript, mapVersionHistory } from "../utils/normalize";
 
@@ -167,9 +166,36 @@ function mergeDeep(base, incoming) {
 }
 
 function requestToScript(req = {}) {
+  const draft = req?.draft_script && typeof req.draft_script === "object"
+    ? normalizeScript(req.draft_script)
+    : null;
+  const reasonForVisit =
+    req.reason_for_visit ||
+    req.reson_for_visit ||
+    draft?.admin?.reson_for_visit ||
+    draft?.patient?.visit_reason ||
+    req.chief_concern ||
+    req.diagnosis ||
+    "";
+
+  if (draft) {
+    return mergeDeep(draft, {
+      admin: {
+        reson_for_visit: reasonForVisit,
+        chief_concern: draft?.admin?.chief_concern || req.chief_concern || "",
+        diagnosis: draft?.admin?.diagnosis || req.diagnosis || "",
+      },
+      patient: {
+        name: draft?.patient?.name || req.patient_demog || "Patient",
+        visit_reason: draft?.patient?.visit_reason || reasonForVisit,
+        context: draft?.patient?.context || req.case_setting || "",
+      },
+    });
+  }
+
   return {
     admin: {
-      reson_for_visit: req.chief_concern || req.diagnosis || "",
+      reson_for_visit: reasonForVisit,
       chief_concern: req.chief_concern || "",
       diagnosis: req.diagnosis || "",
       class: req.class || "",
@@ -193,7 +219,7 @@ function requestToScript(req = {}) {
         blood_oxygen: "",
         temp: { reading: "", unit: "" },
       },
-      visit_reason: req.chief_concern || "",
+      visit_reason: reasonForVisit,
       context: req.case_setting || "",
       task: "",
       encounter_duration: "",
@@ -417,11 +443,30 @@ const ScriptDetail = () => {
   const mappedRequest = useMemo(() => {
     if (!requestFallback) return null;
     const req = requestFallback.raw || requestFallback;
+    const reasonForVisit =
+      req?.reason_for_visit ||
+      req?.reson_for_visit ||
+      req?.draft_script?.admin?.reson_for_visit ||
+      req?.draft_script?.patient?.visit_reason ||
+      req?.chief_concern ||
+      "";
+    const patient = [
+      requestFallback.patient,
+      req?.patient_demog,
+      req?.draft_script?.patient?.name,
+      reasonForVisit,
+      req?.case_setting,
+      "Patient",
+    ].find((value) => {
+      if (typeof value !== "string") return Boolean(value);
+      const trimmed = value.trim();
+      return Boolean(trimmed) && trimmed.toLowerCase() !== "unknown";
+    }) || "Patient";
     const fields = requestToScript(req);
     return {
       id: requestFallback.id,
-      title: requestFallback.title || "Script Request",
-      patient: requestFallback.patient || req?.patient_demog || "Patient",
+      title: requestFallback.title || reasonForVisit || "Script Request",
+      patient,
       department: requestFallback.department || req?.class || "General",
       createdAt: requestFallback.updatedAt || requestFallback.createdAt || new Date().toISOString().slice(0, 10),
       summary: requestFallback.summary || req?.summary_patient_story || "",
@@ -557,6 +602,30 @@ const ScriptDetail = () => {
       toast.show("Updated", { type: "success" });
     } catch {
       toast.show("Update failed", { type: "error" });
+    }
+  };
+
+  const printScriptPdf = () => {
+    const pdfUrl = getScriptPdfUrl(activeItem, current);
+    const printWindow = window.open(pdfUrl, "_blank");
+    if (!printWindow) {
+      toast.show("Pop-up blocked. Please allow pop-ups to print.", { type: "error" });
+      return;
+    }
+
+    const triggerPrint = () => {
+      try {
+        printWindow.focus();
+        printWindow.print();
+      } catch {
+        // Some browsers block immediate print on PDF tabs; user can print manually.
+      }
+    };
+
+    if (printWindow.document?.readyState === "complete") {
+      setTimeout(triggerPrint, 150);
+    } else {
+      printWindow.onload = () => setTimeout(triggerPrint, 150);
     }
   };
 
@@ -901,7 +970,7 @@ const ScriptDetail = () => {
           ))}
         </select>
         <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => setArtifactsOpen(true)}>Resources</button>
-        <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => exportScriptAsPdf(activeItem, current)}>Print</button>
+        <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={printScriptPdf}>Print</button>
         <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => downloadScriptPdf(activeItem, current)}>Download PDF</button>
       </div>
     </div>

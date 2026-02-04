@@ -10,6 +10,8 @@ const pad = (s) => (s === 0 ? "0" : s ? String(s) : "");
 
 const headingColor = "#981e32";
 const gray = "#444444";
+const subheadLabelWidth = 190;
+const subheadLineHeight = 14;
 
 function buildScriptPdfDoc(item, versionObj) {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
@@ -45,9 +47,9 @@ function buildScriptPdfDoc(item, versionObj) {
     doc.text(`${label}:`, margin, y);
     doc.setFont("helvetica", "normal");
     const clean = value === undefined || value === null ? "" : String(value);
-    const lines = clean ? doc.splitTextToSize(clean, maxWidth - 110) : [""];
-    doc.text(lines, margin + 110, y, { align: "left" });
-    y += Math.max(lines.length * 14, 14);
+    const lines = clean ? doc.splitTextToSize(clean, maxWidth - subheadLabelWidth) : [""];
+    doc.text(lines, margin + subheadLabelWidth, y, { align: "left" });
+    y += Math.max(lines.length * subheadLineHeight, subheadLineHeight);
   };
 
   const paragraph = (text) => {

@@ -23,8 +23,58 @@ const saveStatus = (data) => {
   }
 };
 
+const buildScriptFromRequest = (request) => {
+  const raw = request?.raw || request || {};
+  if (raw.draft_script && typeof raw.draft_script === "object") {
+    return raw.draft_script;
+  }
+
+  const reasonForVisit =
+    raw.reason_for_visit ||
+    raw.reson_for_visit ||
+    raw.draft_script?.admin?.reson_for_visit ||
+    raw.draft_script?.patient?.visit_reason ||
+    raw.chief_concern ||
+    "";
+
+  return {
+    admin: {
+      reson_for_visit: reasonForVisit,
+      chief_concern: raw.chief_concern || "",
+      diagnosis: raw.diagnosis || "",
+      class: raw.class || "",
+      medical_event: raw.event || "",
+      event_dates: raw.event || "",
+      learner_level: raw.learner_level || raw.pedagogy || "",
+      author: "approved-from-request",
+      summory_of_story: raw.summary_patient_story || "",
+      student_expectations: raw.student_expec || "",
+      patient_demographic: raw.patient_demog || "",
+      case_factors: raw.case_factors || raw.pert_aspects_patient_case || "",
+    },
+    patient: {
+      name: raw.patient_demog || raw.draft_script?.patient?.name || "",
+      visit_reason: reasonForVisit,
+      context: raw.case_setting || "",
+    },
+    sp: {
+      physical_chars: raw.physical_chars || "",
+      current_ill_history: {
+        symptom_quality: raw.spec_phyis_findings || "",
+      },
+    },
+    med_hist: {
+      sympton_review: raw.sympt_review || {},
+    },
+    special: {
+      oppurtunity: raw.special_needs || "",
+      feed_back: raw.additonal_ins || "",
+    },
+  };
+};
+
 const Requests = () => {
-  const { items, requests, refreshRequests } = useStore();
+  const { requests, refreshRequests, updateRequest, addItem } = useStore();
   const toast = useToast();
   const [statusMap, setStatusMap] = useState(() => loadStatus());
   const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
@@ -40,49 +90,125 @@ const Requests = () => {
   }, [statusMap]);
 
   useEffect(() => {
-    const source = requests?.length ? requests : items;
+    const source = requests || [];
     if (!source?.length) return;
+
     setStatusMap((prev) => {
       const next = { ...prev };
       source.forEach((it) => {
-        if (!next[it.id]) {
-          next[it.id] = { status: "Pending", note: "", updatedAt: new Date().toISOString() };
-        }
+        const backendStatus = it.raw?.status || it.status || "Pending";
+        const backendNote = it.raw?.note || it.note || "";
+        const backendUpdatedAt = it.raw?.updated_at || it.updatedAt;
+
+        next[it.id] = {
+          status: backendStatus || next[it.id]?.status || "Pending",
+          note: backendNote,
+          updatedAt: backendUpdatedAt || next[it.id]?.updatedAt || new Date().toISOString(),
+        };
       });
       return next;
     });
-  }, [items, requests]);
+  }, [requests]);
 
   const list = useMemo(() => {
-    const source = requests?.length ? requests : items;
-    return (source || []).map((it) => {
-      const meta = statusMap[it.id] || { status: "Pending" };
+    return (requests || []).map((it) => {
+      const meta = statusMap[it.id] || {};
       return {
         ...it,
-        status: meta.status,
-        note: meta.note || "",
+        status: meta.status || it.status || "Pending",
+        note: meta.note ?? it.note ?? "",
         updatedAt: meta.updatedAt,
+        approvedScriptId: it.approvedScriptId || it.raw?.approved_script_id || "",
       };
     });
-  }, [items, requests, statusMap]);
+  }, [requests, statusMap]);
 
-  const updateStatus = (id, status) => {
-    setStatusMap((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], status, updatedAt: new Date().toISOString() },
-    }));
-    toast.show(`Marked as ${status}`, { type: status === "Approved" ? "success" : "info" });
+  const persistRequestMeta = async (req, overrides = {}) => {
+    if (typeof updateRequest !== "function") return req?.raw || null;
+
+    const currentMeta = statusMap[req.id] || {};
+    const payload = {
+      ...(req.raw || {}),
+      status: overrides.status ?? currentMeta.status ?? req.status ?? "Pending",
+      note: overrides.note ?? currentMeta.note ?? req.note ?? "",
+      updated_at: new Date().toISOString(),
+      ...overrides,
+    };
+
+    const updated = await updateRequest(req.id, payload);
+    return updated?.raw || updated || payload;
   };
 
-  const addNote = (id) => {
-    const existing = statusMap[id]?.note || "";
-    const note = prompt("Add a note for this request", existing);
-    if (note === null) return;
+  const promoteApprovedRequest = async (req, latestRaw) => {
+    const existingScriptId = latestRaw?.approved_script_id || req.approvedScriptId || req.raw?.approved_script_id;
+    if (existingScriptId || typeof addItem !== "function") return existingScriptId || "";
+
+    const scriptPayload = buildScriptFromRequest({ ...req, raw: latestRaw || req.raw });
+    const created = await addItem(scriptPayload);
+    const createdId = created?.id || created?._id || "";
+
+    if (createdId && typeof updateRequest === "function") {
+      await updateRequest(req.id, {
+        ...(latestRaw || req.raw || {}),
+        status: "Approved",
+        note: statusMap[req.id]?.note || req.note || "",
+        approved_script_id: createdId,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    return createdId;
+  };
+
+  const updateStatus = async (req, status) => {
     setStatusMap((prev) => ({
       ...prev,
-      [id]: { ...prev[id], note, updatedAt: new Date().toISOString() },
+      [req.id]: { ...prev[req.id], status, updatedAt: new Date().toISOString() },
     }));
-    toast.show("Note saved", { type: "success" });
+
+    try {
+      const latestRaw = await persistRequestMeta(req, { status });
+
+      if (status === "Approved") {
+        const createdId = await promoteApprovedRequest(req, latestRaw);
+        if (createdId) {
+          toast.show("Marked as Approved and added to Script Library", { type: "success" });
+        } else {
+          toast.show("Marked as Approved", { type: "success" });
+        }
+      } else {
+        toast.show(`Marked as ${status}`, { type: "info" });
+      }
+
+      if (typeof refreshRequests === "function") {
+        await refreshRequests();
+      }
+    } catch (err) {
+      console.warn("Failed to update request status", err);
+      toast.show("Failed to update status", { type: "error" });
+    }
+  };
+
+  const addNote = async (req) => {
+    const existing = statusMap[req.id]?.note || req.note || "";
+    const note = prompt("Add a note for this request", existing);
+    if (note === null) return;
+
+    setStatusMap((prev) => ({
+      ...prev,
+      [req.id]: { ...prev[req.id], note, updatedAt: new Date().toISOString() },
+    }));
+
+    try {
+      await persistRequestMeta(req, { note });
+      if (typeof refreshRequests === "function") {
+        await refreshRequests();
+      }
+      toast.show("Note saved", { type: "success" });
+    } catch (err) {
+      console.warn("Failed to save request note", err);
+      toast.show("Failed to save note", { type: "error" });
+    }
   };
 
   const resetMock = () => {
@@ -142,20 +268,20 @@ const Requests = () => {
                 {STATUS_OPTIONS.map((status) => (
                   <button
                     key={status}
-                    onClick={() => updateStatus(req.id, status)}
+                    onClick={() => { void updateStatus(req, status); }}
                     className={`rounded border px-3 py-1 text-sm font-semibold ${req.status === status ? "border-[#981e32] text-[#981e32]" : "border-gray-300 text-gray-700"} hover:border-[#981e32] hover:text-[#981e32]`}
                   >
                     {status}
                   </button>
                 ))}
                 <button
-                  onClick={() => addNote(req.id)}
+                  onClick={() => { void addNote(req); }}
                   className="rounded border border-gray-300 px-3 py-1 text-sm font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
                 >
                   Add note
                 </button>
                 <Link
-                  to={`/forms/${encodeURIComponent(req.id)}`}
+                  to={`/forms/${encodeURIComponent(req.approvedScriptId || req.id)}`}
                   state={{ request: req }}
                   className="rounded border border-gray-300 px-3 py-1 text-sm font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
                 >
