@@ -773,63 +773,154 @@ const ScriptDetail = () => {
     const data = form || initialForm;
     const medVal = data?.med_hist?.medications;
     const medCard = Array.isArray(medVal) ? medVal[0] || {} : (medVal || {});
-    const ros = data?.med_hist?.sympton_review || {};
-    const family = data?.med_hist?.family_hist;
-    const familyInfo = Array.isArray(family)
-      ? family.map((f) => `${padVal(f?.health_status)} • Age ${padVal(f?.age)} • ${padVal(f?.cause_of_death)}`).join(" | ")
-      : (family && typeof family === "object")
-        ? Object.values(family || {}).filter(Boolean).join(" | ")
-        : "";
+    const empty = "-";
+    const tempUnitRaw = data?.patient?.vitals?.temp?.unit;
+    const tempUnit = typeof tempUnitRaw === "number"
+      ? (tempUnitRaw === 1 ? "Fahrenheit" : "Celsius")
+      : (tempUnitRaw || "");
 
     return (
-      <div className="rounded border bg-white p-6 space-y-6 text-left">
-        <div className="text-sm text-gray-600">
-          {[activeItem.id, activeItem.patient, activeItem.department, activeItem.createdAt].filter(Boolean).join(" | ")}
-        </div>
-
-        <div className="space-y-3">
-          <div className="text-[#981e32] font-semibold text-lg">Administrative Details</div>
-          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
-            {[
-              ["Patient's Reason for Visit", data?.admin?.reson_for_visit],
-              ["Chief Complaint", data?.admin?.chief_concern],
-              ["Diagnosis", data?.admin?.diagnosis],
-              ["Class", data?.admin?.class],
-              ["Event", data?.admin?.medical_event],
-              ["Learner Level", data?.admin?.learner_level],
-              ["Academic Year", data?.admin?.academic_year],
-              ["Author", data?.admin?.author],
-              ["Student Expectations", data?.admin?.student_expectations],
-              ["Patient Demographic", data?.admin?.patient_demographic],
-              ["Special Supplies", data?.admin?.special_supplies],
-              ["Case Factors", data?.admin?.case_factors],
-              ["Additional Instructions", data?.special?.feed_back],
-            ].map(([label, value]) => (
-              <div key={label} className="space-y-1">
-                <dt className="font-semibold text-gray-900">{label}</dt>
-                <dd className="text-gray-700">{value || "—"}</dd>
-              </div>
-            ))}
-          </dl>
-          <div>
-            <div className="font-semibold text-gray-900">Summary of patient story</div>
-            <p className="text-gray-700 text-sm">{data?.admin?.summory_of_story || "—"}</p>
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6 space-y-4">
+        <div className="text-center space-y-1">
+          <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Virtual Clinical Center</div>
+          <h3 className="text-xl font-semibold text-[#981e32]">{data?.admin?.reson_for_visit || activeItem.title || "Script Preview"}</h3>
+          <div className="text-sm text-gray-700">
+            {data?.admin?.diagnosis || "Diagnosis TBD"} - {data?.admin?.class || activeItem.department || "Course"} - {data?.admin?.author || "Author N/A"}
           </div>
         </div>
 
-        <div className="space-y-3">
-          <div className="text-[#981e32] font-semibold text-lg"> Content for Standardized Patients</div>
-          <div className="space-y-1">
-            <div className="font-semibold text-gray-900">Opening Statement</div>
-            <div className="text-gray-700 text-sm">{data?.sp?.opening_statement || "—"}</div>
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <div className="font-semibold text-gray-900">Administrative Details</div>
+            <ul className="text-sm text-gray-700 space-y-1">
+              <li><span className="font-semibold">Reason for Visit:</span> {data?.admin?.reson_for_visit || empty}</li>
+              <li><span className="font-semibold">Chief Complaint:</span> {data?.admin?.chief_concern || empty}</li>
+              <li><span className="font-semibold">Diagnosis:</span> {data?.admin?.diagnosis || empty}</li>
+              <li><span className="font-semibold">Event:</span> {data?.admin?.medical_event || empty}</li>
+              <li><span className="font-semibold">Learner Level:</span> {data?.admin?.learner_level || empty}</li>
+              <li><span className="font-semibold">Academic Year:</span> {data?.admin?.academic_year || empty}</li>
+              <li><span className="font-semibold">Author:</span> {data?.admin?.author || empty}</li>
+            </ul>
+            <div className="text-sm text-gray-700">
+              <div className="font-semibold">Summary of Patient Story</div>
+              <p className="text-gray-800">{data?.admin?.summory_of_story || "Add a short narrative to summarize the case."}</p>
+            </div>
+            <div className="text-sm text-gray-700">
+              <div className="font-semibold">Student Expectations</div>
+              <p className="text-gray-800">{data?.admin?.student_expectations || "List expectations for learners."}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="font-semibold text-gray-900">Patient Snapshot</div>
+            <ul className="text-sm text-gray-700 space-y-1">
+              <li><span className="font-semibold">Patient:</span> {data?.patient?.name || empty}</li>
+              <li><span className="font-semibold">Visit Reason:</span> {data?.patient?.visit_reason || data?.admin?.reson_for_visit || empty}</li>
+              <li><span className="font-semibold">Context:</span> {data?.patient?.context || empty}</li>
+              <li><span className="font-semibold">Task:</span> {data?.patient?.task || empty}</li>
+              <li><span className="font-semibold">Encounter Duration:</span> {data?.patient?.encounter_duration || empty}</li>
+            </ul>
+            <div className="text-sm text-gray-700">
+              <div className="font-semibold">Vitals</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>HR: {data?.patient?.vitals?.heart_rate || empty}</div>
+                <div>RR: {data?.patient?.vitals?.respirations || empty}</div>
+                <div>BP: {data?.patient?.vitals?.pressure?.top || empty}/{data?.patient?.vitals?.pressure?.bottom || empty}</div>
+                <div>SpO2: {data?.patient?.vitals?.blood_oxygen || empty}</div>
+                <div>Temp: {data?.patient?.vitals?.temp?.reading || empty} {tempUnit}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <div className="font-semibold text-gray-900">SP Content</div>
+            <div className="text-sm text-gray-700">
+              <div className="font-semibold">Opening Statement</div>
+              <p className="text-gray-800">{data?.sp?.opening_statement || empty}</p>
+            </div>
+            <div className="text-sm text-gray-700">
+              <div className="font-semibold">Character Attributes</div>
+              <div className="grid grid-cols-2 gap-2">
+                {["anxiety", "suprise", "confusion", "guilt", "sadness", "indecision", "assertiveness", "frustration", "fear", "anger"].map((k) => (
+                  <div key={k} className="flex items-center justify-between rounded border px-2 py-1">
+                    <span className="capitalize">{k}</span>
+                    <span className="text-sm font-semibold text-[#981e32]">{ratingLabel(data?.sp?.attributes?.[k])}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="font-semibold text-gray-900">Symptoms</div>
+            <ul className="text-sm text-gray-700 space-y-1">
+              <li><span className="font-semibold">Setting:</span> {data?.sp?.current_ill_history?.symptom_settings || empty}</li>
+              <li><span className="font-semibold">Timing:</span> {data?.sp?.current_ill_history?.symptom_timing || empty}</li>
+              <li><span className="font-semibold">Associated Symptoms:</span> {data?.sp?.current_ill_history?.associated_symptoms || empty}</li>
+              <li><span className="font-semibold">Radiation:</span> {data?.sp?.current_ill_history?.radiation_of_symptoms || empty}</li>
+              <li><span className="font-semibold">Quality:</span> {data?.sp?.current_ill_history?.symptom_quality || empty}</li>
+              <li><span className="font-semibold">Alleviating Factors:</span> {data?.sp?.current_ill_history?.alleviating_factors || empty}</li>
+              <li><span className="font-semibold">Aggravating Factors:</span> {data?.sp?.current_ill_history?.aggravating_factors || empty}</li>
+              <li><span className="font-semibold">Severity (0-10):</span> {data?.sp?.current_ill_history?.pain ?? 0}</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <div className="font-semibold text-gray-900">Medications & Allergies</div>
+            <ul className="text-sm text-gray-700 space-y-1">
+              <li><span className="font-semibold">Medication:</span> {medCard?.name || empty} {medCard?.dose ? `(${medCard.dose})` : ""}</li>
+              <li><span className="font-semibold">Frequency:</span> {medCard?.frequency || empty}</li>
+              <li><span className="font-semibold">Reason:</span> {medCard?.reason || empty}</li>
+              <li><span className="font-semibold">Allergies:</span> {data?.med_hist?.allergies || empty}</li>
+            </ul>
           </div>
           <div className="space-y-2">
-            <div className="font-semibold text-gray-900">Character Attributes</div>
-            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
-              {["anxiety","suprise","confusion","guilt","sadness","indecision","assertiveness","frustration","fear","anger"].map((k) => (
-                <div key={k} className="flex items-center justify-between rounded border px-3 py-2 text-sm">
-                  <span className="capitalize text-gray-800">{k}</span>
-                  <span className="font-semibold text-[#981e32]">{ratingLabel(data?.sp?.attributes?.[k])}</span>
+            <div className="font-semibold text-gray-900">Case Factors & Supplies</div>
+            <ul className="text-sm text-gray-700 space-y-1">
+              <li><span className="font-semibold">Special Supplies:</span> {data?.admin?.special_supplies || empty}</li>
+              <li><span className="font-semibold">Case Factors:</span> {data?.admin?.case_factors || empty}</li>
+              <li><span className="font-semibold">Patient Demographic:</span> {data?.admin?.patient_demographic || empty}</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <div className="font-semibold text-gray-900">Social History</div>
+            <ul className="text-sm text-gray-700 space-y-1">
+              <li><span className="font-semibold">Background:</span> {data?.med_hist?.social_hist?.personal_background || empty}</li>
+              <li><span className="font-semibold">Nutrition/Exercise:</span> {data?.med_hist?.social_hist?.nutrion_and_exercise || empty}</li>
+              <li><span className="font-semibold">Community/Employment:</span> {data?.med_hist?.social_hist?.community_and_employment || empty}</li>
+              <li><span className="font-semibold">Safety Measures:</span> {data?.med_hist?.social_hist?.safety_measure || empty}</li>
+              <li><span className="font-semibold">Life Stressors:</span> {data?.med_hist?.social_hist?.life_stressors || empty}</li>
+              <li><span className="font-semibold">Substance Use:</span> {data?.med_hist?.social_hist?.substance_use || empty}</li>
+            </ul>
+          </div>
+          <div className="space-y-2">
+            <div className="font-semibold text-gray-900">Review of Systems</div>
+            <div className="grid grid-cols-2 gap-2 text-sm text-gray-700">
+              {[
+                ["general", "General"],
+                ["skin", "Skin"],
+                ["heent", "HEENT"],
+                ["neck", "Neck"],
+                ["breast", "Breast"],
+                ["respiratory", "Respiratory"],
+                ["cardiovascular", "Cardiovascular"],
+                ["gastrointestinal", "Gastrointestinal"],
+                ["peripheral_vascular", "Peripheral Vascular"],
+                ["musculoskeletal", "Musculoskeletal"],
+                ["psychiatric", "Psychiatric"],
+                ["neurologival", "Neurological"],
+                ["endocine", "Endocrine"],
+              ].map(([k, label]) => (
+                <div key={k} className="rounded border px-2 py-1 bg-gray-50">
+                  <div className="font-semibold text-gray-800">{label}</div>
+                  <div>{data?.med_hist?.sympton_review?.[k] || empty}</div>
                 </div>
               ))}
             </div>
@@ -837,120 +928,14 @@ const ScriptDetail = () => {
         </div>
 
         <div className="space-y-2">
-          <div className="text-[#981e32] font-semibold text-lg">History of Present Illness</div>
-          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
-            {[
-              ["Setting", data?.sp?.current_ill_history?.symptom_settings],
-              ["Timing", data?.sp?.current_ill_history?.symptom_timing],
-              ["Associated Symptoms", data?.sp?.current_ill_history?.associated_symptoms],
-              ["Radiation", data?.sp?.current_ill_history?.radiation_of_symptoms],
-              ["Quality", data?.sp?.current_ill_history?.symptom_quality],
-              ["Alleviating Factors", data?.sp?.current_ill_history?.alleviating_factors],
-              ["Aggravating Factors", data?.sp?.current_ill_history?.aggravating_factors],
-              ["Severity (0-10)", data?.sp?.current_ill_history?.pain],
-            ].map(([label, value]) => (
-              <div key={label} className="space-y-1">
-                <dt className="font-semibold text-gray-900">{label}</dt>
-                <dd className="text-gray-700">{value === 0 ? "0" : value || "—"}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-
-        <div className="space-y-2">
-          <div className="text-[#981e32] font-semibold text-lg">Medications & Allergies</div>
-          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
-            <div className="space-y-1">
-              <dt className="font-semibold text-gray-900">Medication</dt>
-              <dd className="text-gray-700">{[medCard.name, medCard.dose, medCard.frequency].filter(Boolean).join(" • ") || "—"}</dd>
-            </div>
-            <div className="space-y-1">
-              <dt className="font-semibold text-gray-900">Reason</dt>
-              <dd className="text-gray-700">{medCard.reason || "—"}</dd>
-            </div>
-            <div className="space-y-1">
-              <dt className="font-semibold text-gray-900">Allergies</dt>
-              <dd className="text-gray-700">{data?.med_hist?.allergies || "—"}</dd>
-            </div>
-          </dl>
-        </div>
-
-        <div className="space-y-2">
-          <div className="text-[#981e32] font-semibold text-lg">Past Medical History</div>
-          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
-            {Object.entries(data?.med_hist?.past_med_his || {}).map(([label, value]) => (
-              <div key={label} className="space-y-1">
-                <dt className="font-semibold text-gray-900">{label.replace(/_/g, " ")}</dt>
-                <dd className="text-gray-700">{value || "—"}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-
-        <div className="space-y-2">
-          <div className="text-[#981e32] font-semibold text-lg">Preventative Medicine</div>
-          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
-            {Object.entries(data?.med_hist?.preventative_measure || {}).map(([label, value]) => (
-              <div key={label} className="space-y-1">
-                <dt className="font-semibold text-gray-900">{label.replace(/_/g, " ")}</dt>
-                <dd className="text-gray-700">{value || "—"}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-
-        <div className="space-y-2">
-          <div className="text-[#981e32] font-semibold text-lg">Family History</div>
-          <div className="text-sm text-gray-700">{familyInfo || "—"}</div>
-        </div>
-
-        <div className="space-y-2">
-          <div className="text-[#981e32] font-semibold text-lg">Social History</div>
-          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
-            {[
-              ["Personal Background", data?.med_hist?.social_hist?.personal_background],
-              ["Nutrition & Exercise", data?.med_hist?.social_hist?.nutrion_and_exercise],
-              ["Community & Employment", data?.med_hist?.social_hist?.community_and_employment],
-              ["Safety Measures", data?.med_hist?.social_hist?.safety_measure],
-              ["Life Stressors", data?.med_hist?.social_hist?.life_stressors],
-              ["Substance Use", data?.med_hist?.social_hist?.substance_use],
-            ].map(([label, value]) => (
-              <div key={label} className="space-y-1">
-                <dt className="font-semibold text-gray-900">{label}</dt>
-                <dd className="text-gray-700">{value || "—"}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-
-        <div className="space-y-2">
-          <div className="text-[#981e32] font-semibold text-lg">Review of Systems</div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
-            {Object.entries(ros).map(([label, value]) => (
-              <div key={label} className="rounded border px-3 py-2 bg-gray-50">
-                <div className="font-semibold text-gray-900">{label}</div>
-                <div className="text-gray-700">{value || "—"}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <div className="text-[#981e32] font-semibold text-lg">Prompts & Special Instructions</div>
-          <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-800">
-            {[
-              ["Provoking Question", data?.special?.provoking_question],
-              ["Must Ask", data?.special?.must_ask],
-              ["Opportunity", data?.special?.oppurtunity],
-              ["Opening Statement", data?.special?.opening_statement],
-              ["Feedback", data?.special?.feed_back],
-            ].map(([label, value]) => (
-              <div key={label} className="space-y-1">
-                <dt className="font-semibold text-gray-900">{label}</dt>
-                <dd className="text-gray-700">{value || "—"}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="font-semibold text-gray-900">Prompts & Special Instructions</div>
+          <ul className="text-sm text-gray-700 space-y-1">
+            <li><span className="font-semibold">Provoking Question:</span> {data?.special?.provoking_question || empty}</li>
+            <li><span className="font-semibold">Must Ask:</span> {data?.special?.must_ask || empty}</li>
+            <li><span className="font-semibold">Opportunity:</span> {data?.special?.oppurtunity || empty}</li>
+            <li><span className="font-semibold">Opening Statement:</span> {data?.special?.opening_statement || empty}</li>
+            <li><span className="font-semibold">Feedback Notes:</span> {data?.special?.feed_back || empty}</li>
+          </ul>
         </div>
       </div>
     );
