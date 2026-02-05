@@ -74,7 +74,7 @@ const buildScriptFromRequest = (request) => {
 };
 
 const Requests = () => {
-  const { requests, refreshRequests, updateRequest, addItem } = useStore();
+  const { requests, refreshRequests, updateRequest, addItem, deleteRequest, deleteItem } = useStore();
   const toast = useToast();
   const [statusMap, setStatusMap] = useState(() => loadStatus());
   const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
@@ -120,7 +120,7 @@ const Requests = () => {
         updatedAt: meta.updatedAt,
         approvedScriptId: it.approvedScriptId || it.raw?.approved_script_id || "",
       };
-    });
+    }).filter((it) => String(it.status || "").toLowerCase() !== "approved");
   }, [requests, statusMap]);
 
   const persistRequestMeta = async (req, overrides = {}) => {
@@ -211,6 +211,31 @@ const Requests = () => {
     }
   };
 
+  const deleteInReview = async (req) => {
+    if (!confirm("Delete this request? This cannot be undone.")) return;
+    try {
+      if (typeof deleteRequest !== "function") {
+        throw new Error("Delete request is not configured");
+      }
+      if (req.approvedScriptId && typeof deleteItem === "function") {
+        await deleteItem(req.approvedScriptId);
+      }
+      await deleteRequest(req.id);
+      setStatusMap((prev) => {
+        const next = { ...prev };
+        delete next[req.id];
+        return next;
+      });
+      toast.show("Request deleted", { type: "success" });
+      if (typeof refreshRequests === "function") {
+        await refreshRequests();
+      }
+    } catch (err) {
+      console.warn("Failed to delete request", err);
+      toast.show("Failed to delete request", { type: "error" });
+    }
+  };
+
   const resetMock = () => {
     setStatusMap({});
     toast.show("Mock approvals reset", { type: "info" });
@@ -280,6 +305,14 @@ const Requests = () => {
                 >
                   Add note
                 </button>
+                {req.status === "In Review" ? (
+                  <button
+                    onClick={() => { void deleteInReview(req); }}
+                    className="rounded border border-red-300 px-3 py-1 text-sm font-semibold text-red-700 hover:border-red-500 hover:text-red-700"
+                  >
+                    Delete script
+                  </button>
+                ) : null}
                 <Link
                   to={`/forms/${encodeURIComponent(req.approvedScriptId || req.id)}`}
                   state={{ request: req }}
@@ -291,6 +324,14 @@ const Requests = () => {
             </div>
           ))
         )}
+      </div>
+      <div className="flex justify-end">
+        <Link
+          to="/request-new"
+          className="inline-flex items-center justify-center rounded-md border border-[#981e32] px-4 py-2 text-sm font-semibold text-[#981e32] hover:bg-[#981e32] hover:text-white"
+        >
+          Add Script
+        </Link>
       </div>
     </section>
   );

@@ -131,6 +131,13 @@ export const ApiStoreProvider = ({ children }) => {
     return true;
   }, []);
 
+  const deleteItem = useCallback(async (id) => {
+    if (!api.deleteDocument) return false;
+    await api.deleteDocument(id);
+    setItems((prev) => prev.filter((it) => it.id !== id));
+    return true;
+  }, []);
+
   const apiValue = useMemo(() => ({
     items,
     requests,
@@ -180,6 +187,7 @@ export const ApiStoreProvider = ({ children }) => {
     createRequest,
     updateRequest,
     deleteRequest,
+    deleteItem,
     
     toggleProposed: () => { console.warn('toggleProposed disabled: backend propose endpoint required'); },
     clearDrafts: () => {
@@ -198,7 +206,7 @@ export const ApiStoreProvider = ({ children }) => {
       setItems([]);
       setRequests([]);
     },
-  }), [items, requests, refreshRequests, createRequest, updateRequest, deleteRequest, requestsLoaded]);
+  }), [items, requests, refreshRequests, createRequest, updateRequest, deleteRequest, deleteItem, requestsLoaded]);
 
   return (
     <ApiStoreContext.Provider value={apiValue}>{children}</ApiStoreContext.Provider>
