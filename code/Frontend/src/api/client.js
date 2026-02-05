@@ -14,15 +14,16 @@ const getToken = () => {
 async function request(path, { method = 'GET', body, headers } = {}) {
   const url = `${API_BASE}${path}`;
   console.log(`[API] ${method} ${url}`); // Debug logging
-  
+
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   const res = await fetch(url, {
     method,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
       ...headers,
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
     credentials: 'include',
   });
 
@@ -83,6 +84,16 @@ export const api = {
   
   deleteDocument: (id) =>
     request(`/document?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // Artifact APIs
+  uploadArtifact: (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request('/artifact', { method: 'POST', body: form });
+  },
+
+  deleteArtifact: (id) =>
+    request(`/artifact?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   // Document version APIs
   listDocumentVersions: (id) =>

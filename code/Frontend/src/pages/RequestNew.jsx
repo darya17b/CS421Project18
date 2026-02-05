@@ -18,7 +18,7 @@ const severityScale = Array.from({ length: 11 }).map((_, idx) => ({
   value: idx,
 }));
 
-const buildScriptRequestPayload = (form = {}, draftScript = null) => {
+const buildScriptRequestPayload = (form = {}, draftScript = null, artifacts = []) => {
   const now = new Date().toISOString();
   return {
     reason_for_visit: form.admin?.reson_for_visit || form.patient?.visit_reason || "",
@@ -45,6 +45,7 @@ const buildScriptRequestPayload = (form = {}, draftScript = null) => {
     created_at: now,
     updated_at: now,
     draft_script: draftScript,
+    artifacts,
   };
 };
 
@@ -52,6 +53,8 @@ const RequestNew = () => {
   const navigate = useNavigate();
   const { createRequest } = useStore();
   const toast = useToast();
+  const [attachments, setAttachments] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
   const initialForm = {
     admin: {
       reson_for_visit: "",
@@ -204,12 +207,65 @@ const RequestNew = () => {
   const textAreaClass = "w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-gray-400";
   const sectionLabelClass = "text-sm font-semibold text-gray-800";
 
+  const addAttachments = (files) => {
+    const next = [];
+    const errors = [];
+    files.forEach((file) => {
+      const ext = String(file?.name || "").toLowerCase();
+      const type = String(file?.type || "").toLowerCase();
+      const isAllowedType = ["application/pdf", "image/png", "image/jpeg"].includes(type)
+        || ext.endsWith(".pdf") || ext.endsWith(".png") || ext.endsWith(".jpg") || ext.endsWith(".jpeg");
+      if (!isAllowedType) {
+        errors.push(`${file.name} is not a supported file type.`);
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        errors.push(`${file.name} exceeds the 5MB limit.`);
+        return;
+      }
+      next.push(file);
+    });
+    if (errors.length) {
+      toast.show(errors[0], { type: "error" });
+    }
+    if (next.length) {
+      setAttachments((prev) => [...prev, ...next]);
+    }
+  };
+
+  const onFilesSelected = (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length) addAttachments(files);
+    event.target.value = "";
+  };
+
+  const removeAttachment = (index) => {
+    setAttachments((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const uploadAttachments = async () => {
+    if (!attachments.length) return [];
+    const { api } = await import("../api/client");
+    const uploaded = [];
+    for (const file of attachments) {
+      const res = await api.uploadArtifact(file);
+      uploaded.push(res);
+    }
+    return uploaded;
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
-    const script = buildScriptFromForm(form);
-    const requestPayload = buildScriptRequestPayload(form, script);
+    setSubmitting(true);
+    let uploadedArtifacts = [];
 
     try {
+      uploadedArtifacts = await uploadAttachments();
+      const script = buildScriptFromForm(form);
+      if (uploadedArtifacts.length) {
+        script.artifacts = uploadedArtifacts;
+      }
+      const requestPayload = buildScriptRequestPayload(form, script, uploadedArtifacts);
       if (typeof createRequest !== "function") {
         throw new Error("Request submission is not configured");
       }
@@ -217,7 +273,17 @@ const RequestNew = () => {
       toast.show("Request submitted", { type: "success" });
       navigate("/dashboard");
     } catch (err) {
+      try {
+        const { api } = await import("../api/client");
+        await Promise.all(
+          uploadedArtifacts.map((a) => (a?.id ? api.deleteArtifact(a.id) : null))
+        );
+      } catch {
+        
+      }
       toast.show("Creation failed", { type: "error" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -537,10 +603,40 @@ const RequestNew = () => {
                 </label>
               ))}
             </div>
+
+            <div className="space-y-4">
+              <div className={sectionLabelClass}>Attachments</div>
+              <div className="text-sm text-gray-600">
+                Upload medical cards, door notes, or other resources. PDF/PNG/JPG only, max 5MB each.
+              </div>
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                onChange={onFilesSelected}
+                className="block w-full text-sm text-gray-600 file:mr-4 file:rounded-full file:border file:border-gray-300 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:border-[#981e32] hover:file:text-[#981e32]"
+              />
+              {attachments.length ? (
+                <div className="space-y-2">
+                  {attachments.map((file, idx) => (
+                    <div key={`${file.name}-${idx}`} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                      <span>{file.name}</span>
+                      <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => removeAttachment(idx)}>
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">No attachments added.</div>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
-          <button type="submit" className="rounded-full bg-emerald-600 text-white px-5 py-2 text-sm font-semibold hover:bg-emerald-700">Submit</button>
+          <button type="submit" disabled={submitting} className="rounded-full bg-emerald-600 text-white px-5 py-2 text-sm font-semibold hover:bg-emerald-700 disabled:opacity-70">
+            {submitting ? "Submitting..." : "Submit"}
+          </button>
           <button type="button" className="rounded-full border border-gray-300 px-5 py-2 text-sm font-semibold hover:bg-gray-50" onClick={() => navigate("/dashboard")}>Cancel</button>
           <button
             type="button"

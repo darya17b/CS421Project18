@@ -5,6 +5,7 @@ import Modal from "../components/Modal";
 import { useStore } from "../store";
 import { useToast } from "../components/Toast";
 import { downloadResourcePdf } from "../utils/pdf";
+import { getArtifactBadge, getArtifactName, getArtifactUrl } from "../utils/artifacts";
 
 const FormsSearch = () => {
   const { items, refreshDocuments } = useStore();
@@ -16,6 +17,14 @@ const FormsSearch = () => {
   const [err, setErr] = useState("");
   const [q, setQ] = useState({ title: "", author: "", diagnosis: "", learner_level: "", patient_name: "", search: "" });
   const [showFilters, setShowFilters] = useState(false);
+  const openArtifact = (artifact) => {
+    const url = getArtifactUrl(artifact);
+    if (url) {
+      window.open(url, "_blank", "noopener");
+    } else {
+      downloadResourcePdf(current, getArtifactName(artifact));
+    }
+  };
 
   useEffect(() => {
     if (typeof refreshDocuments === "function") {
@@ -169,17 +178,23 @@ const FormsSearch = () => {
       <Modal open={artifactsOpen} title={`Resources for ${current?.id}`} onClose={() => setArtifactsOpen(false)}>
         {!current ? null : (
           <div className="space-y-2">
-            {(current.artifacts && current.artifacts.length ? current.artifacts : ["Placeholder.pdf", "Placeholder.png"]).map((a, idx) => (
-              <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">PDF</span>
-                  <span>{a}</span>
+            {current.artifacts && current.artifacts.length ? (
+              current.artifacts.map((a, idx) => (
+                <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">
+                      {getArtifactBadge(a)}
+                    </span>
+                    <span>{getArtifactName(a)}</span>
+                  </div>
+                  <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Download resource" onClick={() => openArtifact(a)}>
+                    Download
+                  </button>
                 </div>
-                <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Create PDF" onClick={() => downloadResourcePdf(current, a)}>
-                  Download PDF
-                </button>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="text-sm text-gray-600">No resources uploaded.</div>
+            )}
           </div>
         )}
       </Modal>

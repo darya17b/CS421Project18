@@ -4,6 +4,7 @@ import { useStore } from "../store";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { downloadScriptPdf, downloadResourcePdf, getScriptPdfUrl } from "../utils/pdf";
+import { getArtifactBadge, getArtifactName, getArtifactUrl } from "../utils/artifacts";
 import { buildScriptFromForm } from "../utils/scriptFormat";
 import { normalizeScript, mapVersionHistory } from "../utils/normalize";
 
@@ -169,6 +170,7 @@ function requestToScript(req = {}) {
   const draft = req?.draft_script && typeof req.draft_script === "object"
     ? normalizeScript(req.draft_script)
     : null;
+  const artifacts = req?.artifacts || draft?.artifacts || [];
   const reasonForVisit =
     req.reason_for_visit ||
     req.reson_for_visit ||
@@ -190,6 +192,7 @@ function requestToScript(req = {}) {
         visit_reason: draft?.patient?.visit_reason || reasonForVisit,
         context: draft?.patient?.context || req.case_setting || "",
       },
+      artifacts,
     });
   }
 
@@ -259,6 +262,7 @@ function requestToScript(req = {}) {
       opening_statement: req.opening_statement || "",
       feed_back: req.additonal_ins || "",
     },
+    artifacts,
   };
 }
 
@@ -470,6 +474,7 @@ const ScriptDetail = () => {
       department: requestFallback.department || req?.class || "General",
       createdAt: requestFallback.updatedAt || requestFallback.createdAt || new Date().toISOString().slice(0, 10),
       summary: requestFallback.summary || req?.summary_patient_story || "",
+      artifacts: req?.artifacts || req?.draft_script?.artifacts || requestFallback.artifacts || [],
       versions: [{ version: "request", notes: requestFallback.note || "From request", fields }],
     };
   }, [requestFallback]);
@@ -626,6 +631,15 @@ const ScriptDetail = () => {
       setTimeout(triggerPrint, 150);
     } else {
       printWindow.onload = () => setTimeout(triggerPrint, 150);
+    }
+  };
+
+  const openArtifact = (artifact) => {
+    const url = getArtifactUrl(artifact);
+    if (url) {
+      window.open(url, "_blank", "noopener");
+    } else {
+      downloadResourcePdf(activeItem, getArtifactName(artifact));
     }
   };
 
@@ -970,17 +984,23 @@ const ScriptDetail = () => {
 
         <Modal open={artifactsOpen} title={`Resources for ${activeItem.id}`} onClose={() => setArtifactsOpen(false)}>
           <div className="space-y-2">
-            {(activeItem.artifacts && activeItem.artifacts.length ? activeItem.artifacts : ["Placeholder.pdf"]).map((a, idx) => (
-              <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">PDF</span>
-                  <span>{a}</span>
+            {activeItem.artifacts && activeItem.artifacts.length ? (
+              activeItem.artifacts.map((a, idx) => (
+                <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">
+                      {getArtifactBadge(a)}
+                    </span>
+                    <span>{getArtifactName(a)}</span>
+                  </div>
+                  <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Download resource" onClick={() => openArtifact(a)}>
+                    Download
+                  </button>
                 </div>
-                <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Create PDF" onClick={() => downloadResourcePdf(activeItem, a)}>
-                  Download PDF
-                </button>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="text-sm text-gray-600">No resources uploaded.</div>
+            )}
           </div>
         </Modal>
       </section>
@@ -994,17 +1014,23 @@ const ScriptDetail = () => {
       <ScriptHtmlView />
       <Modal open={artifactsOpen} title={`Resources for ${activeItem.id}`} onClose={() => setArtifactsOpen(false)}>
         <div className="space-y-2">
-          {(activeItem.artifacts && activeItem.artifacts.length ? activeItem.artifacts : ["Placeholder.pdf"]).map((a, idx) => (
-            <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">PDF</span>
-                <span>{a}</span>
+          {activeItem.artifacts && activeItem.artifacts.length ? (
+            activeItem.artifacts.map((a, idx) => (
+              <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">
+                    {getArtifactBadge(a)}
+                  </span>
+                  <span>{getArtifactName(a)}</span>
+                </div>
+                <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Download resource" onClick={() => openArtifact(a)}>
+                  Download
+                </button>
               </div>
-              <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Create PDF" onClick={() => downloadResourcePdf(item, a)}>
-                Download PDF
-              </button>
-            </div>
-          ))}
+            ))
+          ) : (
+            <div className="text-sm text-gray-600">No resources uploaded.</div>
+          )}
         </div>
       </Modal>
     </section>

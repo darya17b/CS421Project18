@@ -26,4 +26,5 @@ type ScriptRequest struct {
 	CreatedAt              string              `json:"created_at"`
 	UpdatedAt              string              `json:"updated_at"`
 	DraftScript            *StandardizedScript `json:"draft_script,omitempty"`
+	Artifacts              []Artifact          `json:"artifacts,omitempty"`
 }

@@ -26,7 +26,7 @@ const saveStatus = (data) => {
 const buildScriptFromRequest = (request) => {
   const raw = request?.raw || request || {};
   if (raw.draft_script && typeof raw.draft_script === "object") {
-    return raw.draft_script;
+    return { ...raw.draft_script, artifacts: raw.draft_script.artifacts || raw.artifacts || [] };
   }
 
   const reasonForVisit =
@@ -70,6 +70,7 @@ const buildScriptFromRequest = (request) => {
       oppurtunity: raw.special_needs || "",
       feed_back: raw.additonal_ins || "",
     },
+    artifacts: raw.artifacts || [],
   };
 };
 
