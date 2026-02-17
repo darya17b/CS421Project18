@@ -181,8 +181,12 @@ func main() {
 	}
 
 	// ── SPA (must be last) ────────────────────────────────────────────────────
+	staticPath := os.Getenv("STATIC_PATH")
+	if staticPath == "" {
+		staticPath = "../../../../Frontend/dist"
+	}
 	spa := spaHandler{
-		staticPath: "../../../../Frontend/dist",
+		staticPath: staticPath,
 		indexPath:  "index.html",
 	}
 	mux.Handle("/", spa)
