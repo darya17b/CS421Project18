@@ -1,0 +1,17 @@
+# Place at: code/Frontend/Dockerfile.frontend
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+# Final stage: copy dist into the shared named volume at startup
+FROM alpine:3.19
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+
+CMD ["sh", "-c", "cp -r /app/dist/. /dist"]
