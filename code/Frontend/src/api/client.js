@@ -14,22 +14,26 @@ const getToken = () => {
 async function request(path, { method = 'GET', body, headers } = {}) {
   const url = `${API_BASE}${path}`;
   console.log(`[API] ${method} ${url}`); // Debug logging
-  
+
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   const res = await fetch(url, {
     method,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
       ...headers,
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
     credentials: 'include',
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     console.error(`[API Error] ${method} ${url} - ${res.status}:`, text);
-    throw new Error(text || `HTTP ${res.status}`);
+    const err = new Error(text || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.url = url;
+    throw err;
   }
 
   const ct = res.headers.get('content-type') || '';
@@ -83,6 +87,26 @@ export const api = {
   
   deleteDocument: (id) =>
     request(`/document?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // Artifact APIs
+  uploadArtifact: (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request('/artifact', { method: 'POST', body: form }).catch((err) => {
+      if (err?.status === 404) {
+        return request('/artifacts', { method: 'POST', body: form });
+      }
+      throw err;
+    });
+  },
+
+  deleteArtifact: (id) =>
+    request(`/artifact?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch((err) => {
+      if (err?.status === 404) {
+        return request(`/artifacts?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      }
+      throw err;
+    }),
 
   // Document version APIs
   listDocumentVersions: (id) =>

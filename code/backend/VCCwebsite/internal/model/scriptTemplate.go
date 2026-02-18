@@ -6,4 +6,5 @@ type StandardizedScript struct {
 	SP      SPinfo              `json:"sp"`
 	MedHist MedicalHistory      `json:"med_hist"`
 	Special SpecialInstructions `json:"special"`
+	Artifacts []Artifact        `json:"artifacts,omitempty"`
 }

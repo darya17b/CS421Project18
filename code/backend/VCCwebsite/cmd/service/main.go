@@ -158,6 +158,10 @@ func main() {
 		mux.Handle("/api/document/medications", authMiddleware.Middleware(api.DocumentHandler(mongoClient)))
 		mux.Handle("/api/document/vitals", authMiddleware.Middleware(api.DocumentHandler(mongoClient)))
 		mux.Handle("/api/document", authMiddleware.Middleware(api.DocumentHandler(mongoClient)))
+		mux.Handle("/api/artifact", authMiddleware.Middleware(api.ArtifactHandler(mongoClient)))
+		mux.Handle("/api/artifact/", authMiddleware.Middleware(api.ArtifactHandler(mongoClient)))
+		mux.Handle("/api/artifacts", authMiddleware.Middleware(api.ArtifactHandler(mongoClient)))
+		mux.Handle("/api/artifacts/", authMiddleware.Middleware(api.ArtifactHandler(mongoClient)))
 
 		// FIX: was missing closing paren on w.Write([]byte(...))
 		mux.HandleFunc("/api/user", func(w http.ResponseWriter, r *http.Request) {
@@ -178,6 +182,10 @@ func main() {
 		mux.Handle("/api/document/medications", api.DocumentHandler(mongoClient))
 		mux.Handle("/api/document/vitals", api.DocumentHandler(mongoClient))
 		mux.Handle("/api/document", api.DocumentHandler(mongoClient))
+		mux.Handle("/api/artifact", api.ArtifactHandler(mongoClient))
+		mux.Handle("/api/artifact/", api.ArtifactHandler(mongoClient))
+		mux.Handle("/api/artifacts", api.ArtifactHandler(mongoClient))
+		mux.Handle("/api/artifacts/", api.ArtifactHandler(mongoClient))
 	}
 
 	// ── SPA (must be last) ────────────────────────────────────────────────────
