@@ -358,9 +358,9 @@ func buildFilterFromQuery(r *http.Request) bson.M {
 	query := r.URL.Query()
 
 	// Admin fields
-    if title := query.Get("title"); title != "" {
-        filter["admin.reason_for_visit"] = bson.M{"$regex": title, "$options": "i"} // case-insensitive search
-    }
+	if title := query.Get("title"); title != "" {
+		filter["admin.reason_for_visit"] = bson.M{"$regex": title, "$options": "i"} // case-insensitive search
+	}
 	if chiefConcern := query.Get("chief_concern"); chiefConcern != "" {
 		filter["admin.chief_concern"] = bson.M{"$regex": chiefConcern, "$options": "i"}
 	}
@@ -401,14 +401,14 @@ func buildFilterFromQuery(r *http.Request) bson.M {
 
 	// Search query - searches across multiple fields
 	if search := query.Get("search"); search != "" {
-        filter["$or"] = []bson.M{
-            {"admin.reason_for_visit": bson.M{"$regex": search, "$options": "i"}},
-            {"admin.chief_concern": bson.M{"$regex": search, "$options": "i"}},
-            {"admin.diagnosis": bson.M{"$regex": search, "$options": "i"}},
-            {"admin.author": bson.M{"$regex": search, "$options": "i"}},
-            {"patient.name": bson.M{"$regex": search, "$options": "i"}},
-            {"sp.sp_name": bson.M{"$regex": search, "$options": "i"}},
-        }
+		filter["$or"] = []bson.M{
+			{"admin.reason_for_visit": bson.M{"$regex": search, "$options": "i"}},
+			{"admin.chief_concern": bson.M{"$regex": search, "$options": "i"}},
+			{"admin.diagnosis": bson.M{"$regex": search, "$options": "i"}},
+			{"admin.author": bson.M{"$regex": search, "$options": "i"}},
+			{"patient.name": bson.M{"$regex": search, "$options": "i"}},
+			{"sp.sp_name": bson.M{"$regex": search, "$options": "i"}},
+		}
 	}
 
 	return filter

@@ -1,0 +1,52 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    restart: unless-stopped
+    networks:
+      - app_network
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-secret}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-vccwebsite}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backend
+    restart: unless-stopped
+    networks:
+      - app_network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      MONGO_URI: mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-secret}@mongodb:27017/${MONGO_DB:-vccwebsite}?authSource=admin
+      PORT: ${PORT:-8080}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080}
+      STATIC_PATH: /app/static
+      ACTOR_DB_PATH: /app/data/actor.db
+      ACTOR_SCHEMA_PATH: /app/internal/actorDB/actor_schema.sql
+      OKTA_DOMAIN: ${OKTA_DOMAIN:-}
+      OKTA_ISSUER: ${OKTA_ISSUER:-}
+      OKTA_AUDIENCE: ${OKTA_AUDIENCE:-}
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - actor_db:/app/data
+
+volumes:
+  mongo_data:
+  actor_db:
+
+networks:
+  app_network:
+    driver: bridge
