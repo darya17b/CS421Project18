@@ -150,7 +150,7 @@ function buildScriptPdfDoc(item, versionObj) {
     }
     return String(value || "")
       .split(/\r?\n/)
-      .map((line) => line.replace(/^\s*[-*â€¢]\s*/, "").trim())
+      .map((line) => line.replace(/^\s*(?:[-*•]|â€¢)\s*/, "").trim())
       .filter(Boolean);
   };
 
@@ -656,7 +656,7 @@ function buildScriptPdfDoc(item, versionObj) {
   drawField("Case Authors", get(fields, ["admin", "case_authors"], get(fields, ["admin", "author"], "")));
   drawParagraph("Summary of Patient Story", get(fields, ["admin", "summory_of_story"], ""));
   drawListField("Student Expectations", normalizeTextEntries(get(fields, ["admin", "student_expectations"], "")), {
-    bulletPrefix: "â€¢",
+    bulletPrefix: "-",
   });
   drawField("Demographics of patient/recruitment guidelines", get(fields, ["admin", "patient_demographic"], ""), { emptyText: "Unknown" });
   drawField("List of special supplies needed for encounter", get(fields, ["admin", "special_supplies"], ""));
@@ -689,7 +689,7 @@ function buildScriptPdfDoc(item, versionObj) {
   drawListField("Vital Signs", vitalLines, {
     ...learnerLabelStyle,
     emptyText: "Not provided",
-    bulletPrefix: "â€¢",
+    bulletPrefix: "-",
   });
   drawField("Reason For Visit", get(fields, ["patient", "visit_reason"], get(fields, ["admin", "reson_for_visit"], "")), learnerLabelStyle);
   drawField("Context", get(fields, ["patient", "context"], ""), learnerLabelStyle);
@@ -819,7 +819,7 @@ function buildScriptPdfDoc(item, versionObj) {
   });
   drawListField("Obstetric/Gynecologic", normalizeTextEntries(get(pmh, ["obe_and_gye"], "")), {
     ...pmhNbredStyle,
-    bulletPrefix: "â€¢",
+    bulletPrefix: "-",
   });
   drawListField("Transfusion History", normalizeTextEntries(get(pmh, ["transfusion"], "")), {
     ...pmhNbredStyle,
@@ -897,7 +897,7 @@ function buildScriptPdfDoc(item, versionObj) {
   };
   const socialNbredListStyle = {
     emptyText: "None",
-    bulletPrefix: "â€¢",
+    bulletPrefix: "-",
     labelIndent: VALUE_INDENT,
     valueIndent: VALUE_INDENT * 2,
     labelColor: COLORS.crimsonDark,
