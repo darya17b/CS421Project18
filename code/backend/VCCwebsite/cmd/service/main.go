@@ -82,6 +82,9 @@ func main() {
 	mux.Handle("/api/document/vitals", api.DocumentHandler(client))
 	mux.Handle("/api/document", api.DocumentHandler(client))
 	mux.Handle("/api/artifact", api.ArtifactHandler(client))
+	mux.Handle("/api/artifact/", api.ArtifactHandler(client))
+	mux.Handle("/api/artifacts", api.ArtifactHandler(client))
+	mux.Handle("/api/artifacts/", api.ArtifactHandler(client))
 
 	// Health check endpoint
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {

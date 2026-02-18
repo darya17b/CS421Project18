@@ -30,7 +30,10 @@ async function request(path, { method = 'GET', body, headers } = {}) {
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     console.error(`[API Error] ${method} ${url} - ${res.status}:`, text);
-    throw new Error(text || `HTTP ${res.status}`);
+    const err = new Error(text || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.url = url;
+    throw err;
   }
 
   const ct = res.headers.get('content-type') || '';
@@ -89,11 +92,21 @@ export const api = {
   uploadArtifact: (file) => {
     const form = new FormData();
     form.append('file', file);
-    return request('/artifact', { method: 'POST', body: form });
+    return request('/artifact', { method: 'POST', body: form }).catch((err) => {
+      if (err?.status === 404) {
+        return request('/artifacts', { method: 'POST', body: form });
+      }
+      throw err;
+    });
   },
 
   deleteArtifact: (id) =>
-    request(`/artifact?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    request(`/artifact?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch((err) => {
+      if (err?.status === 404) {
+        return request(`/artifacts?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      }
+      throw err;
+    }),
 
   // Document version APIs
   listDocumentVersions: (id) =>

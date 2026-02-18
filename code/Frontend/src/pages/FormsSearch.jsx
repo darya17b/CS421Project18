@@ -8,7 +8,7 @@ import { downloadResourcePdf } from "../utils/pdf";
 import { getArtifactBadge, getArtifactName, getArtifactUrl } from "../utils/artifacts";
 
 const FormsSearch = () => {
-  const { items, refreshDocuments } = useStore();
+  const { items, refreshDocuments, deleteItem } = useStore();
   const toast = useToast();
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [current, setCurrent] = useState(null);
@@ -54,9 +54,17 @@ const FormsSearch = () => {
   const onDelete = async (item) => {
     if (!confirm(`Delete ${item.title || item.id}?`)) return;
     try {
-      const { api } = await import("../api/client");
-      await api.deleteDocument(item.id);
+      if (typeof deleteItem === "function") {
+        await deleteItem(item.id);
+      } else {
+        const { api } = await import("../api/client");
+        await api.deleteDocument(item.id);
+      }
       toast.show("Deleted", { type: "success" });
+      if (typeof refreshDocuments === "function") {
+        await refreshDocuments();
+      }
+      const { api } = await import("../api/client");
       if (results) {
         const fresh = await api.searchDocuments(q);
         setResults(Array.isArray(fresh) ? fresh : []);

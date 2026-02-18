@@ -4,7 +4,17 @@ import { useStore } from "../store";
 import { useToast } from "../components/Toast";
 
 const STORAGE_KEY = "mock-request-statuses";
-const STATUS_OPTIONS = ["Pending", "In Review", "Approved", "Rejected"];
+const ACTION_STATUS_OPTIONS = ["In Review", "Approved", "Rejected"];
+
+const normalizeStatus = (value) => {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return "";
+  if (raw === "in review" || raw === "in_review" || raw === "review") return "In Review";
+  if (raw === "approved") return "Approved";
+  if (raw === "rejected") return "Rejected";
+  if (raw === "pending") return "Pending";
+  return value;
+};
 
 const loadStatus = () => {
   try {
@@ -75,10 +85,14 @@ const buildScriptFromRequest = (request) => {
 };
 
 const Requests = () => {
-  const { requests, refreshRequests, updateRequest, addItem, deleteRequest, deleteItem } = useStore();
+  const { requests, refreshRequests, updateRequest, addItem, deleteRequest } = useStore();
   const toast = useToast();
   const [statusMap, setStatusMap] = useState(() => loadStatus());
-  const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
+  const isAdmin = (() => {
+    if (typeof window === "undefined") return true;
+    const role = localStorage.getItem("role");
+    return role === "admin" || !role;
+  })();
 
   useEffect(() => {
     if (typeof refreshRequests === "function") {
@@ -97,12 +111,19 @@ const Requests = () => {
     setStatusMap((prev) => {
       const next = { ...prev };
       source.forEach((it) => {
-        const backendStatus = it.raw?.status || it.status || "Pending";
+        const backendStatus = normalizeStatus(it.raw?.status || it.status || "");
         const backendNote = it.raw?.note || it.note || "";
         const backendUpdatedAt = it.raw?.updated_at || it.updatedAt;
+        const previousStatus = normalizeStatus(next[it.id]?.status || "");
+        const resolvedStatus =
+          backendStatus === "Approved"
+            ? "Approved"
+            : (previousStatus && backendStatus === "Pending")
+                ? previousStatus
+                : (backendStatus || previousStatus || "Pending");
 
         next[it.id] = {
-          status: backendStatus || next[it.id]?.status || "Pending",
+          status: resolvedStatus,
           note: backendNote,
           updatedAt: backendUpdatedAt || next[it.id]?.updatedAt || new Date().toISOString(),
         };
@@ -116,7 +137,7 @@ const Requests = () => {
       const meta = statusMap[it.id] || {};
       return {
         ...it,
-        status: meta.status || it.status || "Pending",
+        status: normalizeStatus(meta.status || it.status || "Pending"),
         note: meta.note ?? it.note ?? "",
         updatedAt: meta.updatedAt,
         approvedScriptId: it.approvedScriptId || it.raw?.approved_script_id || "",
@@ -130,7 +151,7 @@ const Requests = () => {
     const currentMeta = statusMap[req.id] || {};
     const payload = {
       ...(req.raw || {}),
-      status: overrides.status ?? currentMeta.status ?? req.status ?? "Pending",
+      status: overrides.status ?? req.raw?.status ?? req.status ?? "Pending",
       note: overrides.note ?? currentMeta.note ?? req.note ?? "",
       updated_at: new Date().toISOString(),
       ...overrides,
@@ -148,45 +169,47 @@ const Requests = () => {
     const created = await addItem(scriptPayload);
     const createdId = created?.id || created?._id || "";
 
-    if (createdId && typeof updateRequest === "function") {
-      await updateRequest(req.id, {
-        ...(latestRaw || req.raw || {}),
-        status: "Approved",
-        note: statusMap[req.id]?.note || req.note || "",
-        approved_script_id: createdId,
-        updated_at: new Date().toISOString(),
-      });
-    }
-
     return createdId;
   };
 
   const updateStatus = async (req, status) => {
+    const normalizedStatus = normalizeStatus(status) || "Pending";
+    const prevStatus = statusMap[req.id]?.status || req.status || "Pending";
+
+    if (normalizedStatus !== "Approved") {
+      setStatusMap((prev) => ({
+        ...prev,
+        [req.id]: { ...prev[req.id], status: normalizedStatus, updatedAt: new Date().toISOString() },
+      }));
+      toast.show(`Marked as ${normalizedStatus}`, { type: "info" });
+      return;
+    }
+
     setStatusMap((prev) => ({
       ...prev,
-      [req.id]: { ...prev[req.id], status, updatedAt: new Date().toISOString() },
+      [req.id]: { ...prev[req.id], status: "Approved", updatedAt: new Date().toISOString() },
     }));
 
     try {
-      const latestRaw = await persistRequestMeta(req, { status });
-
-      if (status === "Approved") {
-        const createdId = await promoteApprovedRequest(req, latestRaw);
-        if (createdId) {
-          toast.show("Marked as Approved and added to Script Library", { type: "success" });
-        } else {
-          toast.show("Marked as Approved", { type: "success" });
-        }
-      } else {
-        toast.show(`Marked as ${status}`, { type: "info" });
+      const latestRaw = req.raw || {};
+      const createdId = await promoteApprovedRequest(req, latestRaw);
+      if (typeof deleteRequest === "function") {
+        await deleteRequest(req.id);
       }
-
-      if (typeof refreshRequests === "function") {
-        await refreshRequests();
-      }
+      setStatusMap((prev) => {
+        const next = { ...prev };
+        delete next[req.id];
+        return next;
+      });
+      toast.show(createdId ? "Marked as Approved and added to Script Library" : "Marked as Approved", { type: "success" });
+      if (typeof refreshRequests === "function") await refreshRequests();
     } catch (err) {
       console.warn("Failed to update request status", err);
-      toast.show("Failed to update status", { type: "error" });
+      setStatusMap((prev) => ({
+        ...prev,
+        [req.id]: { ...prev[req.id], status: normalizeStatus(prevStatus), updatedAt: new Date().toISOString() },
+      }));
+      toast.show("Failed to approve request", { type: "error" });
     }
   };
 
@@ -209,31 +232,6 @@ const Requests = () => {
     } catch (err) {
       console.warn("Failed to save request note", err);
       toast.show("Failed to save note", { type: "error" });
-    }
-  };
-
-  const deleteInReview = async (req) => {
-    if (!confirm("Delete this request? This cannot be undone.")) return;
-    try {
-      if (typeof deleteRequest !== "function") {
-        throw new Error("Delete request is not configured");
-      }
-      if (req.approvedScriptId && typeof deleteItem === "function") {
-        await deleteItem(req.approvedScriptId);
-      }
-      await deleteRequest(req.id);
-      setStatusMap((prev) => {
-        const next = { ...prev };
-        delete next[req.id];
-        return next;
-      });
-      toast.show("Request deleted", { type: "success" });
-      if (typeof refreshRequests === "function") {
-        await refreshRequests();
-      }
-    } catch (err) {
-      console.warn("Failed to delete request", err);
-      toast.show("Failed to delete request", { type: "error" });
     }
   };
 
@@ -291,7 +289,7 @@ const Requests = () => {
                 {req.note ? <div className="text-xs text-gray-500 mt-1">Note: {req.note}</div> : null}
               </div>
               <div className="flex flex-wrap gap-2 md:justify-end">
-                {STATUS_OPTIONS.map((status) => (
+                {ACTION_STATUS_OPTIONS.map((status) => (
                   <button
                     key={status}
                     onClick={() => { void updateStatus(req, status); }}
@@ -306,14 +304,6 @@ const Requests = () => {
                 >
                   Add note
                 </button>
-                {req.status === "In Review" ? (
-                  <button
-                    onClick={() => { void deleteInReview(req); }}
-                    className="rounded border border-red-300 px-3 py-1 text-sm font-semibold text-red-700 hover:border-red-500 hover:text-red-700"
-                  >
-                    Delete script
-                  </button>
-                ) : null}
                 <Link
                   to={`/forms/${encodeURIComponent(req.approvedScriptId || req.id)}`}
                   state={{ request: req }}
