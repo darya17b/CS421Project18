@@ -571,12 +571,11 @@ const RequestNew = () => {
                 onClick={() => setIsPart1Open((prev) => !prev)}
                 className="flex w-full items-center justify-between text-left"
               >
-                <span className="text-base font-semibold text-gray-900">Part 1 - Administrative Details</span>
+                <span className="text-base font-semibold text-gray-900">Administrative Details</span>
                 <span className="text-base font-semibold text-gray-700">{isPart1Open ? "(-)" : "(+)"}</span>
               </button>
               {isPart1Open ? (
                 <div className="space-y-4">
-                  <div className={sectionLabelClass}>Professional</div>
                   <label className="block space-y-1">
                     <span className="text-sm text-gray-700">Reason for Visit</span>
                     <input className={inputClass} value={getField(["admin", "reson_for_visit"]) || ""} onChange={(e) => setField(["admin", "reson_for_visit"], e.target.value)} />
@@ -665,7 +664,7 @@ const RequestNew = () => {
                 onClick={() => setIsPart2Open((prev) => !prev)}
                 className="flex w-full items-center justify-between text-left"
               >
-                <span className="text-base font-semibold text-gray-900">Part 2 - Door Chart/Note and Learner Instruction</span>
+                <span className="text-base font-semibold text-gray-900">Door Chart/Note and Learner Instruction</span>
                 <span className="text-base font-semibold text-gray-700">{isPart2Open ? "(-)" : "(+)"}</span>
               </button>
               {isPart2Open ? (
@@ -1047,12 +1046,11 @@ const RequestNew = () => {
                 onClick={() => setIsPmhOpen((prev) => !prev)}
                 className="flex w-full items-center justify-between text-left"
               >
-                <span className="text-base font-semibold text-gray-900">PMH</span>
+                <span className="text-base font-semibold text-gray-900">Past Medical History</span>
                 <span className="text-base font-semibold text-gray-700">{isPmhOpen ? "(-)" : "(+)"}</span>
               </button>
               {isPmhOpen ? (
                 <div className="space-y-4">
-              <div className={sectionLabelClass}>Past Medical History (PMH)</div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-700">Childhood Illnesses</span>
@@ -1199,7 +1197,6 @@ const RequestNew = () => {
                 <div className="space-y-2">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className={sectionLabelClass}>Family Medical History</span>
                   <button
                     type="button"
                     onClick={() => addListRow(["med_hist", "family_hist"], emptyFamilyRow)}
@@ -1288,7 +1285,6 @@ const RequestNew = () => {
               </button>
               {isSocialHistoryOpen ? (
                 <div className="space-y-4">
-              <div className={sectionLabelClass}>Social History</div>
               {[
                 ["personal_background", "Personal Background"],
                 ["nutrion_and_exercise", "Nutritional and Excercise History"],
@@ -1374,7 +1370,6 @@ const RequestNew = () => {
               </button>
               {isReviewSystemsOpen ? (
                 <div className="space-y-4">
-              <div className={sectionLabelClass}>Review of Systems</div>
               {reviewOfSystemsFields.map(([k, label]) => (
                 <div key={k} className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -1420,7 +1415,6 @@ const RequestNew = () => {
               </button>
               {isPromptsOpen ? (
                 <div className="space-y-4">
-              <div className={sectionLabelClass}>Prompts and Special Instructions</div>
               {promptInstructionFields.map(([k, label]) => (
                 <div key={k} className="space-y-2">
                   <div className="flex items-center justify-between">
