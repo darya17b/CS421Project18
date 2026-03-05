@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Actor Database Prototype</title>
+    <style>
+      :root {
+        --wsu-crimson: #a60f2d;
+        --wsu-red: #ca1237;
+        --wsu-gray: #4d4d4d;
+        --wsu-gray-30: #b3b3b3;
+        --wsu-gray-10: #e6e6e6;
+        --wsu-cream: #f6f4f1;
+        --bg: #f6f4f1;
+        --panel: #ffffff;
+        --ink: #3f3f3f;
+        --sub: #5f5f5f;
+        --accent: #a60f2d;
+        --accent-soft: #f7e7eb;
+        --edge: #d6d2cc;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 15% 10%, #f5ebed 0 20%, transparent 40%),
+          radial-gradient(circle at 85% 85%, #e8e4de 0 25%, transparent 45%),
+          var(--bg);
+        font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      }
+
+      .wsu-header {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        box-shadow: 0 1px 8px rgba(0, 0, 0, 0.08);
+      }
+
+      .wsu-college-bar {
+        background: #dedede;
+        color: #b21d32;
+        text-transform: uppercase;
+        text-align: center;
+        font-weight: 700;
+        letter-spacing: clamp(0.12em, 0.65vw, 0.6em);
+        font-size: clamp(0.5rem, 1vw, 0.72rem);
+        padding: 10px 12px;
+      }
+
+      .wsu-brand-row {
+        background: #ffffff;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .wsu-brand-inner {
+        max-width: 1250px;
+        margin: 0 auto;
+        padding: 12px 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .wsu-lockup {
+        height: 64px;
+        width: auto;
+        object-fit: contain;
+      }
+
+      .wsu-status {
+        color: #5f6b67;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+
+      .page {
+        max-width: 1250px;
+        margin: 0 auto;
+        padding: 28px 18px;
+      }
+
+      .hero {
+        margin-bottom: 14px;
+      }
+
+      .back-link {
+        display: inline-flex;
+        margin-bottom: 8px;
+        color: #981e32;
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .back-link:hover {
+        text-decoration: underline;
+      }
+
+      .title {
+        margin: 0;
+        font-size: clamp(1.4rem, 2.8vw, 2rem);
+        line-height: 1.2;
+        letter-spacing: 0.01em;
+        font-weight: 600;
+        color: #b4152b;
+      }
+
+      .layout {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: 1.15fr 0.85fr;
+        align-items: start;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 18px;
+        box-shadow: 0 10px 28px rgba(35, 29, 26, 0.08);
+      }
+
+      .grid-panel {
+        padding: 16px;
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .search {
+        flex: 1 1 260px;
+        border: 1px solid var(--edge);
+        border-radius: 999px;
+        padding: 10px 14px;
+        font-size: 0.95rem;
+        outline: none;
+      }
+
+      .search:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(166, 15, 45, 0.16);
+      }
+
+      .actor-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+        gap: 10px;
+      }
+
+      .actor-bubble {
+        border: 1px solid var(--edge);
+        background: linear-gradient(170deg, #ffffff 0%, #fbf9f7 100%);
+        border-radius: 18px;
+        padding: 12px;
+        text-align: left;
+        cursor: pointer;
+        transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+      }
+
+      .actor-bubble:hover {
+        transform: translateY(-2px);
+        border-color: #d8a9b4;
+        box-shadow: 0 6px 18px rgba(40, 24, 28, 0.11);
+      }
+
+      .actor-bubble.active {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px rgba(166, 15, 45, 0.24);
+      }
+
+      .bubble-top {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 8px;
+      }
+
+      .avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        font-size: 0.82rem;
+        font-weight: 900;
+        color: #ffffff;
+        background: linear-gradient(150deg, #ca1237 0%, #8f0f28 100%);
+      }
+
+      .name {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 800;
+      }
+
+      .meta {
+        margin: 2px 0 0;
+        font-size: 0.73rem;
+        color: var(--sub);
+      }
+
+      .preview {
+        margin: 0;
+        color: #4d4d4d;
+        font-size: 0.8rem;
+        line-height: 1.35;
+      }
+
+      .admin-panel {
+        margin: 10px 0 0;
+        border: 1px solid #d6c5c9;
+        background: #fffaf9;
+        border-radius: 14px;
+        padding: 12px;
+      }
+
+      .admin-title {
+        margin: 0 0 8px;
+        color: var(--accent);
+        font-size: 0.95rem;
+        font-weight: 800;
+      }
+
+      .admin-fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .admin-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .admin-field label {
+        font-size: 0.74rem;
+        color: #6a4f56;
+        font-weight: 700;
+      }
+
+      .admin-field input,
+      .admin-field textarea {
+        border: 1px solid #d8d0cc;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font: inherit;
+        font-size: 0.84rem;
+        background: #fff;
+      }
+
+      .admin-field textarea {
+        min-height: 58px;
+        resize: vertical;
+      }
+
+      .admin-field.admin-wide {
+        grid-column: 1 / -1;
+      }
+
+      .admin-actions {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .admin-submit {
+        border: 1px solid #be8d99;
+        background: #fff;
+        color: var(--accent);
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-size: 0.82rem;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .admin-submit:hover {
+        background: #fcf3f5;
+      }
+
+      .admin-feedback {
+        margin: 0;
+        color: #7f0f24;
+        font-size: 0.78rem;
+      }
+
+      .detail-panel {
+        padding: 18px;
+        position: sticky;
+        top: 16px;
+      }
+
+      .detail-title {
+        margin: 0 0 10px;
+        font-size: 1.35rem;
+      }
+
+      .detail-note {
+        margin: 0 0 14px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--accent-soft);
+        color: #7f0f24;
+        font-size: 0.9rem;
+      }
+
+      .field {
+        margin: 0;
+        padding: 8px 0;
+        border-bottom: 1px solid #edf3f0;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 0.88rem;
+      }
+
+      .field span {
+        color: var(--sub);
+      }
+
+      .field b {
+        text-align: right;
+        font-weight: 700;
+        word-break: break-word;
+      }
+
+      .detail-actions {
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .danger-btn {
+        border: 1px solid #c58f9b;
+        background: #fff;
+        color: #9a1731;
+        border-radius: 999px;
+        padding: 7px 12px;
+        font-size: 0.8rem;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .danger-btn:hover {
+        background: #fff2f4;
+      }
+
+      .danger-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .danger-feedback {
+        margin: 0;
+        font-size: 0.78rem;
+        color: #7f0f24;
+      }
+
+      .empty {
+        margin: 20px 8px 6px;
+        text-align: center;
+        color: var(--sub);
+      }
+
+      .grid-footer {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .footer-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .count-note {
+        font-size: 0.82rem;
+        color: var(--sub);
+      }
+
+      .toggle-btn {
+        border: 1px solid #cfa2ae;
+        background: #fff;
+        color: var(--accent);
+        border-radius: 999px;
+        padding: 7px 12px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .toggle-btn:hover {
+        background: #fcf3f5;
+      }
+
+      .toggle-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .pagination {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .page-info {
+        min-width: 80px;
+        text-align: center;
+        font-size: 0.8rem;
+        color: var(--sub);
+      }
+
+      @media (max-width: 940px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .detail-panel {
+          position: static;
+        }
+
+        .wsu-lockup {
+          height: 52px;
+        }
+
+        .wsu-status {
+          display: none;
+        }
+
+        .admin-fields {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="wsu-header">
+      <div class="wsu-college-bar">Washington State University Elson S. Floyd College of Medicine</div>
+      <div class="wsu-brand-row">
+        <div class="wsu-brand-inner">
+          <img
+            class="wsu-lockup"
+            src="/images/wsu-com-lockup.png"
+            alt="Washington State University Elson S. Floyd College of Medicine"
+          />
+        </div>
+      </div>
+    </header>
+
+    <main class="page">
+      <header class="hero">
+        <a class="back-link" href="/dashboard">Back to Dashboard</a>
+        <h1 class="title">ACTOR DATABASE</h1>
+      </header>
+
+      <section class="layout">
+        <article class="panel grid-panel">
+          <div class="controls">
+            <input id="searchInput" class="search" type="text" placeholder="Search by name, pronouns, age range..." />
+          </div>
+          <div id="actorGrid" class="actor-grid"></div>
+          <p id="emptyState" class="empty" hidden>No actors match your search.</p>
+          <div class="grid-footer">
+            <span id="countNote" class="count-note" hidden></span>
+            <div class="footer-actions">
+              <div id="paginationControls" class="pagination" hidden>
+                <button id="prevPage" class="toggle-btn" type="button">Previous</button>
+                <span id="pageInfo" class="page-info">Page 1 of 1</span>
+                <button id="nextPage" class="toggle-btn" type="button">Next</button>
+              </div>
+              <button id="toggleCollapse" class="toggle-btn" type="button" hidden></button>
+              <button id="addActorToggle" class="toggle-btn" type="button" hidden>+ Add Actor</button>
+            </div>
+          </div>
+          <section id="adminPanel" class="admin-panel" hidden>
+            <h3 class="admin-title">Add Actor (Admin)</h3>
+            <form id="adminForm">
+              <div class="admin-fields">
+                <div class="admin-field"><label for="a_name">Name *</label><input id="a_name" name="name" required /></div>
+                <div class="admin-field"><label for="a_email">Email *</label><input id="a_email" name="email" type="email" required /></div>
+                <div class="admin-field admin-wide"><label for="a_notes">Notes (max 100 chars)</label><textarea id="a_notes" name="notes" maxlength="100"></textarea></div>
+                <div class="admin-field"><label for="a_phone">Phone Number *</label><input id="a_phone" name="phone_number" required /></div>
+                <div class="admin-field"><label for="a_age">Age Range</label><input id="a_age" name="age_range" /></div>
+                <div class="admin-field"><label for="a_pronouns">Pronouns</label><input id="a_pronouns" name="pronouns" /></div>
+                <div class="admin-field"><label for="a_employee">Employee ID (9 digits) *</label><input id="a_employee" name="employee_id" pattern="[0-9]{9}" required /></div>
+                <div class="admin-field"><label for="a_workday">Workday Name *</label><input id="a_workday" name="workday_name" required /></div>
+                <div class="admin-field"><label for="a_time">Time Code (digits/dash) *</label><input id="a_time" name="time_code" pattern="[0-9-]+" required /></div>
+                <div class="admin-field"><label for="a_lead">Lead Time Code</label><input id="a_lead" name="lead_time_code" pattern="[0-9]*" /></div>
+                <div class="admin-field"><label for="a_spec">Specialized Time Code</label><input id="a_spec" name="specialized_time_code" pattern="[0-9]*" /></div>
+              </div>
+              <div class="admin-actions">
+                <button class="admin-submit" type="submit">Add Actor</button>
+                <p id="adminFeedback" class="admin-feedback"></p>
+              </div>
+            </form>
+          </section>
+        </article>
+
+        <aside class="panel detail-panel">
+          <h2 class="detail-title" id="detailName">Select an actor</h2>
+          <p class="detail-note" id="detailNotes">Click a bubble to view contact info, IDs, and time codes.</p>
+          <p class="field"><span>Email</span><b id="detailEmail">-</b></p>
+          <p class="field"><span>Phone Number</span><b id="detailPhone">-</b></p>
+          <p class="field"><span>Age Range</span><b id="detailAge">-</b></p>
+          <p class="field"><span>Pronouns</span><b id="detailPronouns">-</b></p>
+          <p class="field"><span>Employee ID</span><b id="detailEmployee">-</b></p>
+          <p class="field"><span>Workday Name</span><b id="detailWorkday">-</b></p>
+          <p class="field"><span>Time Code</span><b id="detailTime">-</b></p>
+          <p class="field"><span>Lead Time Code</span><b id="detailLead">-</b></p>
+          <p class="field"><span>Specialized Time Code</span><b id="detailSpecialized">-</b></p>
+          <div id="detailActions" class="detail-actions" hidden>
+            <button id="deleteActorBtn" class="danger-btn" type="button">Delete Actor</button>
+            <p id="deleteFeedback" class="danger-feedback"></p>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script>
+      const COLLAPSED_COUNT = 6;
+      const PAGE_SIZE = 18;
+      let actors = [];
+
+      const state = {
+        selectedId: null,
+        query: "",
+        collapsed: true,
+        page: 1,
+        loading: false,
+        error: "",
+        adminFormOpen: false,
+      };
+
+      const actorGrid = document.getElementById("actorGrid");
+      const searchInput = document.getElementById("searchInput");
+      const emptyState = document.getElementById("emptyState");
+      const toggleCollapse = document.getElementById("toggleCollapse");
+      const countNote = document.getElementById("countNote");
+      const paginationControls = document.getElementById("paginationControls");
+      const prevPage = document.getElementById("prevPage");
+      const nextPage = document.getElementById("nextPage");
+      const pageInfo = document.getElementById("pageInfo");
+      const addActorToggle = document.getElementById("addActorToggle");
+      const adminPanel = document.getElementById("adminPanel");
+      const adminForm = document.getElementById("adminForm");
+      const adminFeedback = document.getElementById("adminFeedback");
+      const detailActions = document.getElementById("detailActions");
+      const deleteActorBtn = document.getElementById("deleteActorBtn");
+      const deleteFeedback = document.getElementById("deleteFeedback");
+
+      const isAdmin = (() => {
+        try {
+          return (localStorage.getItem("role") || "").toLowerCase() === "admin";
+        } catch {
+          return false;
+        }
+      })();
+
+      const detailFields = {
+        name: document.getElementById("detailName"),
+        notes: document.getElementById("detailNotes"),
+        email: document.getElementById("detailEmail"),
+        phone: document.getElementById("detailPhone"),
+        age: document.getElementById("detailAge"),
+        pronouns: document.getElementById("detailPronouns"),
+        employee: document.getElementById("detailEmployee"),
+        workday: document.getElementById("detailWorkday"),
+        time: document.getElementById("detailTime"),
+        lead: document.getElementById("detailLead"),
+        specialized: document.getElementById("detailSpecialized"),
+      };
+
+      function initialFor(name) {
+        const parts = name.split(" ").filter(Boolean);
+        if (parts.length < 2) return name.slice(0, 2).toUpperCase();
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+
+      function previewWords(text, count = 25) {
+        const words = String(text || "").trim().split(/\s+/).filter(Boolean);
+        if (words.length <= count) return text;
+        return words.slice(0, count).join(" ") + "...";
+      }
+
+      function sortByName(list) {
+        return [...list].sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      function getFilteredActors() {
+        const q = state.query.toLowerCase().trim();
+        if (!q) return sortByName(actors);
+        const filtered = actors.filter((a) => {
+          return (
+            a.name.toLowerCase().includes(q) ||
+            a.pronouns.toLowerCase().includes(q) ||
+            a.ageRange.toLowerCase().includes(q) ||
+            a.workdayName.toLowerCase().includes(q)
+          );
+        });
+        return sortByName(filtered);
+      }
+
+      function getToken() {
+        try {
+          return localStorage.getItem("token");
+        } catch {
+          return null;
+        }
+      }
+
+      function authHeaders() {
+        const token = getToken();
+        return token ? { Authorization: `Bearer ${token}` } : {};
+      }
+
+      function normalizeActor(raw) {
+        return {
+          id: Number(raw?.id || 0),
+          name: raw?.name || "",
+          email: raw?.email || "",
+          notes: raw?.notes || "",
+          phoneNumber: raw?.phone_number || "",
+          ageRange: raw?.age_range || "",
+          pronouns: raw?.pronouns || "",
+          employeeId: raw?.employee_id || "",
+          workdayName: raw?.workday_name || "",
+          timeCode: raw?.time_code || "",
+          leadTimeCode: raw?.lead_time_code || "",
+          specializedTimeCode: raw?.specialized_time_code || "",
+        };
+      }
+
+      function parseApiError(text, status) {
+        if (!text) return `HTTP ${status}`;
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed?.error) return parsed.error;
+        } catch {}
+        return text;
+      }
+
+      async function loadActors({ keepSelection = true } = {}) {
+        const selectedBefore = state.selectedId;
+        state.loading = true;
+        state.error = "";
+        renderGrid();
+
+        try {
+          const res = await fetch("/api/actors", {
+            method: "GET",
+            credentials: "include",
+            headers: { ...authHeaders() },
+          });
+          const text = await res.text();
+          if (!res.ok) throw new Error(parseApiError(text, res.status));
+          const payload = text ? JSON.parse(text) : [];
+          actors = Array.isArray(payload) ? payload.map(normalizeActor) : [];
+          if (keepSelection && actors.some((a) => a.id === selectedBefore)) {
+            state.selectedId = selectedBefore;
+          } else {
+            state.selectedId = null;
+          }
+        } catch (err) {
+          state.error = err?.message || "Unable to load actors";
+          actors = [];
+        } finally {
+          state.loading = false;
+          renderGrid();
+        }
+      }
+
+      function formPayload(formEl) {
+        const data = new FormData(formEl);
+        const required = ["name", "email", "phone_number", "employee_id", "workday_name", "time_code"];
+        const payload = {};
+        for (const key of required) {
+          payload[key] = String(data.get(key) || "").trim();
+        }
+
+        const optional = ["notes", "age_range", "pronouns", "lead_time_code", "specialized_time_code"];
+        for (const key of optional) {
+          const value = String(data.get(key) || "").trim();
+          payload[key] = value === "" ? null : value;
+        }
+        return payload;
+      }
+
+      async function handleCreateActor(e) {
+        e.preventDefault();
+        if (!isAdmin) return;
+
+        adminFeedback.textContent = "Saving actor...";
+        const payload = formPayload(adminForm);
+
+        try {
+          const res = await fetch("/api/actors", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+              ...authHeaders(),
+            },
+            body: JSON.stringify(payload),
+          });
+          const text = await res.text();
+          if (!res.ok) throw new Error(parseApiError(text, res.status));
+          let createdId = null;
+          try {
+            const parsed = text ? JSON.parse(text) : {};
+            createdId = Number(parsed?.id || 0) || null;
+          } catch {}
+
+          adminForm.reset();
+          adminFeedback.textContent = "Actor created.";
+          state.query = "";
+          searchInput.value = "";
+          state.collapsed = true;
+          state.page = 1;
+          await loadActors({ keepSelection: false });
+          if (createdId) {
+            state.selectedId = createdId;
+            renderGrid();
+          }
+        } catch (err) {
+          adminFeedback.textContent = err?.message || "Create failed";
+        }
+      }
+
+      async function handleDeleteActor() {
+        if (!isAdmin || !state.selectedId) return;
+        const actor = actors.find((a) => a.id === state.selectedId);
+        const label = actor?.name ? `${actor.name}` : `ID ${state.selectedId}`;
+        if (!window.confirm(`Delete actor ${label}?`)) return;
+
+        deleteFeedback.textContent = "Deleting...";
+        deleteActorBtn.disabled = true;
+
+        try {
+          const res = await fetch(`/api/actors/${state.selectedId}`, {
+            method: "DELETE",
+            credentials: "include",
+            headers: { ...authHeaders() },
+          });
+          const text = await res.text();
+          if (!res.ok) throw new Error(parseApiError(text, res.status));
+
+          deleteFeedback.textContent = "Actor deleted.";
+          const deletedId = state.selectedId;
+          await loadActors({ keepSelection: false });
+          if (state.selectedId === deletedId) {
+            state.selectedId = null;
+          }
+          renderGrid();
+        } catch (err) {
+          deleteFeedback.textContent = err?.message || "Delete failed";
+        } finally {
+          deleteActorBtn.disabled = false;
+        }
+      }
+
+      function renderDetail(actor) {
+        if (isAdmin) {
+          detailActions.hidden = false;
+        } else {
+          detailActions.hidden = true;
+        }
+
+        if (!actor) {
+          detailFields.name.textContent = "Select an actor";
+          detailFields.notes.textContent = "Click a bubble to view contact info, IDs, and time codes.";
+          detailFields.email.textContent = "-";
+          detailFields.phone.textContent = "-";
+          detailFields.age.textContent = "-";
+          detailFields.pronouns.textContent = "-";
+          detailFields.employee.textContent = "-";
+          detailFields.workday.textContent = "-";
+          detailFields.time.textContent = "-";
+          detailFields.lead.textContent = "-";
+          detailFields.specialized.textContent = "-";
+          deleteFeedback.textContent = "";
+          deleteActorBtn.disabled = true;
+          return;
+        }
+        detailFields.name.textContent = actor.name;
+        detailFields.notes.textContent = actor.notes || "-";
+        detailFields.email.textContent = actor.email || "-";
+        detailFields.phone.textContent = actor.phoneNumber || "-";
+        detailFields.age.textContent = actor.ageRange || "-";
+        detailFields.pronouns.textContent = actor.pronouns || "-";
+        detailFields.employee.textContent = actor.employeeId || "-";
+        detailFields.workday.textContent = actor.workdayName || "-";
+        detailFields.time.textContent = actor.timeCode || "-";
+        detailFields.lead.textContent = actor.leadTimeCode || "-";
+        detailFields.specialized.textContent = actor.specializedTimeCode || "-";
+        deleteFeedback.textContent = "";
+        deleteActorBtn.disabled = !isAdmin;
+      }
+
+      function renderGrid() {
+        if (state.loading && actors.length === 0) {
+          actorGrid.innerHTML = "";
+          emptyState.hidden = false;
+          emptyState.textContent = "Loading actors...";
+          countNote.hidden = true;
+          paginationControls.hidden = true;
+          toggleCollapse.hidden = true;
+          renderDetail(null);
+          return;
+        }
+
+        const filtered = getFilteredActors();
+        const canCollapse = filtered.length > COLLAPSED_COUNT;
+        const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+
+        if (!state.collapsed) {
+          if (state.page > totalPages) state.page = totalPages;
+          if (state.page < 1) state.page = 1;
+        } else {
+          state.page = 1;
+        }
+
+        const visible = state.collapsed
+          ? filtered.slice(0, COLLAPSED_COUNT)
+          : filtered.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
+
+        if (!visible.some((a) => a.id === state.selectedId)) {
+          state.selectedId = visible[0] ? visible[0].id : null;
+        }
+
+        actorGrid.innerHTML = "";
+        actorGrid.className = "actor-grid";
+        emptyState.textContent = state.error && actors.length === 0
+          ? `Failed to load actors: ${state.error}`
+          : "No actors match your search.";
+        emptyState.hidden = filtered.length > 0;
+
+        visible.forEach((actor) => {
+          const card = document.createElement("button");
+          card.type = "button";
+          card.className = "actor-bubble" + (actor.id === state.selectedId ? " active" : "");
+          card.innerHTML = `
+            <div class="bubble-top">
+              <div class="avatar">${initialFor(actor.name)}</div>
+              <div>
+                <p class="name">${actor.name}</p>
+                <p class="meta">${actor.ageRange || "N/A"} | ${actor.pronouns || "N/A"}</p>
+              </div>
+            </div>
+            <p class="preview">${previewWords(actor.notes || "", 25)}</p>
+          `;
+          card.addEventListener("click", () => {
+            state.selectedId = actor.id;
+            renderGrid();
+            renderDetail(actor);
+          });
+          actorGrid.appendChild(card);
+        });
+
+        const selected = filtered.find((a) => a.id === state.selectedId) || visible[0] || null;
+        renderDetail(selected);
+
+        toggleCollapse.hidden = !canCollapse;
+        toggleCollapse.textContent = state.collapsed ? "Expand Grid" : "Collapse Grid";
+
+        if (filtered.length === 0) {
+          countNote.hidden = false;
+          countNote.textContent = "0 results";
+        } else if (state.collapsed) {
+          countNote.hidden = false;
+          if (canCollapse) {
+            countNote.textContent = `Showing ${Math.min(COLLAPSED_COUNT, filtered.length)} of ${filtered.length}`;
+          } else {
+            countNote.textContent = `${filtered.length} result${filtered.length === 1 ? "" : "s"}`;
+          }
+        } else {
+          const start = (state.page - 1) * PAGE_SIZE + 1;
+          const end = Math.min(state.page * PAGE_SIZE, filtered.length);
+          countNote.hidden = false;
+          countNote.textContent = `Showing ${start}-${end} of ${filtered.length}`;
+        }
+
+        if (!state.collapsed && filtered.length > 0) {
+          paginationControls.hidden = false;
+          pageInfo.textContent = `Page ${state.page} of ${totalPages}`;
+          prevPage.disabled = state.page <= 1;
+          nextPage.disabled = state.page >= totalPages;
+        } else {
+          paginationControls.hidden = true;
+        }
+
+        if (isAdmin) {
+          addActorToggle.hidden = false;
+          addActorToggle.textContent = state.adminFormOpen ? "Hide Add Actor" : "+ Add Actor";
+          adminPanel.hidden = !state.adminFormOpen;
+        } else {
+          addActorToggle.hidden = true;
+          adminPanel.hidden = true;
+        }
+      }
+
+      searchInput.addEventListener("input", (e) => {
+        state.query = e.target.value;
+        state.page = 1;
+        renderGrid();
+      });
+
+      toggleCollapse.addEventListener("click", () => {
+        state.collapsed = !state.collapsed;
+        state.page = 1;
+        renderGrid();
+      });
+
+      prevPage.addEventListener("click", () => {
+        if (state.page <= 1) return;
+        state.page -= 1;
+        renderGrid();
+      });
+
+      nextPage.addEventListener("click", () => {
+        state.page += 1;
+        renderGrid();
+      });
+
+      addActorToggle.addEventListener("click", () => {
+        state.adminFormOpen = !state.adminFormOpen;
+        renderGrid();
+      });
+
+      deleteActorBtn.addEventListener("click", handleDeleteActor);
+
+      if (isAdmin) {
+        adminForm.addEventListener("submit", handleCreateActor);
+      } else {
+        adminPanel.hidden = true;
+      }
+
+      loadActors();
+    </script>
+  </body>
+</html>

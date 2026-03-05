@@ -27,14 +27,24 @@ export const LandingSections = () => {
         ) : null}
 
         {isAdmin ? (
-          <div className="landing-card landing-card--accent">
-            <h2>View Script Requests</h2>
-            <p>See incoming or pending script requests from faculty and staff.</p>
-            <p>Manage follow-up and approvals as they arrive.</p>
-            <Link to="/requests" className="landing-action text-[#981e32]">
-              View Script Requests &rsaquo;
-            </Link>
-          </div>
+          <>
+            <div className="landing-card landing-card--accent">
+              <h2>View Script Requests</h2>
+              <p>See incoming or pending script requests from faculty and staff.</p>
+              <p>Manage follow-up and approvals as they arrive.</p>
+              <Link to="/requests" className="landing-action text-[#981e32]">
+                View Script Requests &rsaquo;
+              </Link>
+            </div>
+            <div className="landing-card landing-card--accent">
+              <h2>Actor Database</h2>
+              <p>View, search, and manage standardized patient actor records.</p>
+              <p>Admins can add and delete actors from the actor profile page.</p>
+              <a href="/actor-database-link.html" className="landing-action text-[#981e32]">
+                Open Actor Database &rsaquo;
+              </a>
+            </div>
+          </>
         ) : null}
       </div>
     </section>

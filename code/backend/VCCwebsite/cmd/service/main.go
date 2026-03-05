@@ -2,7 +2,7 @@ package main
 
 import (
 	"VCCwebsite/api"
-	"VCCwebsite/internal/actorDB"
+	actordb "VCCwebsite/internal/actorDB"
 	"VCCwebsite/internal/db"
 	"VCCwebsite/internal/oAuth"
 	"context"
@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -89,19 +90,22 @@ func main() {
 	// Setup HTTP server
 	mux := http.NewServeMux()
 
-	mongoURI := os.Getenv("MONGO_URI")
-	log.Printf("MONGO_URI set: %v", mongoURI != "")
+	mongoURI, mongoURIEnv := db.ResolveMongoURI()
+	log.Printf("Mongo URI set: %v (source=%s)", mongoURI != "", mongoURIEnv)
+	if mongoURI == "" {
+		log.Printf("Mongo config missing (%s)", db.MongoConfigHint())
+	}
 
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	mongoClient, err := db.Connect(cctx)
+	mongoClient, mongoSource, err := db.ConnectWithSource(cctx)
 	if err != nil {
-		log.Printf("mongodb connect error: %v — continuing without MongoDB", err)
+		log.Printf("mongodb connect error (source=%s): %v - continuing without MongoDB", mongoSource, err)
 		mongoClient = nil
 	}
 	if mongoClient != nil {
-		log.Println("Connected to MongoDB")
+		log.Printf("Connected to MongoDB (source=%s)", mongoSource)
 		defer func() {
 			if err := db.MustDisconnect(context.Background(), mongoClient); err != nil {
 				log.Printf("error disconnecting mongo client: %v", err)
@@ -109,6 +113,17 @@ func main() {
 		}()
 	} else {
 		log.Println("Running without MongoDB connection")
+	}
+
+	requireMongo := false
+	if strings.EqualFold(os.Getenv("REQUIRE_MONGO"), "true") {
+		requireMongo = true
+	}
+	if os.Getenv("RAILWAY_PROJECT_ID") != "" || os.Getenv("RAILWAY_ENVIRONMENT") != "" {
+		requireMongo = true
+	}
+	if requireMongo && mongoClient == nil {
+		log.Fatalf("MongoDB is required but unavailable (%s)", db.MongoConfigHint())
 	}
 
 	// Initialize Okta authentication middleware (optional)
@@ -206,7 +221,7 @@ func main() {
 		port = "8080"
 	}
 	log.Printf("Server starting on :%s", port)
-	log.Printf("Serving static files from: ../../../../Frontend/dist")
+	log.Printf("Serving static files from: %s", staticPath)
 	log.Printf("API endpoints available at /api/*")
 
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
