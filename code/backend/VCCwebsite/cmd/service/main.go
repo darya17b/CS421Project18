@@ -115,15 +115,12 @@ func main() {
 		log.Println("Running without MongoDB connection")
 	}
 
-	requireMongo := false
-	if strings.EqualFold(os.Getenv("REQUIRE_MONGO"), "true") {
-		requireMongo = true
-	}
-	if os.Getenv("RAILWAY_PROJECT_ID") != "" || os.Getenv("RAILWAY_ENVIRONMENT") != "" {
-		requireMongo = true
-	}
+	requireMongo := strings.EqualFold(os.Getenv("REQUIRE_MONGO"), "true")
 	if requireMongo && mongoClient == nil {
 		log.Fatalf("MongoDB is required but unavailable (%s)", db.MongoConfigHint())
+	}
+	if !requireMongo && mongoClient == nil {
+		log.Printf("MongoDB unavailable; continuing in optional mode. Set REQUIRE_MONGO=true to fail fast (%s)", db.MongoConfigHint())
 	}
 
 	// Initialize Okta authentication middleware (optional)
