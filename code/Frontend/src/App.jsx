@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import Requests from "./pages/Requests";
 import RequestNew from "./pages/RequestNew";
 import ScriptDetail from "./pages/ScriptDetail";
+import ActorDatabase from "./pages/ActorDatabase";
 import { StoreProvider } from "./store";
 import { ToastProvider } from "./components/Toast";
 import RequireAuth from "./components/RequireAuth";
@@ -51,6 +52,11 @@ const App = () => {
                   <ScriptDetail />
                 </RequireAuth>
               } />
+              <Route path="requests/forms/:id" element={
+                <RequireAuth>
+                  <ScriptDetail requestInlineOnly />
+                </RequireAuth>
+              } />
               <Route path="sp-search" element={
                 <RequireAuth>
                   <SpSearch />
@@ -59,6 +65,11 @@ const App = () => {
               <Route path="forms-reviewer" element={
                 <RequireAuth>
                   <FormsReviewer />
+                </RequireAuth>
+              } />
+              <Route path="actor-database" element={
+                <RequireAuth>
+                  <ActorDatabase />
                 </RequireAuth>
               } />
             </Route>

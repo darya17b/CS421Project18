@@ -40,9 +40,9 @@ export const LandingSections = () => {
               <h2>Actor Database</h2>
               <p>View, search, and manage standardized patient actor records.</p>
               <p>Admins can add and delete actors from the actor profile page.</p>
-              <a href="/actor-database-link.html" className="landing-action text-[#981e32]">
+              <Link to="/actor-database" className="landing-action text-[#981e32]">
                 Open Actor Database &rsaquo;
-              </a>
+              </Link>
             </div>
           </>
         ) : null}

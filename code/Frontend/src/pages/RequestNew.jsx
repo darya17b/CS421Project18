@@ -577,7 +577,7 @@ const RequestNew = () => {
               {isPart1Open ? (
                 <div className="space-y-4">
                   <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Reason for Visit</span>
+                    <span className="text-sm text-gray-700">Diagnosis</span>
                     <input className={inputClass} value={getField(["admin", "reson_for_visit"]) || ""} onChange={(e) => setField(["admin", "reson_for_visit"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
@@ -679,7 +679,7 @@ const RequestNew = () => {
                     <input className={inputClass} value={getField(["patient", "date_of_birth"]) || ""} onChange={(e) => setField(["patient", "date_of_birth"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Visit Reason</span>
+                    <span className="text-sm text-gray-700">Diagnosis</span>
                     <input className={inputClass} value={getField(["patient", "visit_reason"]) || ""} onChange={(e) => setField(["patient", "visit_reason"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
@@ -1530,7 +1530,7 @@ const RequestNew = () => {
               <div className="space-y-2">
                 <div className="font-semibold text-gray-900">Administrative Details</div>
                 <ul className="text-sm text-gray-700 space-y-1">
-                  <li><span className="font-semibold">Reason for Visit:</span> {getField(["admin", "reson_for_visit"]) || "-"}</li>
+                  <li><span className="font-semibold">Diagnosis:</span> {getField(["admin", "reson_for_visit"]) || "-"}</li>
                   <li><span className="font-semibold">Chief Complaint:</span> {getField(["admin", "chief_concern"]) || "-"}</li>
                   <li><span className="font-semibold">Diagnosis:</span> {getField(["admin", "diagnosis"]) || "-"}</li>
                   <li><span className="font-semibold">Case Letter:</span> {getField(["admin", "case_letter"]) || "-"}</li>
@@ -1561,7 +1561,7 @@ const RequestNew = () => {
                 <div className="font-semibold text-gray-900">Patient Snapshot</div>
                 <ul className="text-sm text-gray-700 space-y-1">
                   <li><span className="font-semibold">Patient:</span> {getField(["patient", "name"]) || "-"}</li>
-                  <li><span className="font-semibold">Visit Reason:</span> {getField(["patient", "visit_reason"]) || getField(["admin", "reson_for_visit"]) || "-"}</li>
+                  <li><span className="font-semibold">Diagnosis:</span> {getField(["patient", "visit_reason"]) || getField(["admin", "reson_for_visit"]) || "-"}</li>
                   <li><span className="font-semibold">Context:</span> {getField(["patient", "context"]) || "-"}</li>
                   <li><span className="font-semibold">Task:</span> {getField(["patient", "task"]) || "-"}</li>
                   <li><span className="font-semibold">Patient Encounter Duration:</span> {getField(["patient", "encounter_duration"]) || "-"}</li>

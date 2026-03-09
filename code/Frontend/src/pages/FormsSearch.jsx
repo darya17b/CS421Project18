@@ -10,6 +10,7 @@ import { getArtifactBadge, getArtifactName, getArtifactUrl } from "../utils/arti
 const FormsSearch = () => {
   const { items, refreshDocuments, deleteItem } = useStore();
   const toast = useToast();
+  const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [current, setCurrent] = useState(null);
   const [results, setResults] = useState(null);
@@ -182,6 +183,17 @@ const FormsSearch = () => {
           ))}
         </div>
       )}
+
+      {isAdmin ? (
+        <div className="flex justify-center">
+          <Link
+            to="/request-new"
+            className="inline-flex items-center justify-center rounded-md border border-[#981e32] px-4 py-2 text-sm font-semibold text-[#981e32] hover:bg-[#981e32] hover:text-white"
+          >
+            Add Script
+          </Link>
+        </div>
+      ) : null}
 
       <Modal open={artifactsOpen} title={`Resources for ${current?.id}`} onClose={() => setArtifactsOpen(false)}>
         {!current ? null : (

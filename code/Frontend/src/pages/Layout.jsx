@@ -29,12 +29,14 @@ const Layout = () => {
         <div className="bg-white border-b border-gray-200">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center">
-              <img
-                src={lockupImage}
-                alt="Washington State University Elson S. Floyd College of Medicine"
-                className="h-16 w-auto object-contain"
-                loading="lazy"
-              />
+              <Link to="/" aria-label="Go to home page" className="inline-flex">
+                <img
+                  src={lockupImage}
+                  alt="Washington State University Elson S. Floyd College of Medicine"
+                  className="h-16 w-auto object-contain cursor-pointer"
+                  loading="lazy"
+                />
+              </Link>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">

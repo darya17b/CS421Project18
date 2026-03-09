@@ -646,7 +646,7 @@ function buildScriptPdfDoc(item, versionObj) {
   // Part 1
   defaultFieldValueSize = 12;
   startPart("Part 1 - Administrative Details", partPages);
-  drawField("Patient's Reason for Visit", get(fields, ["admin", "reson_for_visit"], ""));
+  drawField("Patient's Diagnosis", get(fields, ["admin", "reson_for_visit"], ""));
   drawField("Chief Complaint", get(fields, ["admin", "chief_concern"], ""));
   drawField("ICD-10 and Diagnosis", get(fields, ["admin", "diagnosis"], ""));
   drawField("Case Letter", get(fields, ["admin", "case_letter"], get(fields, ["admin", "class"], "")));
@@ -691,7 +691,7 @@ function buildScriptPdfDoc(item, versionObj) {
     emptyText: "Not provided",
     bulletPrefix: "-",
   });
-  drawField("Reason For Visit", get(fields, ["patient", "visit_reason"], get(fields, ["admin", "reson_for_visit"], "")), learnerLabelStyle);
+  drawField("Diagnosis", get(fields, ["patient", "visit_reason"], get(fields, ["admin", "reson_for_visit"], "")), learnerLabelStyle);
   drawField("Context", get(fields, ["patient", "context"], ""), learnerLabelStyle);
   drawField("Task", get(fields, ["patient", "task"], ""), learnerLabelStyle);
   drawField("Patient Encounter Duration", get(fields, ["patient", "encounter_duration"], ""), learnerLabelStyle);
@@ -1256,7 +1256,7 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
   drawField("Patient Name", get(fields, ["patient", "name"], ""));
   drawField("Date of Birth", get(fields, ["patient", "date_of_birth"], get(fields, ["patient", "dob"], "")));
   drawListField("Vital Signs", vitalLines);
-  drawField("Reason For Visit", get(fields, ["patient", "visit_reason"], get(fields, ["admin", "reson_for_visit"], "")));
+  drawField("Diagnosis", get(fields, ["patient", "visit_reason"], get(fields, ["admin", "reson_for_visit"], "")));
   drawField("Context", get(fields, ["patient", "context"], ""));
   drawField("Task", get(fields, ["patient", "task"], ""));
   drawField("Patient Encounter Duration", get(fields, ["patient", "encounter_duration"], ""));

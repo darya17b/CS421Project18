@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useStore } from "../store";
 import { useToast } from "../components/Toast";
 
@@ -85,6 +85,8 @@ const buildScriptFromRequest = (request) => {
 };
 
 const Requests = () => {
+  const location = useLocation();
+  const from = `${location.pathname}${location.search}${location.hash}`;
   const { requests, refreshRequests, updateRequest, addItem, deleteRequest } = useStore();
   const toast = useToast();
   const [statusMap, setStatusMap] = useState(() => loadStatus());
@@ -305,8 +307,8 @@ const Requests = () => {
                   Add note
                 </button>
                 <Link
-                  to={`/forms/${encodeURIComponent(req.approvedScriptId || req.id)}`}
-                  state={{ request: req }}
+                  to={`/requests/forms/${encodeURIComponent(req.id)}`}
+                  state={{ request: req, from }}
                   className="rounded border border-gray-300 px-3 py-1 text-sm font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
                 >
                   View script

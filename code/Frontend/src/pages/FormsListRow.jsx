@@ -1,7 +1,9 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { downloadScriptPdf, getScriptPdfUrl } from "../utils/pdf";
 
 const FormsListRow = ({ item, onArtifacts, onPropose, onDelete }) => {
+  const location = useLocation();
+  const from = `${location.pathname}${location.search}${location.hash}`;
   const title = item?.title || item?.admin?.reson_for_visit || item?.admin?.reason_for_visit || "Untitled";
   const patient = typeof item?.patient === "string"
     ? item.patient
@@ -36,7 +38,7 @@ const FormsListRow = ({ item, onArtifacts, onPropose, onDelete }) => {
           </div>
         </div>
         <div className="list-row__buttons flex flex-wrap gap-2 md:justify-end">
-          <Link to={`/forms/${encodeURIComponent(item.id)}`}>View</Link>
+          <Link to={`/forms/${encodeURIComponent(item.id)}`} state={{ from }}>View</Link>
           <button onClick={handlePreview}>Preview</button>
           <button onClick={handleDownload}>Download</button>
           {onDelete ? (

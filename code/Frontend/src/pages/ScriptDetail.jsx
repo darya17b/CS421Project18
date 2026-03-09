@@ -270,7 +270,7 @@ const fieldSections = [
   {
     title: "Professional",
     fields: [
-      { label: "Reason for Visit", path: ["admin", "reson_for_visit"] },
+      { label: "Diagnosis", path: ["admin", "reson_for_visit"] },
       { label: "Chief Concern", path: ["admin", "chief_concern"] },
       { label: "Diagnosis", path: ["admin", "diagnosis"] },
       { label: "Class", path: ["admin", "class"] },
@@ -290,7 +290,7 @@ const fieldSections = [
     title: "Patient",
     fields: [
       { label: "Name", path: ["patient", "name"] },
-      { label: "Visit Reason", path: ["patient", "visit_reason"] },
+      { label: "Diagnosis", path: ["patient", "visit_reason"] },
       { label: "Context", path: ["patient", "context"] },
       { label: "Task", path: ["patient", "task"] },
       { label: "Encounter Duration", path: ["patient", "encounter_duration"] },
@@ -432,16 +432,30 @@ const labelMap = (() => {
   return map;
 })();
 
-const ScriptDetail = () => {
+const fieldConfigMap = (() => {
+  const map = {};
+  fieldSections.forEach((group) => {
+    group.fields.forEach((f) => {
+      map[pathKey(f.path)] = f;
+    });
+  });
+  return map;
+})();
+
+const ScriptDetail = ({ requestInlineOnly = false }) => {
   const { id } = useParams();
   const store = useStore();
   const location = useLocation();
   const requestFromState = location.state?.request;
-  const { getById, getRequestById, requestsLoaded } = store;
+  const { getById, getRequestById, requestsLoaded, updateRequest, refreshRequests } = store;
   const toast = useToast();
-  const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
+  const isAdmin = (() => {
+    if (typeof window === "undefined") return false;
+    const role = (localStorage.getItem("role") || "").trim().toLowerCase();
+    return role === "admin";
+  })();
   const useMock = import.meta.env.VITE_USE_MOCK === "true";
-  const item = getById ? getById(id) : null;
+  const item = requestInlineOnly ? null : (getById ? getById(id) : null);
   const requestFallback = (!item && getRequestById ? getRequestById(id) : null) || requestFromState || null;
   const isRequestView = Boolean(!item && requestFallback);
   const mappedRequest = useMemo(() => {
@@ -479,19 +493,30 @@ const ScriptDetail = () => {
     };
   }, [requestFallback]);
   const activeItem = item || mappedRequest;
+  const canRequestInlineEdit = isAdmin && requestInlineOnly && isRequestView;
   const [versions, setVersions] = useState(activeItem?.versions || []);
   const [version, setVersion] = useState(activeItem?.versions?.[0]?.version || "current");
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [versionNotes, setVersionNotes] = useState("");
+  const [editingPath, setEditingPath] = useState(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [savingLine, setSavingLine] = useState(false);
   const fieldRefs = useRef({});
   const [highlightPath, setHighlightPath] = useState(null);
 
   useEffect(() => {
-    if (!item && requestsLoaded && typeof store.fetchById === "function" && !requestFallback) {
+    if (!requestInlineOnly && !item && requestsLoaded && typeof store.fetchById === "function" && !requestFallback) {
       store.fetchById(id);
     }
-  }, [id, item, store, requestFallback, requestsLoaded]);
+  }, [id, item, store, requestFallback, requestsLoaded, requestInlineOnly]);
+
+  useEffect(() => {
+    if (!requestInlineOnly) return;
+    if (requestFallback) return;
+    if (typeof refreshRequests !== "function") return;
+    refreshRequests().catch((err) => console.warn("Failed to refresh requests", err));
+  }, [requestInlineOnly, requestFallback, refreshRequests]);
 
   useEffect(() => {
     if (activeItem?.versions?.length) {
@@ -514,6 +539,8 @@ const ScriptDetail = () => {
     const fields = normalizeScript(currentVersion?.fields || {});
     setForm(mergeDeep(initialForm, fields));
     setVersionNotes(currentVersion?.notes || "");
+    setEditingPath(null);
+    setEditingValue("");
   }, [versions, version]);
 
   useEffect(() => {
@@ -544,11 +571,29 @@ const ScriptDetail = () => {
     return () => { cancelled = true; };
   }, [id, item, version, useMock]);
 
+  if (!activeItem && requestInlineOnly && !requestsLoaded) {
+    return (
+      <section className="w-full p-4 text-center">
+        <div className="text-gray-600">Loading request...</div>
+      </section>
+    );
+  }
+
+  if (requestInlineOnly && !isAdmin) {
+    return (
+      <section className="w-full p-4 text-center">
+        <div className="text-gray-600">
+          Admin access required. <Link className="text-blue-600 hover:underline" to="/dashboard">Back</Link>
+        </div>
+      </section>
+    );
+  }
+
   if (!activeItem) {
     return (
       <section className="w-full p-4 text-center">
         <div className="text-gray-600">
-          Not found. <Link className="text-blue-600 hover:underline" to="/forms-search">Back to search</Link>
+          Not found. <Link className="text-blue-600 hover:underline" to={requestInlineOnly ? "/requests" : "/forms-search"}>Back</Link>
         </div>
       </section>
     );
@@ -556,7 +601,11 @@ const ScriptDetail = () => {
 
   const current = versions.find((v) => v.version === version) || versions[0];
   const meta = [activeItem.id, activeItem.patient, activeItem.department, activeItem.createdAt].filter(Boolean).join(" | ");
-  const backTarget = isAdmin ? "/dashboard" : "/forms-search";
+  const fromPath = location.state?.from;
+  const backTarget =
+    typeof fromPath === "string" && fromPath.trim()
+      ? fromPath
+      : (requestInlineOnly ? "/requests" : (isAdmin ? "/dashboard" : "/forms-search"));
 
   const setField = (path, value) => {
     setForm((prev) => setDeep(prev, path, value));
@@ -572,14 +621,14 @@ const ScriptDetail = () => {
     }
   };
 
-  const saveEdits = async () => {
+  const saveEdits = async (nextForm = form, overrideNote = null) => {
     try {
-      const payload = buildScriptFromForm(form);
-      const changeNote = versionNotes || "Updated";
+      const payload = buildScriptFromForm(nextForm);
+      const changeNote = overrideNote || versionNotes || "Updated";
       const createdBy = (typeof window !== "undefined" && localStorage.getItem("user")) || "admin";
       if (isRequestView) {
         toast.show("Create or load a script before saving edits from a request.", { type: "error" });
-        return;
+        return false;
       }
       if (useMock) {
         setVersions((prev) => {
@@ -587,7 +636,7 @@ const ScriptDetail = () => {
           return [{ version: "current", notes: changeNote, fields: normalizeScript(payload) }, ...rest];
         });
         toast.show("Updated", { type: "success" });
-        return;
+        return true;
       }
       const { api } = await import("../api/client");
       await api.updateDocument(activeItem.id, payload, { change_note: changeNote, created_by: createdBy });
@@ -605,8 +654,82 @@ const ScriptDetail = () => {
         console.warn("Failed to refresh version history after update", err);
       }
       toast.show("Updated", { type: "success" });
+      return true;
     } catch {
       toast.show("Update failed", { type: "error" });
+      return false;
+    }
+  };
+
+  const beginLineEdit = (path) => {
+    if (!canRequestInlineEdit) {
+      if (isAdmin && !requestInlineOnly) {
+        toast.show("Inline edit is available on request scripts from the Requests page.", { type: "info" });
+      }
+      return;
+    }
+    const key = pathKey(path);
+    const currentValue = getDeep(form, path);
+    setEditingPath(key);
+    setEditingValue(currentValue === undefined || currentValue === null ? "" : String(currentValue));
+  };
+
+  const cancelLineEdit = () => {
+    if (savingLine) return;
+    setEditingPath(null);
+    setEditingValue("");
+  };
+
+  const coerceLineValue = (path, rawValue) => {
+    const cfg = fieldConfigMap[pathKey(path)];
+    if (!cfg) return rawValue;
+    if (cfg.type === "number" || cfg.type === "rating" || cfg.type === "scale10") {
+      if (rawValue === "") return "";
+      const n = Number(rawValue);
+      return Number.isNaN(n) ? "" : n;
+    }
+    return rawValue;
+  };
+
+  const saveLineEdit = async (path, label) => {
+    const nextValue = coerceLineValue(path, editingValue);
+    const nextForm = setDeep(form, path, nextValue);
+    setForm(nextForm);
+    setSavingLine(true);
+    let ok = false;
+    if (canRequestInlineEdit) {
+      try {
+        const req = requestFallback?.raw || requestFallback || {};
+        const draftScript = buildScriptFromForm(nextForm);
+        const payload = {
+          ...req,
+          draft_script: draftScript,
+          status: req.status || requestFallback?.status || "",
+          updated_at: new Date().toISOString(),
+        };
+
+        if (typeof updateRequest === "function") {
+          await updateRequest(requestFallback.id, payload);
+        } else {
+          const { api } = await import("../api/client");
+          await api.updateScriptRequest(requestFallback.id, payload);
+        }
+        setVersions((prev) => {
+          const rest = prev.filter((v) => v.version !== "request");
+          return [{ version: "request", notes: `Edited ${label}`, fields: normalizeScript(draftScript) }, ...rest];
+        });
+        toast.show("Request draft updated", { type: "success" });
+        ok = true;
+      } catch {
+        toast.show("Update failed", { type: "error" });
+      }
+    } else {
+      ok = await saveEdits(nextForm, `Edited ${label}`);
+    }
+    setSavingLine(false);
+    if (ok) {
+      setEditingPath(null);
+      setEditingValue("");
     }
   };
 
@@ -641,6 +764,66 @@ const ScriptDetail = () => {
     } else {
       downloadResourcePdf(activeItem, getArtifactName(artifact));
     }
+  };
+
+  const renderEditableValue = ({ path, label, displayValue }) => {
+    const key = pathKey(path);
+    const valueForDisplay = displayValue ?? getDeep(form, path);
+    const formatted = valueForDisplay === 0 ? "0" : (valueForDisplay === undefined || valueForDisplay === null || valueForDisplay === "" ? "-" : String(valueForDisplay));
+
+    if (!canRequestInlineEdit) return formatted;
+
+    if (editingPath === key) {
+      const cfg = fieldConfigMap[key];
+      const isNumber = cfg?.type === "number" || cfg?.type === "rating" || cfg?.type === "scale10";
+      return (
+        <span className="inline-flex items-center gap-1 align-middle">
+          <input
+            type={isNumber ? "number" : "text"}
+            className="rounded border border-[#981e32] px-2 py-1 text-sm"
+            value={editingValue}
+            onChange={(e) => setEditingValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void saveLineEdit(path, label);
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                cancelLineEdit();
+              }
+            }}
+            autoFocus
+          />
+          <button
+            type="button"
+            className="rounded border border-[#981e32] px-2 py-1 text-xs font-semibold text-[#981e32] hover:bg-[#981e32] hover:text-white disabled:opacity-50"
+            disabled={savingLine}
+            onClick={() => { void saveLineEdit(path, label); }}
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            className="rounded border px-2 py-1 text-xs font-semibold hover:bg-gray-50 disabled:opacity-50"
+            disabled={savingLine}
+            onClick={cancelLineEdit}
+          >
+            Cancel
+          </button>
+        </span>
+      );
+    }
+
+    return (
+      <span
+        className="cursor-text rounded px-1 hover:bg-[#f7e7eb]"
+        title="Double-click to edit"
+        onDoubleClick={() => beginLineEdit(path)}
+      >
+        {formatted}
+      </span>
+    );
   };
 
   const renderInput = (field) => {
@@ -797,7 +980,13 @@ const ScriptDetail = () => {
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6 space-y-4">
         <div className="text-center space-y-1">
           <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Virtual Clinical Center</div>
-          <h3 className="text-xl font-semibold text-[#981e32]">{data?.admin?.reson_for_visit || activeItem.title || "Script Preview"}</h3>
+          <h3 className="text-xl font-semibold text-[#981e32]">
+            {renderEditableValue({
+              path: ["admin", "reson_for_visit"],
+              label: "Diagnosis",
+              displayValue: data?.admin?.reson_for_visit || activeItem.title || "Script Preview",
+            })}
+          </h3>
           <div className="text-sm text-gray-700">
             {data?.admin?.diagnosis || "Diagnosis TBD"} - {data?.admin?.class || activeItem.department || "Course"} - {data?.admin?.author || "Author N/A"}
           </div>
@@ -807,32 +996,32 @@ const ScriptDetail = () => {
           <div className="space-y-2">
             <div className="font-semibold text-gray-900">Administrative Details</div>
             <ul className="text-sm text-gray-700 space-y-1">
-              <li><span className="font-semibold">Reason for Visit:</span> {data?.admin?.reson_for_visit || empty}</li>
-              <li><span className="font-semibold">Chief Complaint:</span> {data?.admin?.chief_concern || empty}</li>
-              <li><span className="font-semibold">Diagnosis:</span> {data?.admin?.diagnosis || empty}</li>
-              <li><span className="font-semibold">Event:</span> {data?.admin?.medical_event || empty}</li>
-              <li><span className="font-semibold">Learner Level:</span> {data?.admin?.learner_level || empty}</li>
-              <li><span className="font-semibold">Academic Year:</span> {data?.admin?.academic_year || empty}</li>
-              <li><span className="font-semibold">Author:</span> {data?.admin?.author || empty}</li>
+              <li><span className="font-semibold">Diagnosis:</span> {renderEditableValue({ path: ["admin", "reson_for_visit"], label: "Diagnosis", displayValue: data?.admin?.reson_for_visit || empty })}</li>
+              <li><span className="font-semibold">Chief Complaint:</span> {renderEditableValue({ path: ["admin", "chief_concern"], label: "Chief Concern", displayValue: data?.admin?.chief_concern || empty })}</li>
+              <li><span className="font-semibold">Diagnosis:</span> {renderEditableValue({ path: ["admin", "diagnosis"], label: "Diagnosis", displayValue: data?.admin?.diagnosis || empty })}</li>
+              <li><span className="font-semibold">Event:</span> {renderEditableValue({ path: ["admin", "medical_event"], label: "Medical Event", displayValue: data?.admin?.medical_event || empty })}</li>
+              <li><span className="font-semibold">Learner Level:</span> {renderEditableValue({ path: ["admin", "learner_level"], label: "Learner Level", displayValue: data?.admin?.learner_level || empty })}</li>
+              <li><span className="font-semibold">Academic Year:</span> {renderEditableValue({ path: ["admin", "academic_year"], label: "Academic Year", displayValue: data?.admin?.academic_year || empty })}</li>
+              <li><span className="font-semibold">Author:</span> {renderEditableValue({ path: ["admin", "author"], label: "Author", displayValue: data?.admin?.author || empty })}</li>
             </ul>
             <div className="text-sm text-gray-700">
               <div className="font-semibold">Summary of Patient Story</div>
-              <p className="text-gray-800">{data?.admin?.summory_of_story || "Add a short narrative to summarize the case."}</p>
+              <p className="text-gray-800">{renderEditableValue({ path: ["admin", "summory_of_story"], label: "Summary of Patient Story", displayValue: data?.admin?.summory_of_story || "Add a short narrative to summarize the case." })}</p>
             </div>
             <div className="text-sm text-gray-700">
               <div className="font-semibold">Student Expectations</div>
-              <p className="text-gray-800">{data?.admin?.student_expectations || "List expectations for learners."}</p>
+              <p className="text-gray-800">{renderEditableValue({ path: ["admin", "student_expectations"], label: "Student Expectations", displayValue: data?.admin?.student_expectations || "List expectations for learners." })}</p>
             </div>
           </div>
 
           <div className="space-y-2">
             <div className="font-semibold text-gray-900">Patient Snapshot</div>
             <ul className="text-sm text-gray-700 space-y-1">
-              <li><span className="font-semibold">Patient:</span> {data?.patient?.name || empty}</li>
-              <li><span className="font-semibold">Visit Reason:</span> {data?.patient?.visit_reason || data?.admin?.reson_for_visit || empty}</li>
-              <li><span className="font-semibold">Context:</span> {data?.patient?.context || empty}</li>
-              <li><span className="font-semibold">Task:</span> {data?.patient?.task || empty}</li>
-              <li><span className="font-semibold">Encounter Duration:</span> {data?.patient?.encounter_duration || empty}</li>
+              <li><span className="font-semibold">Patient:</span> {renderEditableValue({ path: ["patient", "name"], label: "Patient Name", displayValue: data?.patient?.name || empty })}</li>
+              <li><span className="font-semibold">Diagnosis:</span> {renderEditableValue({ path: ["patient", "visit_reason"], label: "Patient Diagnosis", displayValue: data?.patient?.visit_reason || data?.admin?.reson_for_visit || empty })}</li>
+              <li><span className="font-semibold">Context:</span> {renderEditableValue({ path: ["patient", "context"], label: "Patient Context", displayValue: data?.patient?.context || empty })}</li>
+              <li><span className="font-semibold">Task:</span> {renderEditableValue({ path: ["patient", "task"], label: "Patient Task", displayValue: data?.patient?.task || empty })}</li>
+              <li><span className="font-semibold">Encounter Duration:</span> {renderEditableValue({ path: ["patient", "encounter_duration"], label: "Encounter Duration", displayValue: data?.patient?.encounter_duration || empty })}</li>
             </ul>
             <div className="text-sm text-gray-700">
               <div className="font-semibold">Vitals</div>
@@ -852,7 +1041,7 @@ const ScriptDetail = () => {
             <div className="font-semibold text-gray-900">SP Content</div>
             <div className="text-sm text-gray-700">
               <div className="font-semibold">Opening Statement</div>
-              <p className="text-gray-800">{data?.sp?.opening_statement || empty}</p>
+              <p className="text-gray-800">{renderEditableValue({ path: ["sp", "opening_statement"], label: "Opening Statement", displayValue: data?.sp?.opening_statement || empty })}</p>
             </div>
             <div className="text-sm text-gray-700">
               <div className="font-semibold">Character Attributes</div>
@@ -860,7 +1049,13 @@ const ScriptDetail = () => {
                 {["anxiety", "suprise", "confusion", "guilt", "sadness", "indecision", "assertiveness", "frustration", "fear", "anger"].map((k) => (
                   <div key={k} className="flex items-center justify-between rounded border px-2 py-1">
                     <span className="capitalize">{k}</span>
-                    <span className="text-sm font-semibold text-[#981e32]">{ratingLabel(data?.sp?.attributes?.[k])}</span>
+                    <span className="text-sm font-semibold text-[#981e32]">
+                      {renderEditableValue({
+                        path: ["sp", "attributes", k],
+                        label: k.charAt(0).toUpperCase() + k.slice(1),
+                        displayValue: ratingLabel(data?.sp?.attributes?.[k]),
+                      })}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -870,14 +1065,14 @@ const ScriptDetail = () => {
           <div className="space-y-2">
             <div className="font-semibold text-gray-900">Symptoms</div>
             <ul className="text-sm text-gray-700 space-y-1">
-              <li><span className="font-semibold">Setting:</span> {data?.sp?.current_ill_history?.symptom_settings || empty}</li>
-              <li><span className="font-semibold">Timing:</span> {data?.sp?.current_ill_history?.symptom_timing || empty}</li>
-              <li><span className="font-semibold">Associated Symptoms:</span> {data?.sp?.current_ill_history?.associated_symptoms || empty}</li>
-              <li><span className="font-semibold">Radiation:</span> {data?.sp?.current_ill_history?.radiation_of_symptoms || empty}</li>
-              <li><span className="font-semibold">Quality:</span> {data?.sp?.current_ill_history?.symptom_quality || empty}</li>
-              <li><span className="font-semibold">Alleviating Factors:</span> {data?.sp?.current_ill_history?.alleviating_factors || empty}</li>
-              <li><span className="font-semibold">Aggravating Factors:</span> {data?.sp?.current_ill_history?.aggravating_factors || empty}</li>
-              <li><span className="font-semibold">Severity (0-10):</span> {data?.sp?.current_ill_history?.pain ?? 0}</li>
+              <li><span className="font-semibold">Setting:</span> {renderEditableValue({ path: ["sp", "current_ill_history", "symptom_settings"], label: "Symptom Settings", displayValue: data?.sp?.current_ill_history?.symptom_settings || empty })}</li>
+              <li><span className="font-semibold">Timing:</span> {renderEditableValue({ path: ["sp", "current_ill_history", "symptom_timing"], label: "Symptom Timing", displayValue: data?.sp?.current_ill_history?.symptom_timing || empty })}</li>
+              <li><span className="font-semibold">Associated Symptoms:</span> {renderEditableValue({ path: ["sp", "current_ill_history", "associated_symptoms"], label: "Associated Symptoms", displayValue: data?.sp?.current_ill_history?.associated_symptoms || empty })}</li>
+              <li><span className="font-semibold">Radiation:</span> {renderEditableValue({ path: ["sp", "current_ill_history", "radiation_of_symptoms"], label: "Radiation of Symptoms", displayValue: data?.sp?.current_ill_history?.radiation_of_symptoms || empty })}</li>
+              <li><span className="font-semibold">Quality:</span> {renderEditableValue({ path: ["sp", "current_ill_history", "symptom_quality"], label: "Symptom Quality", displayValue: data?.sp?.current_ill_history?.symptom_quality || empty })}</li>
+              <li><span className="font-semibold">Alleviating Factors:</span> {renderEditableValue({ path: ["sp", "current_ill_history", "alleviating_factors"], label: "Alleviating Factors", displayValue: data?.sp?.current_ill_history?.alleviating_factors || empty })}</li>
+              <li><span className="font-semibold">Aggravating Factors:</span> {renderEditableValue({ path: ["sp", "current_ill_history", "aggravating_factors"], label: "Aggravating Factors", displayValue: data?.sp?.current_ill_history?.aggravating_factors || empty })}</li>
+              <li><span className="font-semibold">Severity (0-10):</span> {renderEditableValue({ path: ["sp", "current_ill_history", "pain"], label: "Pain / Severity", displayValue: data?.sp?.current_ill_history?.pain ?? 0 })}</li>
             </ul>
           </div>
         </div>
@@ -886,18 +1081,18 @@ const ScriptDetail = () => {
           <div className="space-y-2">
             <div className="font-semibold text-gray-900">Medications & Allergies</div>
             <ul className="text-sm text-gray-700 space-y-1">
-              <li><span className="font-semibold">Medication:</span> {medCard?.name || empty} {medCard?.dose ? `(${medCard.dose})` : ""}</li>
-              <li><span className="font-semibold">Frequency:</span> {medCard?.frequency || empty}</li>
-              <li><span className="font-semibold">Reason:</span> {medCard?.reason || empty}</li>
-              <li><span className="font-semibold">Allergies:</span> {data?.med_hist?.allergies || empty}</li>
+              <li><span className="font-semibold">Medication:</span> {renderEditableValue({ path: ["med_hist", "medications", "name"], label: "Medication Name", displayValue: medCard?.name || empty })} {medCard?.dose ? `(${medCard.dose})` : ""}</li>
+              <li><span className="font-semibold">Frequency:</span> {renderEditableValue({ path: ["med_hist", "medications", "frequency"], label: "Medication Frequency", displayValue: medCard?.frequency || empty })}</li>
+              <li><span className="font-semibold">Reason:</span> {renderEditableValue({ path: ["med_hist", "medications", "reason"], label: "Medication Reason", displayValue: medCard?.reason || empty })}</li>
+              <li><span className="font-semibold">Allergies:</span> {renderEditableValue({ path: ["med_hist", "allergies"], label: "Allergies", displayValue: data?.med_hist?.allergies || empty })}</li>
             </ul>
           </div>
           <div className="space-y-2">
             <div className="font-semibold text-gray-900">Case Factors & Supplies</div>
             <ul className="text-sm text-gray-700 space-y-1">
-              <li><span className="font-semibold">Special Supplies:</span> {data?.admin?.special_supplies || empty}</li>
-              <li><span className="font-semibold">Case Factors:</span> {data?.admin?.case_factors || empty}</li>
-              <li><span className="font-semibold">Patient Demographic:</span> {data?.admin?.patient_demographic || empty}</li>
+              <li><span className="font-semibold">Special Supplies:</span> {renderEditableValue({ path: ["admin", "special_supplies"], label: "Special Supplies", displayValue: data?.admin?.special_supplies || empty })}</li>
+              <li><span className="font-semibold">Case Factors:</span> {renderEditableValue({ path: ["admin", "case_factors"], label: "Case Factors", displayValue: data?.admin?.case_factors || empty })}</li>
+              <li><span className="font-semibold">Patient Demographic:</span> {renderEditableValue({ path: ["admin", "patient_demographic"], label: "Patient Demographic", displayValue: data?.admin?.patient_demographic || empty })}</li>
             </ul>
           </div>
         </div>
@@ -906,12 +1101,12 @@ const ScriptDetail = () => {
           <div className="space-y-2">
             <div className="font-semibold text-gray-900">Social History</div>
             <ul className="text-sm text-gray-700 space-y-1">
-              <li><span className="font-semibold">Background:</span> {data?.med_hist?.social_hist?.personal_background || empty}</li>
-              <li><span className="font-semibold">Nutrition/Exercise:</span> {data?.med_hist?.social_hist?.nutrion_and_exercise || empty}</li>
-              <li><span className="font-semibold">Community/Employment:</span> {data?.med_hist?.social_hist?.community_and_employment || empty}</li>
-              <li><span className="font-semibold">Safety Measures:</span> {data?.med_hist?.social_hist?.safety_measure || empty}</li>
-              <li><span className="font-semibold">Life Stressors:</span> {data?.med_hist?.social_hist?.life_stressors || empty}</li>
-              <li><span className="font-semibold">Substance Use:</span> {data?.med_hist?.social_hist?.substance_use || empty}</li>
+              <li><span className="font-semibold">Background:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "personal_background"], label: "Personal Background", displayValue: data?.med_hist?.social_hist?.personal_background || empty })}</li>
+              <li><span className="font-semibold">Nutrition/Exercise:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "nutrion_and_exercise"], label: "Nutritional and Exercise History", displayValue: data?.med_hist?.social_hist?.nutrion_and_exercise || empty })}</li>
+              <li><span className="font-semibold">Community/Employment:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "community_and_employment"], label: "Community and Employment History", displayValue: data?.med_hist?.social_hist?.community_and_employment || empty })}</li>
+              <li><span className="font-semibold">Safety Measures:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "safety_measure"], label: "Safety Measures", displayValue: data?.med_hist?.social_hist?.safety_measure || empty })}</li>
+              <li><span className="font-semibold">Life Stressors:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "life_stressors"], label: "Significant Life Stressors", displayValue: data?.med_hist?.social_hist?.life_stressors || empty })}</li>
+              <li><span className="font-semibold">Substance Use:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "substance_use"], label: "Substance Use", displayValue: data?.med_hist?.social_hist?.substance_use || empty })}</li>
             </ul>
           </div>
           <div className="space-y-2">
@@ -944,11 +1139,11 @@ const ScriptDetail = () => {
         <div className="space-y-2">
           <div className="font-semibold text-gray-900">Prompts & Special Instructions</div>
           <ul className="text-sm text-gray-700 space-y-1">
-            <li><span className="font-semibold">Provoking Question:</span> {data?.special?.provoking_question || empty}</li>
-            <li><span className="font-semibold">Must Ask:</span> {data?.special?.must_ask || empty}</li>
-            <li><span className="font-semibold">Opportunity:</span> {data?.special?.oppurtunity || empty}</li>
-            <li><span className="font-semibold">Opening Statement:</span> {data?.special?.opening_statement || empty}</li>
-            <li><span className="font-semibold">Feedback Notes:</span> {data?.special?.feed_back || empty}</li>
+            <li><span className="font-semibold">Provoking Question:</span> {renderEditableValue({ path: ["special", "provoking_question"], label: "Provoking Question", displayValue: data?.special?.provoking_question || empty })}</li>
+            <li><span className="font-semibold">Must Ask:</span> {renderEditableValue({ path: ["special", "must_ask"], label: "Must Ask", displayValue: data?.special?.must_ask || empty })}</li>
+            <li><span className="font-semibold">Opportunity:</span> {renderEditableValue({ path: ["special", "oppurtunity"], label: "Opportunity", displayValue: data?.special?.oppurtunity || empty })}</li>
+            <li><span className="font-semibold">Opening Statement:</span> {renderEditableValue({ path: ["special", "opening_statement"], label: "Opening Statement", displayValue: data?.special?.opening_statement || empty })}</li>
+            <li><span className="font-semibold">Feedback Notes:</span> {renderEditableValue({ path: ["special", "feed_back"], label: "Feedback", displayValue: data?.special?.feed_back || empty })}</li>
           </ul>
         </div>
       </div>
@@ -980,6 +1175,9 @@ const ScriptDetail = () => {
       <section className="w-full p-4 space-y-4">
         {header}
         <div className="text-sm text-gray-600">{meta}</div>
+        {canRequestInlineEdit ? (
+          <div className="text-xs text-gray-500">Admin tip: double-click any value to edit that line.</div>
+        ) : null}
         <ScriptHtmlView />
 
         <Modal open={artifactsOpen} title={`Resources for ${activeItem.id}`} onClose={() => setArtifactsOpen(false)}>
