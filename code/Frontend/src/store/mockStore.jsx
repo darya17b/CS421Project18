@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 const STORAGE_KEY = "mockScripts";
+const REQUESTS_STORAGE_KEY = "mockRequests";
 
 const defaultItems = [];
 
@@ -15,7 +16,14 @@ export const MockStoreProvider = ({ children }) => {
       return defaultItems;
     }
   });
-  const [requests, setRequests] = useState([]);
+  const [requests, setRequests] = useState(() => {
+    try {
+      const raw = localStorage.getItem(REQUESTS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     try {
@@ -24,6 +32,14 @@ export const MockStoreProvider = ({ children }) => {
 
     }
   }, [items]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(requests));
+    } catch {
+
+    }
+  }, [requests]);
 
   const api = useMemo(() => ({
     items,
@@ -45,6 +61,23 @@ export const MockStoreProvider = ({ children }) => {
     },
     deleteItem: async (id) => {
       setItems((prev) => prev.filter((it) => it.id !== id));
+      return true;
+    },
+    updateItem: async (id, fields, note = "Updated") => {
+      setItems((prev) => prev.map((it) => {
+        if (it.id !== id) return it;
+        const restVersions = Array.isArray(it.versions)
+          ? it.versions.filter((v) => v.version !== "current")
+          : [];
+        return {
+          ...it,
+          title: fields?.admin?.reson_for_visit || it.title,
+          patient: fields?.patient?.name || it.patient,
+          department: fields?.admin?.case_letter || fields?.admin?.class || it.department,
+          summary: fields?.admin?.summory_of_story || it.summary,
+          versions: [{ version: "current", notes: note, fields }, ...restVersions],
+        };
+      }));
       return true;
     },
     addItem: (item) => setItems((prev) => [item, ...prev]),
@@ -87,6 +120,7 @@ export const MockStoreProvider = ({ children }) => {
     },
     resetData: () => {
       try { localStorage.removeItem(STORAGE_KEY); } catch {}
+      try { localStorage.removeItem(REQUESTS_STORAGE_KEY); } catch {}
       setItems(JSON.parse(JSON.stringify(defaultItems)));
       setRequests([]);
     },

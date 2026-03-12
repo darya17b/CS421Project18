@@ -199,10 +199,10 @@ const RequestNew = () => {
       },
       physical_chars: "",
       current_ill_history: {
-        symptom_settings: "",
-        symptom_timing: "",
-        associated_symptoms: "",
-        radiation_of_symptoms: "",
+        symptom_settings: [emptyTextRow()],
+        symptom_timing: [emptyTextRow()],
+        associated_symptoms: [emptyTextRow()],
+        radiation_of_symptoms: [emptyTextRow()],
         symptom_quality: "",
         alleviating_factors: "",
         aggravating_factors: "",
@@ -664,7 +664,7 @@ const RequestNew = () => {
                 onClick={() => setIsPart2Open((prev) => !prev)}
                 className="flex w-full items-center justify-between text-left"
               >
-                <span className="text-base font-semibold text-gray-900">Door Chart/Note and Learner Instruction</span>
+                <span className="text-base font-semibold text-gray-900">Door Note and Learner Instruction</span>
                 <span className="text-base font-semibold text-gray-700">{isPart2Open ? "(-)" : "(+)"}</span>
               </button>
               {isPart2Open ? (
@@ -746,7 +746,7 @@ const RequestNew = () => {
                 <textarea rows={2} className={textAreaClass} value={getField(["sp", "opening_statement"]) || ""} onChange={(e) => setField(["sp", "opening_statement"], e.target.value)} />
               </label>
               <label className="block space-y-1">
-                <span className="text-sm text-gray-700">Physical Characteristics</span>
+                <span className="text-sm text-gray-700">Physical Characteristics and Nonverbal Behavior</span>
                 <textarea rows={2} className={textAreaClass} value={getField(["sp", "physical_chars"]) || ""} onChange={(e) => setField(["sp", "physical_chars"], e.target.value)} />
               </label>
               <div className="space-y-2">
@@ -812,6 +812,39 @@ const RequestNew = () => {
                 ["symptom_timing", "Timing of Symptom(s)"],
                 ["associated_symptoms", "Associated Symptoms"],
                 ["radiation_of_symptoms", "Radiation of Symptom(s)"],
+              ].map(([k, label]) => (
+                <div key={k} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700">{label}</span>
+                    <button
+                      type="button"
+                      onClick={() => addListRow(["sp", "current_ill_history", k], emptyTextRow)}
+                      className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
+                      aria-label="Add row"
+                    >
+                      +
+                    </button>
+                  </div>
+                  {getList(["sp", "current_ill_history", k], emptyTextRow).map((entry, idx) => (
+                    <div key={`${k}-row-${idx}`} className="flex items-center gap-2">
+                      <input
+                        className={`${inputClass} flex-1`}
+                        value={typeof entry === "string" ? entry : entry?.text || ""}
+                        onChange={(e) => updateListRowText(["sp", "current_ill_history", k], idx, e.target.value, emptyTextRow)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeListRow(["sp", "current_ill_history", k], idx, emptyTextRow)}
+                        className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
+                        aria-label="Remove row"
+                      >
+                        –
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              {[
                 ["alleviating_factors", "Alleviating Factors of Symptom(s)"],
                 ["aggravating_factors", "Aggravating Factors of Symptom(s)"],
               ].map(([k, label]) => (
@@ -821,7 +854,7 @@ const RequestNew = () => {
                 </label>
               ))}
               <label className="block space-y-1">
-                <span className="text-sm text-gray-700">Severity/Quality of Symptom(s)</span>
+                <span className="text-sm text-gray-700">Quality of Symptom(s)</span>
                 <input
                   className={inputClass}
                   value={getField(["sp", "current_ill_history", "symptom_quality"]) || ""}
@@ -1602,11 +1635,11 @@ const RequestNew = () => {
               <div className="space-y-2">
                 <div className="font-semibold text-gray-900">History of Present Illness (HPI)</div>
                 <ul className="text-sm text-gray-700 space-y-1">
-                  <li><span className="font-semibold">Setting in Which Symptom(s) Occur:</span> {getField(["sp", "current_ill_history", "symptom_settings"]) || "-"}</li>
-                  <li><span className="font-semibold">Timing of Symptom(s):</span> {getField(["sp", "current_ill_history", "symptom_timing"]) || "-"}</li>
-                  <li><span className="font-semibold">Associated Symptoms:</span> {getField(["sp", "current_ill_history", "associated_symptoms"]) || "-"}</li>
-                  <li><span className="font-semibold">Radiation of Symptom(s):</span> {getField(["sp", "current_ill_history", "radiation_of_symptoms"]) || "-"}</li>
-                  <li><span className="font-semibold">Severity/Quality of Symptom(s):</span> {getField(["sp", "current_ill_history", "symptom_quality"]) || "-"}</li>
+                  <li><span className="font-semibold">Setting in Which Symptom(s) Occur:</span> {extractTextList(getField(["sp", "current_ill_history", "symptom_settings"])).join(", ") || "-"}</li>
+                  <li><span className="font-semibold">Timing of Symptom(s):</span> {extractTextList(getField(["sp", "current_ill_history", "symptom_timing"])).join(", ") || "-"}</li>
+                  <li><span className="font-semibold">Associated Symptoms:</span> {extractTextList(getField(["sp", "current_ill_history", "associated_symptoms"])).join(", ") || "-"}</li>
+                  <li><span className="font-semibold">Radiation of Symptom(s):</span> {extractTextList(getField(["sp", "current_ill_history", "radiation_of_symptoms"])).join(", ") || "-"}</li>
+                  <li><span className="font-semibold">Quality of Symptom(s):</span> {getField(["sp", "current_ill_history", "symptom_quality"]) || "-"}</li>
                   <li><span className="font-semibold">Alleviating Factors of Symptom(s):</span> {getField(["sp", "current_ill_history", "alleviating_factors"]) || "-"}</li>
                   <li><span className="font-semibold">Aggravating Factors of Symptom(s):</span> {getField(["sp", "current_ill_history", "aggravating_factors"]) || "-"}</li>
                   <li><span className="font-semibold">Severity (0-10):</span> {getField(["sp", "current_ill_history", "pain"]) ?? 0}</li>

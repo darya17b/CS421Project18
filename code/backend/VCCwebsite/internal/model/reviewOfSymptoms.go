@@ -9,6 +9,7 @@ type ReviewOfSymptoms struct {
 	Respiratory        string `json:"respiratory"`
 	Cardiovascular     string `json:"cardiovascular"`
 	Gastrointestinal   string `json:"gastrointestinal"`
+	Genitourinary      string `json:"genitourinary,omitempty"`
 	PeripheralVascular string `json:"peripheral_vascular"`
 	Musculoskeletal    string `json:"musculoskeletal"`
 	Psychiatric        string `json:"psychiatric"`

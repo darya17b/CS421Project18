@@ -368,7 +368,7 @@ function buildScriptPdfDoc(item, versionObj) {
     const concernRowH = 22;
     ensureSpace(16 + tableTopPadding + scoreRowH + concernRowH + 8);
     const boxW = contentWidth / 11;
-    const severityLabel = "Severity/Quality of Symptom(s):";
+    const severityLabel = "Quality of Symptom(s):";
     const labelX = MARGIN.left + VALUE_INDENT;
 
     setText(12, "normal", COLORS.crimsonDark);
@@ -663,7 +663,7 @@ function buildScriptPdfDoc(item, versionObj) {
   drawField("Case factors associated with social determinants of health", get(fields, ["admin", "case_factors"], ""));
   drawField("Additional Instructions", get(fields, ["special", "feed_back"], ""));
   // Part 2
-  startPart("Part 2 - Door Chart/Note and Learner Instruction", partPages);
+  startPart("Part 2 - Door Note and Learner Instruction", partPages);
   drawSectionHeading("Instructions to Learners:");
   const learnerLabelStyle = { labelColor: COLORS.crimsonDark, labelWeight: "normal" };
   drawField("Patient Name", patientName, learnerLabelStyle);
@@ -1251,7 +1251,7 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
     doorTempPair || "None",
   ];
 
-  drawTitle("Door Chart/Note and Learner Instruction");
+  drawTitle("Door Note and Learner Instruction");
   drawSection("Instructions to Learners:");
   drawField("Patient Name", get(fields, ["patient", "name"], ""));
   drawField("Date of Birth", get(fields, ["patient", "date_of_birth"], get(fields, ["patient", "dob"], "")));

@@ -8,4 +8,5 @@ type SocialHistory struct {
 	LifeStressors          string        `json:"life_stressors"`
 	SubstanceUse           string        `json:"substance_use"`
 	SexHistory             SexualHistory `json:"sex_history"`
+	SexualHistoryEntries   []string      `json:"sexual_history_entries,omitempty"`
 }

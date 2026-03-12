@@ -13,11 +13,13 @@ const initialForm = {
     reson_for_visit: "",
     chief_concern: "",
     diagnosis: "",
+    case_letter: "",
     class: "",
     medical_event: "",
     event_dates: "",
     learner_level: "",
     academic_year: "",
+    case_authors: "",
     author: "",
     summory_of_story: "",
     student_expectations: "",
@@ -27,6 +29,7 @@ const initialForm = {
   },
   patient: {
     name: "",
+    date_of_birth: "",
     visit_reason: "",
     context: "",
     task: "",
@@ -64,6 +67,7 @@ const initialForm = {
       alleviating_factors: "",
       aggravating_factors: "",
       pain: "",
+      symptom_diagram: [],
     },
   },
   med_hist: {
@@ -77,6 +81,8 @@ const initialForm = {
       startDate: "",
       otherNotes: "",
     },
+    non_prescription_medications: "",
+    allergies_list: [],
     allergies: "",
     past_med_his: {
       child_hood_illness: "",
@@ -91,9 +97,17 @@ const initialForm = {
       immunization: "",
       alternate_health_care: "",
       travel_exposure: "",
+      screening_tests: "",
     },
     family_hist: {
+      family_member: "",
+      details: "",
+      additional_details: "",
       health_status: "",
+      relation: "",
+      status: "",
+      conditions: "",
+      notes: "",
       age: "",
       cause_of_death: "",
       additonal_info: "",
@@ -105,6 +119,7 @@ const initialForm = {
       safety_measure: "",
       life_stressors: "",
       substance_use: "",
+      sexual_history_entries: "",
       sex_history: {
         current_partners: "",
         past_partners: "",
@@ -122,6 +137,7 @@ const initialForm = {
       respiratory: "",
       cardiovascular: "",
       gastrointestinal: "",
+      genitourinary: "",
       peripheral_vascular: "",
       musculoskeletal: "",
       psychiatric: "",
@@ -273,9 +289,11 @@ const fieldSections = [
       { label: "Diagnosis", path: ["admin", "reson_for_visit"] },
       { label: "Chief Concern", path: ["admin", "chief_concern"] },
       { label: "Diagnosis", path: ["admin", "diagnosis"] },
+      { label: "Case Letter", path: ["admin", "case_letter"] },
       { label: "Class", path: ["admin", "class"] },
       { label: "Learner Level", path: ["admin", "learner_level"] },
       { label: "Academic Year", path: ["admin", "academic_year"] },
+      { label: "Case Authors", path: ["admin", "case_authors"] },
       { label: "Author", path: ["admin", "author"] },
       { label: "Summary of Patient Story", path: ["admin", "summory_of_story"], type: "textarea" },
       { label: "Student Expectations", path: ["admin", "student_expectations"], type: "textarea" },
@@ -290,6 +308,7 @@ const fieldSections = [
     title: "Patient",
     fields: [
       { label: "Name", path: ["patient", "name"] },
+      { label: "Date of Birth", path: ["patient", "date_of_birth"] },
       { label: "Diagnosis", path: ["patient", "visit_reason"] },
       { label: "Context", path: ["patient", "context"] },
       { label: "Task", path: ["patient", "task"] },
@@ -316,7 +335,7 @@ const fieldSections = [
     title: "SP Info",
     fields: [
       { label: "Opening Statement", path: ["sp", "opening_statement"], type: "textarea" },
-      { label: "Physical Characteristics", path: ["sp", "physical_chars"], type: "textarea" },
+      { label: "Physical Characteristics and Nonverbal Behavior", path: ["sp", "physical_chars"], type: "textarea" },
       ...["anxiety","suprise","confusion","guilt","sadness","indecision","assertiveness","frustration","fear","anger"].map((k) => ({
         label: k.charAt(0).toUpperCase() + k.slice(1),
         path: ["sp", "attributes", k],
@@ -331,6 +350,7 @@ const fieldSections = [
       { label: "Alleviating Factors", path: ["sp", "current_ill_history", "alleviating_factors"] },
       { label: "Aggravating Factors", path: ["sp", "current_ill_history", "aggravating_factors"] },
       { label: "Pain / Severity", path: ["sp", "current_ill_history", "pain"], type: "scale10" },
+      { label: "Symptom Diagram Markers", path: ["sp", "current_ill_history", "symptom_diagram"], type: "textarea" },
     ],
   },
   {
@@ -344,6 +364,8 @@ const fieldSections = [
       { label: "Reason", path: ["med_hist", "medications", "reason"] },
       { label: "Date Started", path: ["med_hist", "medications", "startDate"] },
       { label: "Other Notes", path: ["med_hist", "medications", "otherNotes"], type: "textarea" },
+      { label: "Non-prescription Medications", path: ["med_hist", "non_prescription_medications"], type: "textarea" },
+      { label: "Allergies List", path: ["med_hist", "allergies_list"], type: "textarea" },
       { label: "Allergies", path: ["med_hist", "allergies"] },
     ],
   },
@@ -365,12 +387,20 @@ const fieldSections = [
       { label: "Immunizations", path: ["med_hist", "preventative_measure", "immunization"] },
       { label: "Alternative/Complementary Health Care", path: ["med_hist", "preventative_measure", "alternate_health_care"] },
       { label: "Travel/Exposure History", path: ["med_hist", "preventative_measure", "travel_exposure"] },
+      { label: "Screening Tests", path: ["med_hist", "preventative_measure", "screening_tests"] },
     ],
   },
   {
     title: "Family History",
     fields: [
+      { label: "Family Member", path: ["med_hist", "family_hist", "family_member"] },
+      { label: "Family Details", path: ["med_hist", "family_hist", "details"] },
+      { label: "Additional Details", path: ["med_hist", "family_hist", "additional_details"], type: "textarea" },
       { label: "Health Status", path: ["med_hist", "family_hist", "health_status"] },
+      { label: "Relation", path: ["med_hist", "family_hist", "relation"] },
+      { label: "Status", path: ["med_hist", "family_hist", "status"] },
+      { label: "Conditions", path: ["med_hist", "family_hist", "conditions"] },
+      { label: "Notes", path: ["med_hist", "family_hist", "notes"], type: "textarea" },
       { label: "Age", path: ["med_hist", "family_hist", "age"], type: "number" },
       { label: "Cause of Death", path: ["med_hist", "family_hist", "cause_of_death"] },
       { label: "Additional Info", path: ["med_hist", "family_hist", "additonal_info"], type: "textarea" },
@@ -390,6 +420,7 @@ const fieldSections = [
       { label: "Contraceptives", path: ["med_hist", "social_hist", "sex_history", "contraceptives"] },
       { label: "HIV Risk History", path: ["med_hist", "social_hist", "sex_history", "hiv_risk_history"] },
       { label: "Safety in Relationships", path: ["med_hist", "social_hist", "sex_history", "safety_in_relations"] },
+      { label: "Sexual History Entries", path: ["med_hist", "social_hist", "sexual_history_entries"], type: "textarea" },
     ],
   },
   {
@@ -403,6 +434,7 @@ const fieldSections = [
       { label: "Respiratory", path: ["med_hist", "sympton_review", "respiratory"] },
       { label: "Cardiovascular", path: ["med_hist", "sympton_review", "cardiovascular"] },
       { label: "Gastrointestinal", path: ["med_hist", "sympton_review", "gastrointestinal"] },
+      { label: "Genitourinary", path: ["med_hist", "sympton_review", "genitourinary"] },
       { label: "Peripheral Vascular", path: ["med_hist", "sympton_review", "peripheral_vascular"] },
       { label: "Musculoskeletal", path: ["med_hist", "sympton_review", "musculoskeletal"] },
       { label: "Psychiatric", path: ["med_hist", "sympton_review", "psychiatric"] },
@@ -452,7 +484,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
   const isAdmin = (() => {
     if (typeof window === "undefined") return false;
     const role = (localStorage.getItem("role") || "").trim().toLowerCase();
-    return role === "admin";
+    return role === "admin" || role === "";
   })();
   const useMock = import.meta.env.VITE_USE_MOCK === "true";
   const item = requestInlineOnly ? null : (getById ? getById(id) : null);
@@ -494,6 +526,17 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
   }, [requestFallback]);
   const activeItem = item || mappedRequest;
   const canRequestInlineEdit = isAdmin && requestInlineOnly && isRequestView;
+  const canInlineEdit = isAdmin && (isRequestView || !requestInlineOnly || canRequestInlineEdit);
+  const nextVersionLabel = () => {
+    const nums = (versions || [])
+      .map((v) => {
+        const m = String(v.version || "").match(/^v(\d+)$/i);
+        return m ? Number(m[1]) : 0;
+      })
+      .filter(Number.isFinite);
+    const max = nums.length ? Math.max(...nums) : 0;
+    return `v${max + 1}`;
+  };
   const [versions, setVersions] = useState(activeItem?.versions || []);
   const [version, setVersion] = useState(activeItem?.versions?.[0]?.version || "current");
   const [artifactsOpen, setArtifactsOpen] = useState(false);
@@ -622,19 +665,53 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
   };
 
   const saveEdits = async (nextForm = form, overrideNote = null) => {
+    setSavingLine(true);
     try {
       const payload = buildScriptFromForm(nextForm);
       const changeNote = overrideNote || versionNotes || "Updated";
       const createdBy = (typeof window !== "undefined" && localStorage.getItem("user")) || "admin";
-      if (isRequestView) {
-        toast.show("Create or load a script before saving edits from a request.", { type: "error" });
-        return false;
+      const normalizedPayload = normalizeScript(payload);
+      const newVersionId = nextVersionLabel();
+      const newVersionEntry = { version: newVersionId, notes: changeNote, fields: normalizedPayload };
+      if (requestInlineOnly && isRequestView) {
+        try {
+          const req = requestFallback?.raw || requestFallback || {};
+          const draftScript = normalizedPayload;
+          const payloadReq = {
+            ...req,
+            draft_script: draftScript,
+            status: req.status || requestFallback?.status || "",
+            updated_at: new Date().toISOString(),
+          };
+          if (typeof updateRequest === "function") {
+            await updateRequest(requestFallback.id, payloadReq);
+          } else {
+            const { api } = await import("../api/client");
+            await api.updateScriptRequest(requestFallback.id, payloadReq);
+          }
+          setVersions((prev) => {
+            const rest = prev.filter((v) => v.version !== newVersionId);
+            return [newVersionEntry, ...rest];
+          });
+          setVersion(newVersionId);
+          toast.show("Request draft saved", { type: "success" });
+          return true;
+        } catch {
+          toast.show("Update failed", { type: "error" });
+          return false;
+        } finally {
+          setSavingLine(false);
+        }
       }
       if (useMock) {
+        if (typeof store.updateItem === "function") {
+          await store.updateItem(activeItem.id, normalizedPayload, changeNote);
+        }
         setVersions((prev) => {
-          const rest = prev.filter((v) => v.version !== "current");
-          return [{ version: "current", notes: changeNote, fields: normalizeScript(payload) }, ...rest];
+          const rest = prev.filter((v) => v.version !== newVersionId);
+          return [newVersionEntry, ...rest];
         });
+        setVersion(newVersionId);
         toast.show("Updated", { type: "success" });
         return true;
       }
@@ -646,10 +723,9 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
       try {
         const history = await api.listDocumentVersions(item.id);
         const historyVersions = mapVersionHistory(history);
-        setVersions([
-          { version: "current", notes: changeNote, fields: normalizeScript(payload) },
-          ...historyVersions,
-        ]);
+        const dedupedHistory = historyVersions.filter((v) => v.version !== newVersionId);
+        setVersions([newVersionEntry, ...dedupedHistory]);
+        setVersion(newVersionId);
       } catch (err) {
         console.warn("Failed to refresh version history after update", err);
       }
@@ -658,13 +734,15 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     } catch {
       toast.show("Update failed", { type: "error" });
       return false;
+    } finally {
+      setSavingLine(false);
     }
   };
 
   const beginLineEdit = (path) => {
-    if (!canRequestInlineEdit) {
-      if (isAdmin && !requestInlineOnly) {
-        toast.show("Inline edit is available on request scripts from the Requests page.", { type: "info" });
+    if (!canInlineEdit) {
+      if (isAdmin && requestInlineOnly) {
+        toast.show("Inline edit is available when this page is opened from a request.", { type: "info" });
       }
       return;
     }
@@ -701,11 +779,14 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
       try {
         const req = requestFallback?.raw || requestFallback || {};
         const draftScript = buildScriptFromForm(nextForm);
+        const normalizedDraft = normalizeScript(draftScript);
+        const newVersionId = nextVersionLabel();
         const payload = {
-          ...req,
-          draft_script: draftScript,
-          status: req.status || requestFallback?.status || "",
+          status: req.status || requestFallback?.status || "Pending",
+          note: req.note || requestFallback?.note || "",
           updated_at: new Date().toISOString(),
+          draft_script: draftScript,
+          artifacts: req.artifacts || requestFallback?.artifacts || [],
         };
 
         if (typeof updateRequest === "function") {
@@ -715,9 +796,10 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
           await api.updateScriptRequest(requestFallback.id, payload);
         }
         setVersions((prev) => {
-          const rest = prev.filter((v) => v.version !== "request");
-          return [{ version: "request", notes: `Edited ${label}`, fields: normalizeScript(draftScript) }, ...rest];
+          const rest = prev.filter((v) => v.version !== newVersionId);
+          return [{ version: newVersionId, notes: `Edited ${label}`, fields: normalizedDraft }, ...rest];
         });
+        setVersion(newVersionId);
         toast.show("Request draft updated", { type: "success" });
         ok = true;
       } catch {
@@ -771,30 +853,74 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     const valueForDisplay = displayValue ?? getDeep(form, path);
     const formatted = valueForDisplay === 0 ? "0" : (valueForDisplay === undefined || valueForDisplay === null || valueForDisplay === "" ? "-" : String(valueForDisplay));
 
-    if (!canRequestInlineEdit) return formatted;
+    if (!canInlineEdit) return formatted;
 
     if (editingPath === key) {
       const cfg = fieldConfigMap[key];
       const isNumber = cfg?.type === "number" || cfg?.type === "rating" || cfg?.type === "scale10";
+      const ratingOptions = [
+        { label: "None (0)", value: 0 },
+        { label: "Mild (1)", value: 1 },
+        { label: "Moderate (2)", value: 2 },
+        { label: "Concerning (3)", value: 3 },
+        { label: "Severe (4)", value: 4 },
+        { label: "Extreme (5)", value: 5 },
+      ];
+      const scaleOptions = Array.from({ length: 11 }).map((_, idx) => ({ label: `${idx} / 10`, value: idx }));
       return (
         <span className="inline-flex items-center gap-1 align-middle">
-          <input
-            type={isNumber ? "number" : "text"}
-            className="rounded border border-[#981e32] px-2 py-1 text-sm"
-            value={editingValue}
-            onChange={(e) => setEditingValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void saveLineEdit(path, label);
-              }
-              if (e.key === "Escape") {
-                e.preventDefault();
-                cancelLineEdit();
-              }
-            }}
-            autoFocus
-          />
+          {cfg?.type === "rating" ? (
+            <select
+              className="rounded border border-[#981e32] px-2 py-1 text-sm"
+              value={editingValue}
+              onChange={(e) => setEditingValue(e.target.value)}
+              autoFocus
+            >
+              {ratingOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          ) : cfg?.type === "scale10" ? (
+            <select
+              className="rounded border border-[#981e32] px-2 py-1 text-sm"
+              value={editingValue}
+              onChange={(e) => setEditingValue(e.target.value)}
+              autoFocus
+            >
+              {scaleOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          ) : cfg?.type === "select" ? (
+            <select
+              className="rounded border border-[#981e32] px-2 py-1 text-sm"
+              value={editingValue}
+              onChange={(e) => setEditingValue(e.target.value)}
+              autoFocus
+            >
+              {(cfg.options || []).map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type={isNumber ? "number" : "text"}
+              className="rounded border border-[#981e32] px-2 py-1 text-sm"
+              value={editingValue}
+              onChange={(e) => setEditingValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void saveLineEdit(path, label);
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancelLineEdit();
+                }
+              }}
+              autoFocus
+            />
+          )}
           <button
             type="button"
             className="rounded border border-[#981e32] px-2 py-1 text-xs font-semibold text-[#981e32] hover:bg-[#981e32] hover:text-white disabled:opacity-50"
@@ -966,10 +1092,140 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     return ["None", "Mild", "Moderate", "Concerning", "Severe", "Extreme"][v] || "None";
   };
 
+  const toTextList = (value) => {
+    if (Array.isArray(value)) {
+      return value
+        .flatMap((entry) => {
+          if (typeof entry === "string") return [entry];
+          if (!entry || typeof entry !== "object") return [];
+          if (typeof entry.text === "string") return [entry.text];
+          if (typeof entry.x === "number" && typeof entry.y === "number") return [`x:${entry.x}, y:${entry.y}`];
+          if (typeof entry.family_member === "string" || typeof entry.details === "string") {
+            const parts = [entry.family_member, entry.details].filter(Boolean);
+            const extra = Array.isArray(entry.additional_details)
+              ? entry.additional_details.map((d) => (typeof d === "string" ? d : d?.text || "")).filter(Boolean).join("; ")
+              : String(entry.additional_details || "").trim();
+            if (extra) parts.push(extra);
+            return [parts.join(" - ")];
+          }
+          const joined = Object.values(entry)
+            .flatMap((v) => (Array.isArray(v) ? v : [v]))
+            .map((v) => String(v || "").trim())
+            .filter(Boolean)
+            .join(" - ");
+          return joined ? [joined] : [];
+        })
+        .map((entry) => String(entry || "").replace(/^-\s*/, "").trim())
+        .filter(Boolean);
+    }
+    if (value && typeof value === "object") {
+      if (typeof value.text === "string" && value.text.trim()) return [value.text.trim()];
+      const joined = Object.values(value)
+        .flatMap((v) => (Array.isArray(v) ? v : [v]))
+        .map((v) => String(v || "").trim())
+        .filter(Boolean)
+        .join(" - ");
+      return joined ? [joined] : [];
+    }
+    const raw = String(value || "");
+    return raw
+      .split(/\r?\n/)
+      .map((entry) => entry.replace(/^-\s*/, "").trim())
+      .filter(Boolean);
+  };
+
+  const formatMedicationLine = (entry = {}) => {
+    if (typeof entry === "string") return entry.trim();
+    if (!entry || typeof entry !== "object") return "";
+    const name = String(entry.name || entry.brand_substance || entry.brand || "").trim();
+    const brand = String(entry.brand || entry.brand_substance || "").trim();
+    const generic = String(entry.generic || "").trim();
+    const dose = String(entry.dose || "").trim() || [entry.amount, entry.unit].filter(Boolean).join("");
+    const frequency = String(entry.frequency || entry.frequency_reason || "").trim();
+    const reason = String(entry.reason || "").trim();
+    const startDate = String(entry.startDate || "").trim();
+    const otherNotes = String(entry.otherNotes || "").trim();
+    return [
+      name,
+      brand ? `brand: ${brand}` : "",
+      generic ? `generic: ${generic}` : "",
+      dose ? `dose: ${dose}` : "",
+      frequency ? `frequency: ${frequency}` : "",
+      reason ? `reason: ${reason}` : "",
+      startDate ? `started: ${startDate}` : "",
+      otherNotes ? `notes: ${otherNotes}` : "",
+    ].filter(Boolean).join(" | ");
+  };
+
+  const formatNonPrescriptionLine = (entry = {}) => {
+    if (typeof entry === "string") return entry.trim();
+    if (!entry || typeof entry !== "object") return "";
+    const brand = String(entry.brand_substance || entry.brand || "").trim();
+    const amount = String(entry.amount || "").trim();
+    const unit = String(entry.unit || "").trim();
+    const reason = String(entry.frequency_reason || entry.reason || "").trim();
+    const amountWithUnit = amount && unit ? `${amount}${unit}` : amount || "";
+    return [[brand, amountWithUnit].filter(Boolean).join(" "), reason]
+      .filter(Boolean)
+      .join(" - ")
+      .trim();
+  };
+
+  const formatFamilyHistoryLine = (entry = {}) => {
+    if (typeof entry === "string") return entry.trim();
+    if (!entry || typeof entry !== "object") return "";
+    const relation = String(entry.family_member || entry.relation || "").trim();
+    const details = String(entry.details || entry.conditions || entry.health_status || "").trim();
+    const status = String(entry.status || "").trim();
+    const age = entry.age === 0 || entry.age ? String(entry.age) : "";
+    const cause = String(entry.cause_of_death || "").trim();
+    const notes = String(entry.notes || entry.additonal_info || "").trim();
+    const extra = Array.isArray(entry.additional_details)
+      ? entry.additional_details
+        .map((line) => (typeof line === "string" ? line : line?.text || ""))
+        .map((line) => String(line || "").trim())
+        .filter(Boolean)
+        .join("; ")
+      : "";
+    return [
+      relation,
+      details,
+      status ? `status: ${status}` : "",
+      age ? `age: ${age}` : "",
+      cause ? `cause: ${cause}` : "",
+      notes ? `notes: ${notes}` : "",
+      extra ? `extra: ${extra}` : "",
+    ].filter(Boolean).join(" | ");
+  };
+
   const ScriptHtmlView = () => {
     const data = form || initialForm;
     const medVal = data?.med_hist?.medications;
-    const medCard = Array.isArray(medVal) ? medVal[0] || {} : (medVal || {});
+    const medicationList = Array.isArray(medVal) ? medVal : (medVal ? [medVal] : []);
+    const medicationLines = medicationList.map((entry) => formatMedicationLine(entry)).filter(Boolean);
+    const nonPrescriptionRaw = data?.med_hist?.non_prescription_medications;
+    const nonPrescriptionList = Array.isArray(nonPrescriptionRaw) ? nonPrescriptionRaw : (nonPrescriptionRaw ? [nonPrescriptionRaw] : []);
+    const nonPrescriptionLines = nonPrescriptionList
+      .map((entry) => formatNonPrescriptionLine(entry))
+      .filter(Boolean)
+      .length
+      ? nonPrescriptionList.map((entry) => formatNonPrescriptionLine(entry)).filter(Boolean)
+      : toTextList(nonPrescriptionRaw);
+    const allergiesList = toTextList(data?.med_hist?.allergies_list);
+    const allergiesLines = allergiesList.length ? allergiesList : toTextList(data?.med_hist?.allergies);
+    const familyRaw = data?.med_hist?.family_hist;
+    const familyList = Array.isArray(familyRaw) ? familyRaw : (familyRaw ? [familyRaw] : []);
+    const familyHistoryLines = familyList.map((entry) => formatFamilyHistoryLine(entry)).filter(Boolean);
+    const substanceUseLines = toTextList(data?.med_hist?.social_hist?.substance_use);
+    const sexualHistoryLines = toTextList(data?.med_hist?.social_hist?.sexual_history_entries);
+    const symptomDiagramLines = toTextList(data?.sp?.current_ill_history?.symptom_diagram);
+    const renderLineList = (lines, keyPrefix, fallback = "None") => (
+      lines.length ? (
+        <ul className="list-disc pl-5 space-y-1">
+          {lines.map((line, idx) => <li key={`${keyPrefix}-${idx}`}>{line}</li>)}
+        </ul>
+      ) : <div>{fallback}</div>
+    );
     const empty = "-";
     const tempUnitRaw = data?.patient?.vitals?.temp?.unit;
     const tempUnit = typeof tempUnitRaw === "number"
@@ -988,7 +1244,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
             })}
           </h3>
           <div className="text-sm text-gray-700">
-            {data?.admin?.diagnosis || "Diagnosis TBD"} - {data?.admin?.class || activeItem.department || "Course"} - {data?.admin?.author || "Author N/A"}
+            {data?.admin?.diagnosis || "Diagnosis TBD"} - {(data?.admin?.case_letter || data?.admin?.class || activeItem.department || "Course")} - {(data?.admin?.case_authors || data?.admin?.author || "Author N/A")}
           </div>
         </div>
 
@@ -999,9 +1255,13 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
               <li><span className="font-semibold">Diagnosis:</span> {renderEditableValue({ path: ["admin", "reson_for_visit"], label: "Diagnosis", displayValue: data?.admin?.reson_for_visit || empty })}</li>
               <li><span className="font-semibold">Chief Complaint:</span> {renderEditableValue({ path: ["admin", "chief_concern"], label: "Chief Concern", displayValue: data?.admin?.chief_concern || empty })}</li>
               <li><span className="font-semibold">Diagnosis:</span> {renderEditableValue({ path: ["admin", "diagnosis"], label: "Diagnosis", displayValue: data?.admin?.diagnosis || empty })}</li>
+              <li><span className="font-semibold">Case Letter:</span> {renderEditableValue({ path: ["admin", "case_letter"], label: "Case Letter", displayValue: data?.admin?.case_letter || data?.admin?.class || empty })}</li>
+              <li><span className="font-semibold">Class:</span> {renderEditableValue({ path: ["admin", "class"], label: "Class", displayValue: data?.admin?.class || empty })}</li>
               <li><span className="font-semibold">Event:</span> {renderEditableValue({ path: ["admin", "medical_event"], label: "Medical Event", displayValue: data?.admin?.medical_event || empty })}</li>
+              <li><span className="font-semibold">Event Dates:</span> {renderEditableValue({ path: ["admin", "event_dates"], label: "Event Dates", displayValue: data?.admin?.event_dates || empty })}</li>
               <li><span className="font-semibold">Learner Level:</span> {renderEditableValue({ path: ["admin", "learner_level"], label: "Learner Level", displayValue: data?.admin?.learner_level || empty })}</li>
               <li><span className="font-semibold">Academic Year:</span> {renderEditableValue({ path: ["admin", "academic_year"], label: "Academic Year", displayValue: data?.admin?.academic_year || empty })}</li>
+              <li><span className="font-semibold">Case Authors:</span> {renderEditableValue({ path: ["admin", "case_authors"], label: "Case Authors", displayValue: data?.admin?.case_authors || data?.admin?.author || empty })}</li>
               <li><span className="font-semibold">Author:</span> {renderEditableValue({ path: ["admin", "author"], label: "Author", displayValue: data?.admin?.author || empty })}</li>
             </ul>
             <div className="text-sm text-gray-700">
@@ -1018,6 +1278,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
             <div className="font-semibold text-gray-900">Patient Snapshot</div>
             <ul className="text-sm text-gray-700 space-y-1">
               <li><span className="font-semibold">Patient:</span> {renderEditableValue({ path: ["patient", "name"], label: "Patient Name", displayValue: data?.patient?.name || empty })}</li>
+              <li><span className="font-semibold">Date of Birth:</span> {renderEditableValue({ path: ["patient", "date_of_birth"], label: "Date of Birth", displayValue: data?.patient?.date_of_birth || empty })}</li>
               <li><span className="font-semibold">Diagnosis:</span> {renderEditableValue({ path: ["patient", "visit_reason"], label: "Patient Diagnosis", displayValue: data?.patient?.visit_reason || data?.admin?.reson_for_visit || empty })}</li>
               <li><span className="font-semibold">Context:</span> {renderEditableValue({ path: ["patient", "context"], label: "Patient Context", displayValue: data?.patient?.context || empty })}</li>
               <li><span className="font-semibold">Task:</span> {renderEditableValue({ path: ["patient", "task"], label: "Patient Task", displayValue: data?.patient?.task || empty })}</li>
@@ -1026,11 +1287,18 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
             <div className="text-sm text-gray-700">
               <div className="font-semibold">Vitals</div>
               <div className="grid grid-cols-2 gap-2">
-                <div>HR: {data?.patient?.vitals?.heart_rate || empty}</div>
-                <div>RR: {data?.patient?.vitals?.respirations || empty}</div>
-                <div>BP: {data?.patient?.vitals?.pressure?.top || empty}/{data?.patient?.vitals?.pressure?.bottom || empty}</div>
-                <div>SpO2: {data?.patient?.vitals?.blood_oxygen || empty}</div>
-                <div>Temp: {data?.patient?.vitals?.temp?.reading || empty} {tempUnit}</div>
+                <div>HR: {renderEditableValue({ path: ["patient", "vitals", "heart_rate"], label: "Heart Rate", displayValue: data?.patient?.vitals?.heart_rate || empty })}</div>
+                <div>RR: {renderEditableValue({ path: ["patient", "vitals", "respirations"], label: "Respirations", displayValue: data?.patient?.vitals?.respirations || empty })}</div>
+                <div>
+                  BP: {renderEditableValue({ path: ["patient", "vitals", "pressure", "top"], label: "Blood Pressure Top", displayValue: data?.patient?.vitals?.pressure?.top || empty })}
+                  /
+                  {renderEditableValue({ path: ["patient", "vitals", "pressure", "bottom"], label: "Blood Pressure Bottom", displayValue: data?.patient?.vitals?.pressure?.bottom || empty })}
+                </div>
+                <div>SpO2: {renderEditableValue({ path: ["patient", "vitals", "blood_oxygen"], label: "Blood Oxygen", displayValue: data?.patient?.vitals?.blood_oxygen || empty })}</div>
+                <div>
+                  Temp: {renderEditableValue({ path: ["patient", "vitals", "temp", "reading"], label: "Temperature Reading", displayValue: data?.patient?.vitals?.temp?.reading || empty })}{" "}
+                  {renderEditableValue({ path: ["patient", "vitals", "temp", "unit"], label: "Temperature Unit", displayValue: tempUnit || empty })}
+                </div>
               </div>
             </div>
           </div>
@@ -1042,6 +1310,10 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
             <div className="text-sm text-gray-700">
               <div className="font-semibold">Opening Statement</div>
               <p className="text-gray-800">{renderEditableValue({ path: ["sp", "opening_statement"], label: "Opening Statement", displayValue: data?.sp?.opening_statement || empty })}</p>
+            </div>
+            <div className="text-sm text-gray-700">
+              <div className="font-semibold">Physical Characteristics and Nonverbal Behavior</div>
+              <p className="text-gray-800">{renderEditableValue({ path: ["sp", "physical_chars"], label: "Physical Characteristics and Nonverbal Behavior", displayValue: data?.sp?.physical_chars || empty })}</p>
             </div>
             <div className="text-sm text-gray-700">
               <div className="font-semibold">Character Attributes</div>
@@ -1065,6 +1337,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
           <div className="space-y-2">
             <div className="font-semibold text-gray-900">Symptoms</div>
             <ul className="text-sm text-gray-700 space-y-1">
+              <li><span className="font-semibold">Body Location:</span> {renderEditableValue({ path: ["sp", "current_ill_history", "body_location"], label: "Body Location", displayValue: data?.sp?.current_ill_history?.body_location || empty })}</li>
               <li><span className="font-semibold">Setting:</span> {renderEditableValue({ path: ["sp", "current_ill_history", "symptom_settings"], label: "Symptom Settings", displayValue: data?.sp?.current_ill_history?.symptom_settings || empty })}</li>
               <li><span className="font-semibold">Timing:</span> {renderEditableValue({ path: ["sp", "current_ill_history", "symptom_timing"], label: "Symptom Timing", displayValue: data?.sp?.current_ill_history?.symptom_timing || empty })}</li>
               <li><span className="font-semibold">Associated Symptoms:</span> {renderEditableValue({ path: ["sp", "current_ill_history", "associated_symptoms"], label: "Associated Symptoms", displayValue: data?.sp?.current_ill_history?.associated_symptoms || empty })}</li>
@@ -1074,18 +1347,34 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
               <li><span className="font-semibold">Aggravating Factors:</span> {renderEditableValue({ path: ["sp", "current_ill_history", "aggravating_factors"], label: "Aggravating Factors", displayValue: data?.sp?.current_ill_history?.aggravating_factors || empty })}</li>
               <li><span className="font-semibold">Severity (0-10):</span> {renderEditableValue({ path: ["sp", "current_ill_history", "pain"], label: "Pain / Severity", displayValue: data?.sp?.current_ill_history?.pain ?? 0 })}</li>
             </ul>
+            <div className="text-sm text-gray-700">
+              <div className="font-semibold">Symptom Diagram Markers</div>
+              {renderLineList(symptomDiagramLines, "diagram", "-")}
+            </div>
           </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <div className="font-semibold text-gray-900">Medications & Allergies</div>
-            <ul className="text-sm text-gray-700 space-y-1">
-              <li><span className="font-semibold">Medication:</span> {renderEditableValue({ path: ["med_hist", "medications", "name"], label: "Medication Name", displayValue: medCard?.name || empty })} {medCard?.dose ? `(${medCard.dose})` : ""}</li>
-              <li><span className="font-semibold">Frequency:</span> {renderEditableValue({ path: ["med_hist", "medications", "frequency"], label: "Medication Frequency", displayValue: medCard?.frequency || empty })}</li>
-              <li><span className="font-semibold">Reason:</span> {renderEditableValue({ path: ["med_hist", "medications", "reason"], label: "Medication Reason", displayValue: medCard?.reason || empty })}</li>
-              <li><span className="font-semibold">Allergies:</span> {renderEditableValue({ path: ["med_hist", "allergies"], label: "Allergies", displayValue: data?.med_hist?.allergies || empty })}</li>
-            </ul>
+            <div className="text-sm text-gray-700 space-y-2">
+              <div>
+                <div className="font-semibold">Prescription Medications</div>
+                {renderLineList(medicationLines, "rx")}
+              </div>
+              <div>
+                <div className="font-semibold">Non-prescription Medications</div>
+                {renderLineList(nonPrescriptionLines, "non-rx")}
+              </div>
+              <div>
+                <div className="font-semibold">Allergies</div>
+                {renderLineList(allergiesLines, "allergy")}
+              </div>
+              <div>
+                <div className="font-semibold">Allergies (Raw)</div>
+                <div>{renderEditableValue({ path: ["med_hist", "allergies"], label: "Allergies", displayValue: data?.med_hist?.allergies || empty })}</div>
+              </div>
+            </div>
           </div>
           <div className="space-y-2">
             <div className="font-semibold text-gray-900">Case Factors & Supplies</div>
@@ -1099,6 +1388,72 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
 
         <div className="grid md:grid-cols-2 gap-6">
           <div className="space-y-2">
+            <div className="font-semibold text-gray-900">Past Medical History</div>
+            <div className="space-y-2 text-sm text-gray-700">
+              {[
+                ["child_hood_illness", "Childhood Illness"],
+                ["illness_and_hospital", "Medical Illnesses and Hospitalizations"],
+                ["surgeries", "Surgeries"],
+                ["obe_and_gye", "Obstetric or Gynecologic History"],
+                ["transfusion", "Transfusion History"],
+                ["psychiatric", "Psychiatric History"],
+                ["trauma", "Trauma"],
+              ].map(([k, label]) => (
+                <div key={k} className="rounded border px-2 py-1 bg-gray-50">
+                  <div className="font-semibold text-gray-800">{label}</div>
+                  <div>
+                    {renderEditableValue({
+                      path: ["med_hist", "past_med_his", k],
+                      label,
+                      displayValue: toTextList(data?.med_hist?.past_med_his?.[k]).join(" | ") || empty,
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="font-semibold text-gray-900">Preventative Measures</div>
+            <div className="space-y-2 text-sm text-gray-700">
+              {[
+                ["immunization", "Immunizations"],
+                ["alternate_health_care", "Alternative/Complementary Health Care"],
+                ["travel_exposure", "Travel/Exposure History"],
+                ["screening_tests", "Screening Tests"],
+              ].map(([k, label]) => (
+                <div key={k} className="rounded border px-2 py-1 bg-gray-50">
+                  <div className="font-semibold text-gray-800">{label}</div>
+                  <div>
+                    {renderEditableValue({
+                      path: ["med_hist", "preventative_measure", k],
+                      label,
+                      displayValue: toTextList(data?.med_hist?.preventative_measure?.[k]).join(" | ") || empty,
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <div className="font-semibold text-gray-900">Family History</div>
+            <ul className="text-sm text-gray-700 space-y-1">
+              <li><span className="font-semibold">Family Member:</span> {renderEditableValue({ path: ["med_hist", "family_hist", "family_member"], label: "Family Member", displayValue: data?.med_hist?.family_hist?.family_member || empty })}</li>
+              <li><span className="font-semibold">Details:</span> {renderEditableValue({ path: ["med_hist", "family_hist", "details"], label: "Family Details", displayValue: data?.med_hist?.family_hist?.details || empty })}</li>
+              <li><span className="font-semibold">Additional Details:</span> {renderEditableValue({ path: ["med_hist", "family_hist", "additional_details"], label: "Additional Details", displayValue: toTextList(data?.med_hist?.family_hist?.additional_details).join(" | ") || empty })}</li>
+              <li><span className="font-semibold">Health Status:</span> {renderEditableValue({ path: ["med_hist", "family_hist", "health_status"], label: "Health Status", displayValue: data?.med_hist?.family_hist?.health_status || empty })}</li>
+              <li><span className="font-semibold">Relation:</span> {renderEditableValue({ path: ["med_hist", "family_hist", "relation"], label: "Relation", displayValue: data?.med_hist?.family_hist?.relation || empty })}</li>
+              <li><span className="font-semibold">Status:</span> {renderEditableValue({ path: ["med_hist", "family_hist", "status"], label: "Status", displayValue: data?.med_hist?.family_hist?.status || empty })}</li>
+              <li><span className="font-semibold">Conditions:</span> {renderEditableValue({ path: ["med_hist", "family_hist", "conditions"], label: "Conditions", displayValue: data?.med_hist?.family_hist?.conditions || empty })}</li>
+              <li><span className="font-semibold">Notes:</span> {renderEditableValue({ path: ["med_hist", "family_hist", "notes"], label: "Notes", displayValue: data?.med_hist?.family_hist?.notes || empty })}</li>
+              <li><span className="font-semibold">Age:</span> {renderEditableValue({ path: ["med_hist", "family_hist", "age"], label: "Age", displayValue: data?.med_hist?.family_hist?.age ?? empty })}</li>
+              <li><span className="font-semibold">Cause of Death:</span> {renderEditableValue({ path: ["med_hist", "family_hist", "cause_of_death"], label: "Cause of Death", displayValue: data?.med_hist?.family_hist?.cause_of_death || empty })}</li>
+              <li><span className="font-semibold">Additional Info:</span> {renderEditableValue({ path: ["med_hist", "family_hist", "additonal_info"], label: "Additional Info", displayValue: data?.med_hist?.family_hist?.additonal_info || empty })}</li>
+            </ul>
+          </div>
+          <div className="space-y-2">
             <div className="font-semibold text-gray-900">Social History</div>
             <ul className="text-sm text-gray-700 space-y-1">
               <li><span className="font-semibold">Background:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "personal_background"], label: "Personal Background", displayValue: data?.med_hist?.social_hist?.personal_background || empty })}</li>
@@ -1106,9 +1461,25 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
               <li><span className="font-semibold">Community/Employment:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "community_and_employment"], label: "Community and Employment History", displayValue: data?.med_hist?.social_hist?.community_and_employment || empty })}</li>
               <li><span className="font-semibold">Safety Measures:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "safety_measure"], label: "Safety Measures", displayValue: data?.med_hist?.social_hist?.safety_measure || empty })}</li>
               <li><span className="font-semibold">Life Stressors:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "life_stressors"], label: "Significant Life Stressors", displayValue: data?.med_hist?.social_hist?.life_stressors || empty })}</li>
-              <li><span className="font-semibold">Substance Use:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "substance_use"], label: "Substance Use", displayValue: data?.med_hist?.social_hist?.substance_use || empty })}</li>
+              <li><span className="font-semibold">Current Partners:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "sex_history", "current_partners"], label: "Current Partners", displayValue: data?.med_hist?.social_hist?.sex_history?.current_partners ?? empty })}</li>
+              <li><span className="font-semibold">Past Partners:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "sex_history", "past_partners"], label: "Past Partners", displayValue: data?.med_hist?.social_hist?.sex_history?.past_partners ?? empty })}</li>
+              <li><span className="font-semibold">Contraceptives:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "sex_history", "contraceptives"], label: "Contraceptives", displayValue: data?.med_hist?.social_hist?.sex_history?.contraceptives || empty })}</li>
+              <li><span className="font-semibold">HIV Risk History:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "sex_history", "hiv_risk_history"], label: "HIV Risk History", displayValue: data?.med_hist?.social_hist?.sex_history?.hiv_risk_history || empty })}</li>
+              <li><span className="font-semibold">Safety in Relationships:</span> {renderEditableValue({ path: ["med_hist", "social_hist", "sex_history", "safety_in_relations"], label: "Safety in Relationships", displayValue: data?.med_hist?.social_hist?.sex_history?.safety_in_relations || empty })}</li>
             </ul>
+            <div className="text-sm text-gray-700">
+              <div className="font-semibold">Substance Use</div>
+              {renderLineList(substanceUseLines, "substance")}
+            </div>
+            <div className="text-sm text-gray-700">
+              <div className="font-semibold">Sexual History Entries</div>
+              {renderLineList(sexualHistoryLines, "sexual-history")}
+            </div>
           </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <div />
           <div className="space-y-2">
             <div className="font-semibold text-gray-900">Review of Systems</div>
             <div className="grid grid-cols-2 gap-2 text-sm text-gray-700">
@@ -1121,6 +1492,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
                 ["respiratory", "Respiratory"],
                 ["cardiovascular", "Cardiovascular"],
                 ["gastrointestinal", "Gastrointestinal"],
+                ["genitourinary", "Genitourinary"],
                 ["peripheral_vascular", "Peripheral Vascular"],
                 ["musculoskeletal", "Musculoskeletal"],
                 ["psychiatric", "Psychiatric"],
@@ -1129,7 +1501,13 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
               ].map(([k, label]) => (
                 <div key={k} className="rounded border px-2 py-1 bg-gray-50">
                   <div className="font-semibold text-gray-800">{label}</div>
-                  <div>{data?.med_hist?.sympton_review?.[k] || empty}</div>
+                  <div>
+                    {renderEditableValue({
+                      path: ["med_hist", "sympton_review", k],
+                      label,
+                      displayValue: data?.med_hist?.sympton_review?.[k] || empty,
+                    })}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1156,13 +1534,31 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
         <h2 className="text-2xl font-semibold">{activeItem.title}</h2>
         <Link to={backTarget} className="text-blue-600 hover:underline">Back</Link>
       </div>
-      <div className="flex items-center gap-3">
-        <label className="text-sm text-gray-700">Version</label>
-        <select className="rounded border px-2 py-1" value={version} onChange={(e) => setVersion(e.target.value)}>
-          {(versions || []).map((v) => (
-            <option key={v.version} value={v.version}>{v.version}</option>
-          ))}
-        </select>
+      <div className="flex items-center gap-3 w-full lg:w-auto">
+        <div className="flex-1 overflow-x-auto">
+          <div className="flex items-center gap-2">
+            {(versions || []).map((v) => (
+              <button
+                key={v.version}
+                onClick={() => setVersion(v.version)}
+                className={`rounded-full border px-3 py-1 text-sm font-semibold whitespace-nowrap ${
+                  version === v.version ? "bg-[#981e32] text-white border-[#981e32]" : "border-gray-300 text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
+                }`}
+                title={v.notes || v.version}
+              >
+                {v.version}
+              </button>
+            ))}
+          </div>
+        </div>
+        <button
+          className="rounded border px-3 py-1 hover:bg-gray-50"
+          onClick={() => { void saveEdits(form, "Snapshot"); }}
+          disabled={savingLine}
+          title="Save current state as a new version"
+        >
+          Save Version
+        </button>
         <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => setArtifactsOpen(true)}>Resources</button>
         <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={printScriptPdf}>Print</button>
         <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => downloadScriptPdf(activeItem, current)}>Download PDF</button>
@@ -1175,7 +1571,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
       <section className="w-full p-4 space-y-4">
         {header}
         <div className="text-sm text-gray-600">{meta}</div>
-        {canRequestInlineEdit ? (
+        {canInlineEdit ? (
           <div className="text-xs text-gray-500">Admin tip: double-click any value to edit that line.</div>
         ) : null}
         <ScriptHtmlView />
