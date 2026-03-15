@@ -5,6 +5,17 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const getToken = () => {
   try {
+    // First try to get Okta token
+    const oktaTokenStorage = localStorage.getItem('okta-token-storage');
+    if (oktaTokenStorage) {
+      const parsed = JSON.parse(oktaTokenStorage);
+      const accessToken = parsed?.accessToken?.accessToken;
+      if (accessToken) {
+        return accessToken;
+      }
+    }
+    
+    // Fallback to legacy token for backward compatibility
     return localStorage.getItem('token');
   } catch {
     return null;
@@ -43,6 +54,9 @@ export const api = {
   // Auth APIs (if you add authentication later)
   login: (email, password) =>
     request('/auth/login', { method: 'POST', body: { email, password } }),
+
+  // User info from Okta
+  getCurrentUser: () => request('/user'),
 
   // Document APIs
   listDocuments: () => request('/document'),
@@ -136,4 +150,5 @@ export const api = {
 // Export for debugging
 if (import.meta.env.DEV) {
   console.log('[API Client] Base URL:', API_BASE);
+  console.log('[API Client] Token present:', !!getToken());
 }
