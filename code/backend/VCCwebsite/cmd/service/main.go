@@ -89,7 +89,7 @@ func main() {
 		client = nil
 	}
 	if client != nil {
-		log.Println("✓ Connected to MongoDB")
+		log.Println("Connected to MongoDB")
 		defer func() {
 			if err := db.MustDisconnect(context.Background(), client); err != nil {
 				log.Printf("error disconnecting mongo client: %v", err)
@@ -116,7 +116,7 @@ func main() {
 			log.Fatalf("Failed to initialize Okta auth middleware: %v", err)
 		}
 	} else {
-		log.Println("⚠ Okta authentication disabled (missing OKTA_ISSUER or OKTA_CLIENT_ID)")
+		log.Println("Okta authentication disabled (missing OKTA_ISSUER or OKTA_CLIENT_ID)")
 	}
 
 	// Health check endpoint (public - no auth required)
