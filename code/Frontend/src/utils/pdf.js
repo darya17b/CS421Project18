@@ -1073,6 +1073,189 @@ export function downloadResourcePdf(item, resourceName) {
   doc.save(safeName);
 }
 
+function buildMedicationCardPdfFileName(fields = {}) {
+  const name = sanitizeFilePart(get(fields, ["patient", "name"], ""));
+  return name ? `medication-card-${name}.pdf` : "medication-card.pdf";
+}
+
+function normalizeMedicationRow(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  return {
+    name: pad(entry.name || entry.brand_substance || entry.medication_name),
+    brand: pad(entry.brand || entry.generic || entry.brand_substance || entry.generic_name),
+    dose: pad(
+      entry.dose
+      || [pad(entry.amount), pad(entry.unit)].filter(Boolean).join(" ")
+      || entry.medication_dose
+    ),
+    frequency: pad(entry.frequency || entry.frequency_reason || entry.schedule),
+    startDate: pad(entry.startDate || entry.date_started || entry.dateStarted),
+  };
+}
+
+function normalizeNonPrescriptionRow(entry) {
+  if (typeof entry === "string") {
+    const text = pad(entry);
+    return text ? { name: text, brand: "", dose: "", frequency: "", startDate: "" } : null;
+  }
+  if (!entry || typeof entry !== "object") return null;
+  if (entry.text) {
+    const text = pad(entry.text);
+    return text ? { name: text, brand: "", dose: "", frequency: "", startDate: "" } : null;
+  }
+  return {
+    name: pad(entry.name || entry.brand_substance || entry.medication_name),
+    brand: pad(entry.brand || entry.generic || entry.brand_substance || entry.generic_name),
+    dose: pad(
+      entry.dose
+      || [pad(entry.amount), pad(entry.unit)].filter(Boolean).join(" ")
+      || entry.medication_dose
+    ),
+    frequency: pad(entry.frequency || entry.frequency_reason || entry.schedule),
+    startDate: pad(entry.startDate || entry.date_started || entry.dateStarted),
+  };
+}
+
+function normalizeMedicationRows(rawValue) {
+  return (Array.isArray(rawValue) ? rawValue : [rawValue])
+    .map(normalizeMedicationRow)
+    .filter((row) => row && (row.name || row.brand || row.dose || row.frequency || row.startDate));
+}
+
+function normalizeNonPrescriptionRows(rawValue) {
+  return (Array.isArray(rawValue) ? rawValue : [rawValue])
+    .map(normalizeNonPrescriptionRow)
+    .filter((row) => row && (row.name || row.brand || row.dose || row.frequency || row.startDate));
+}
+
+async function fetchMedicationRowsByDocumentId(id) {
+  if (!id) return [];
+  const base = import.meta.env.VITE_API_URL || "/api";
+  const url = `${base}/document/medications?id=${encodeURIComponent(id)}`;
+  try {
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => []);
+    return normalizeMedicationRows(data);
+  } catch {
+    return [];
+  }
+}
+
+export async function downloadMedicationCardPdf(item, versionObj, resourceName = "Medication Card") {
+  const fields = versionObj?.fields || item?.versions?.[0]?.fields || item?.fields || {};
+  const medHist =
+    get(fields, ["med_hist"], null)
+    || get(item, ["med_hist"], null)
+    || get(versionObj, ["med_hist"], null)
+    || {};
+  const patientName = pad(get(fields, ["patient", "name"], "")) || "Patient";
+  const patientAge = pad(get(fields, ["patient", "age"], ""));
+  const fieldRows = normalizeMedicationRows(medHist?.medications || []);
+  const apiRows = await fetchMedicationRowsByDocumentId(item?.id);
+  const prescribedMeds = apiRows.length ? apiRows : fieldRows;
+  const nonPrescriptionMeds = normalizeNonPrescriptionRows(
+    medHist?.non_prescription_medications
+    || medHist?.nonPrescriptionMedications
+    || medHist?.non_prescription
+    || []
+  );
+
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 36;
+  const pageBottom = doc.internal.pageSize.getHeight() - margin;
+  let y = 62;
+
+  const colWidths = [95, 95, 90, 130, 95];
+  const headers = ["Name", "Brand", "Dose", "Frequency", "Date Started"];
+  const tableX = margin;
+  const rowPaddingY = 5;
+  const lineHeight = 12;
+
+  const drawTableHeader = () => {
+    let x = tableX;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(COLORS.body);
+    headers.forEach((header, idx) => {
+      doc.rect(x, y, colWidths[idx], 20);
+      doc.text(header, x + 4, y + 13);
+      x += colWidths[idx];
+    });
+    y += 20;
+  };
+
+  const ensureRowSpace = (height) => {
+    if (y + height > pageBottom) {
+      doc.addPage();
+      y = margin;
+      drawTableHeader();
+    }
+  };
+
+  const drawMedicationTable = (title, rows, emptyText) => {
+    ensureRowSpace(24);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(COLORS.crimsonDark);
+    doc.text(title, margin, y + 12);
+    y += 20;
+
+    drawTableHeader();
+
+    if (!rows.length) {
+      ensureRowSpace(24);
+      const totalWidth = colWidths.reduce((sum, width) => sum + width, 0);
+      doc.rect(tableX, y, totalWidth, 24);
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(10);
+      doc.text(emptyText, tableX + 4, y + 15);
+      y += 24;
+      return;
+    }
+
+    rows.forEach((row) => {
+      const values = [row.name, row.brand, row.dose, row.frequency, row.startDate].map((value) => value || "N/A");
+      const wrapped = values.map((value, idx) => doc.splitTextToSize(value, colWidths[idx] - 8));
+      const rowHeight = Math.max(24, ...wrapped.map((lines) => lines.length * lineHeight + rowPaddingY * 2));
+
+      ensureRowSpace(rowHeight);
+
+      let x = tableX;
+      wrapped.forEach((lines, idx) => {
+        doc.rect(x, y, colWidths[idx], rowHeight);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.text(lines, x + 4, y + rowPaddingY + 9);
+        x += colWidths[idx];
+      });
+      y += rowHeight;
+    });
+  };
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(COLORS.crimsonDark);
+  doc.text(resourceName || "Medication Card", pageWidth / 2, y, { align: "center" });
+  y += 24;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(COLORS.body);
+  doc.text(`Patient Name: ${patientName}`, margin, y);
+  y += 16;
+  doc.text(`Patient Age: ${patientAge || "N/A"}`, margin, y);
+  y += 16;
+
+  drawMedicationTable("Prescription Medications", prescribedMeds, "No prescription medications listed.");
+  y += 12;
+  drawMedicationTable("Non-prescription Medications", nonPrescriptionMeds, "No non-prescription medications listed.");
+
+  const safeName = buildMedicationCardPdfFileName(fields);
+  doc.save(safeName);
+}
+
 function buildDoorNotePdfFileName(fields = {}) {
   const name = sanitizeFilePart(get(fields, ["patient", "name"], ""));
   const reason = sanitizeFilePart(get(fields, ["admin", "reson_for_visit"], get(fields, ["patient", "visit_reason"], "")));
