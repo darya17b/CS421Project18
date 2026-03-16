@@ -26,3 +26,5 @@ export const getArtifactBadge = (artifact) => {
   }
   return "FILE";
 };
+
+export const isMedicationCardName = (name) => /med(?:ication|ical)?[\s_-]*card/i.test(String(name || ""));

@@ -4,8 +4,8 @@ import FormsListRow from "./FormsListRow";
 import Modal from "../components/Modal";
 import { useStore } from "../store";
 import { useToast } from "../components/Toast";
-import { downloadResourcePdf } from "../utils/pdf";
-import { getArtifactBadge, getArtifactName, getArtifactUrl } from "../utils/artifacts";
+import { downloadResourcePdf, downloadMedicationCardPdf } from "../utils/pdf";
+import { getArtifactBadge, getArtifactName, getArtifactUrl, isMedicationCardName } from "../utils/artifacts";
 
 const FormsSearch = () => {
   const { items, refreshDocuments, deleteItem } = useStore();
@@ -19,11 +19,20 @@ const FormsSearch = () => {
   const [q, setQ] = useState({ title: "", author: "", diagnosis: "", learner_level: "", patient_name: "", search: "" });
   const [showFilters, setShowFilters] = useState(false);
   const openArtifact = (artifact) => {
+    if (artifact?.__generatedMedicationCard) {
+      void downloadMedicationCardPdf(current, current?.versions?.[0], artifact?.name || "Medication Card");
+      return;
+    }
+    const artifactName = getArtifactName(artifact);
+    if (isMedicationCardName(artifactName)) {
+      void downloadMedicationCardPdf(current, current?.versions?.[0], artifactName);
+      return;
+    }
     const url = getArtifactUrl(artifact);
     if (url) {
       window.open(url, "_blank", "noopener");
     } else {
-      downloadResourcePdf(current, getArtifactName(artifact));
+      downloadResourcePdf(current, artifactName);
     }
   };
 
@@ -39,6 +48,10 @@ const FormsSearch = () => {
     setCurrent(item);
     setArtifactsOpen(true);
   };
+  const resourceItems = [
+    { __generatedMedicationCard: true, name: "Medication Card" },
+    ...(Array.isArray(current?.artifacts) ? current.artifacts : []),
+  ];
 
   const onPropose = async (item) => {
     try {
@@ -198,14 +211,14 @@ const FormsSearch = () => {
       <Modal open={artifactsOpen} title={`Resources for ${current?.id}`} onClose={() => setArtifactsOpen(false)}>
         {!current ? null : (
           <div className="space-y-2">
-            {current.artifacts && current.artifacts.length ? (
-              current.artifacts.map((a, idx) => (
+            {resourceItems.length ? (
+              resourceItems.map((a, idx) => (
                 <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
                   <div className="flex items-center gap-2">
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">
-                      {getArtifactBadge(a)}
+                      {a?.__generatedMedicationCard ? "PDF" : getArtifactBadge(a)}
                     </span>
-                    <span>{getArtifactName(a)}</span>
+                    <span>{a?.__generatedMedicationCard ? "Medication Card" : getArtifactName(a)}</span>
                   </div>
                   <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Download resource" onClick={() => openArtifact(a)}>
                     Download
@@ -213,7 +226,7 @@ const FormsSearch = () => {
                 </div>
               ))
             ) : (
-              <div className="text-sm text-gray-600">No resources uploaded.</div>
+              <div className="text-sm text-gray-600">No resources available.</div>
             )}
           </div>
         )}
