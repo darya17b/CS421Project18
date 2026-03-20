@@ -2,63 +2,58 @@ package oAuth
 
 import (
 	"context"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"math/big"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	verifier "github.com/okta/okta-jwt-verifier-golang"
 )
 
 // OktaConfig holds the Okta configuration
 type OktaConfig struct {
-	Domain   string // e.g., "dev-123456.okta.com"
-	Audience string // Your API audience/client ID
 	Issuer   string // e.g., "https://dev-123456.okta.com/oauth2/default"
+	ClientID string // Your Okta application client ID
 }
 
-// JWKSet represents the JSON Web Key Set from Okta
-type JWKSet struct {
-	Keys []JWK `json:"keys"`
-}
-
-// JWK represents a single JSON Web Key
-type JWK struct {
-	Kid string   `json:"kid"`
-	Kty string   `json:"kty"`
-	Alg string   `json:"alg"`
-	Use string   `json:"use"`
-	N   string   `json:"n"`
-	E   string   `json:"e"`
-	X5c []string `json:"x5c"`
-}
-
-// Claims represents the JWT claims we care about
-type Claims struct {
-	jwt.RegisteredClaims
-	Scp   string `json:"scp,omitempty"`   // Scopes
-	Sub   string `json:"sub"`             // Subject (user ID)
-	Email string `json:"email,omitempty"` // User email
-	Name  string `json:"name,omitempty"`  // User name
-}
-
-// AuthMiddleware validates Okta JWT tokens
+// AuthMiddleware validates Okta JWT tokens using the official SDK
 type AuthMiddleware struct {
-	config *OktaConfig
-	client *http.Client
+	verifier *verifier.JwtVerifier
+	config   *OktaConfig
 }
 
-// NewAuthMiddleware creates a new authentication middleware
-func NewAuthMiddleware(config *OktaConfig) *AuthMiddleware {
-	return &AuthMiddleware{
-		config: config,
-		client: &http.Client{Timeout: 10 * time.Second},
+// Claims represents the JWT claims
+type Claims struct {
+	Subject        string                 `json:"sub"`
+	Email          string                 `json:"email,omitempty"`           // Standard email claim
+	EmailPrimary   string                 `json:"email_primary,omitempty"`   // WSU primary email
+	EmailSecondary string                 `json:"email_secondary,omitempty"` // WSU secondary email
+	Name           string                 `json:"name,omitempty"`
+	WSUID          string                 `json:"WSUID,omitempty"`      // WSU ID
+	NID            string                 `json:"NID,omitempty"`        // WSU Network ID
+	Department     string                 `json:"department,omitempty"` // WSU department
+	Title          string                 `json:"title,omitempty"`      // WSU job title
+	Groups         []string               `json:"groups,omitempty"`
+	OktaGroups     []string               `json:"Okta_Groups,omitempty"` // WSU Okta groups
+	Scopes         []string               `json:"scp,omitempty"`
+	Custom         map[string]interface{} `json:"-"` // Store all claims
+	rawClaims      map[string]interface{} // Internal storage
+}
+
+// NewAuthMiddleware creates a new authentication middleware using Okta SDK
+func NewAuthMiddleware(config *OktaConfig) (*AuthMiddleware, error) {
+	toValidate := map[string]string{}
+	toValidate["aud"] = config.ClientID
+	toValidate["cid"] = config.ClientID
+
+	jwtVerifierSetup := verifier.JwtVerifier{
+		Issuer:           config.Issuer,
+		ClaimsToValidate: toValidate,
 	}
+
+	return &AuthMiddleware{
+		verifier: &jwtVerifierSetup,
+		config:   config,
+	}, nil
 }
 
 // Middleware is the HTTP middleware function
@@ -80,12 +75,15 @@ func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 
 		tokenString := parts[1]
 
-		// Validate the token
-		claims, err := am.ValidateToken(tokenString)
+		// Verify the token using Okta SDK
+		jwt, err := am.verifier.VerifyAccessToken(tokenString)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Invalid token: %v", err), http.StatusUnauthorized)
 			return
 		}
+
+		// Extract claims from the verified JWT
+		claims := am.extractClaims(jwt.Claims)
 
 		// Add claims to request context
 		ctx := context.WithValue(r.Context(), "claims", claims)
@@ -93,150 +91,150 @@ func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// ValidateToken validates the JWT token with Okta
-func (am *AuthMiddleware) ValidateToken(tokenString string) (*Claims, error) {
-	// Parse the token without verification first to get the kid
-	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, &Claims{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse token: %w", err)
+// extractClaims converts the JWT claims to our Claims struct
+func (am *AuthMiddleware) extractClaims(jwtClaims map[string]interface{}) *Claims {
+	claims := &Claims{
+		rawClaims: jwtClaims,
+		Custom:    make(map[string]interface{}),
 	}
 
-	kid, ok := token.Header["kid"].(string)
-	if !ok {
-		return nil, fmt.Errorf("token missing kid header")
+	// Extract standard claims
+	if sub, ok := jwtClaims["sub"].(string); ok {
+		claims.Subject = sub
 	}
 
-	// Get the public key from Okta's JWKS endpoint
-	publicKey, err := am.getPublicKey(kid)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get public key: %w", err)
+	if email, ok := jwtClaims["email"].(string); ok {
+		claims.Email = email
 	}
 
-	// Parse and validate the token
-	claims := &Claims{}
-	parsedToken, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		// Verify signing algorithm
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return publicKey, nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse token with claims: %w", err)
+	// WSU-specific claims
+	if emailPrimary, ok := jwtClaims["email_primary"].(string); ok {
+		claims.EmailPrimary = emailPrimary
 	}
 
-	if !parsedToken.Valid {
-		return nil, fmt.Errorf("token is invalid")
+	if emailSecondary, ok := jwtClaims["email_secondary"].(string); ok {
+		claims.EmailSecondary = emailSecondary
 	}
 
-	// Validate issuer
-	if claims.Issuer != am.config.Issuer {
-		return nil, fmt.Errorf("invalid issuer: expected %s, got %s", am.config.Issuer, claims.Issuer)
+	if wsuid, ok := jwtClaims["WSUID"].(string); ok {
+		claims.WSUID = wsuid
 	}
 
-	// Validate audience
-	validAudience := false
-	for _, aud := range claims.Audience {
-		if aud == am.config.Audience {
-			validAudience = true
-			break
-		}
-	}
-	if !validAudience {
-		return nil, fmt.Errorf("invalid audience")
+	if nid, ok := jwtClaims["NID"].(string); ok {
+		claims.NID = nid
 	}
 
-	// Validate expiration
-	if time.Now().After(claims.ExpiresAt.Time) {
-		return nil, fmt.Errorf("token has expired")
+	if department, ok := jwtClaims["department"].(string); ok {
+		claims.Department = department
 	}
 
-	return claims, nil
-}
-
-// getPublicKey fetches the public key from Okta's JWKS endpoint
-func (am *AuthMiddleware) getPublicKey(kid string) (interface{}, error) {
-	// Fetch JWKS from Okta
-	jwksURL := fmt.Sprintf("%s/v1/keys", am.config.Issuer)
-
-	resp, err := am.client.Get(jwksURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("JWKS endpoint returned status: %d", resp.StatusCode)
+	if title, ok := jwtClaims["title"].(string); ok {
+		claims.Title = title
 	}
 
-	var jwks JWKSet
-	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
-		return nil, fmt.Errorf("failed to decode JWKS: %w", err)
+	if name, ok := jwtClaims["name"].(string); ok {
+		claims.Name = name
 	}
 
-	// Find the key with matching kid
-	for _, key := range jwks.Keys {
-		if key.Kid == kid {
-			// Convert JWK to RSA public key
-			if len(key.X5c) > 0 {
-				// Use X.509 certificate if available
-				return parseX509Certificate(key.X5c[0])
+	// Extract Okta_Groups (WSU-specific)
+	if oktaGroups, ok := jwtClaims["Okta_Groups"].([]interface{}); ok {
+		claims.OktaGroups = make([]string, 0, len(oktaGroups))
+		for _, g := range oktaGroups {
+			if groupStr, ok := g.(string); ok {
+				claims.OktaGroups = append(claims.OktaGroups, groupStr)
 			}
-			// Otherwise use n and e modulus/exponent
-			return parseRSAPublicKey(key.N, key.E)
 		}
 	}
 
-	return nil, fmt.Errorf("no key found with kid: %s", kid)
-}
-
-// parseX509Certificate parses an X.509 certificate to extract the RSA public key
-func parseX509Certificate(certStr string) (*rsa.PublicKey, error) {
-	certBytes, err := base64.StdEncoding.DecodeString(certStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode certificate: %w", err)
+	// Extract standard groups
+	if groups, ok := jwtClaims["groups"].([]interface{}); ok {
+		claims.Groups = make([]string, 0, len(groups))
+		for _, g := range groups {
+			if groupStr, ok := g.(string); ok {
+				claims.Groups = append(claims.Groups, groupStr)
+			}
+		}
 	}
 
-	cert, err := x509.ParseCertificate(certBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse certificate: %w", err)
+	// Extract scopes (can be string or array)
+	if scp, ok := jwtClaims["scp"].([]interface{}); ok {
+		claims.Scopes = make([]string, 0, len(scp))
+		for _, s := range scp {
+			if scopeStr, ok := s.(string); ok {
+				claims.Scopes = append(claims.Scopes, scopeStr)
+			}
+		}
+	} else if scpStr, ok := jwtClaims["scp"].(string); ok {
+		// Sometimes scopes come as space-separated string
+		claims.Scopes = strings.Split(scpStr, " ")
 	}
 
-	rsaPublicKey, ok := cert.PublicKey.(*rsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("certificate does not contain RSA public key")
+	// Store all other claims in Custom map
+	standardClaims := map[string]bool{
+		"sub": true, "email": true, "email_primary": true, "email_secondary": true,
+		"name": true, "WSUID": true, "NID": true, "department": true, "title": true,
+		"groups": true, "Okta_Groups": true, "scp": true,
+		"iss": true, "aud": true, "exp": true, "iat": true, "jti": true, "cid": true,
+		"ver": true, "amr": true, "idp": true, "nonce": true, "auth_time": true, "at_hash": true,
 	}
 
-	return rsaPublicKey, nil
-}
-
-// parseRSAPublicKey constructs an RSA public key from n and e components
-func parseRSAPublicKey(nStr, eStr string) (*rsa.PublicKey, error) {
-	// Decode n (modulus)
-	nBytes, err := base64.RawURLEncoding.DecodeString(nStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode n: %w", err)
+	for key, value := range jwtClaims {
+		if !standardClaims[key] {
+			claims.Custom[key] = value
+		}
 	}
 
-	// Decode e (exponent)
-	eBytes, err := base64.RawURLEncoding.DecodeString(eStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode e: %w", err)
-	}
-
-	// Convert to big.Int
-	n := new(big.Int).SetBytes(nBytes)
-	e := new(big.Int).SetBytes(eBytes)
-
-	return &rsa.PublicKey{
-		N: n,
-		E: int(e.Int64()),
-	}, nil
+	return claims
 }
 
 // GetClaimsFromContext extracts claims from the request context
 func GetClaimsFromContext(ctx context.Context) (*Claims, bool) {
 	claims, ok := ctx.Value("claims").(*Claims)
 	return claims, ok
+}
+
+// HasScope checks if the user has a specific scope
+func (c *Claims) HasScope(scope string) bool {
+	for _, s := range c.Scopes {
+		if s == scope {
+			return true
+		}
+	}
+	return false
+}
+
+// HasGroup checks if the user is in a specific group
+func (c *Claims) HasGroup(group string) bool {
+	for _, g := range c.Groups {
+		if g == group {
+			return true
+		}
+	}
+	return false
+}
+
+// HasOktaGroup checks if the user is in a specific Okta group (WSU-specific)
+func (c *Claims) HasOktaGroup(group string) bool {
+	for _, g := range c.OktaGroups {
+		if g == group {
+			return true
+		}
+	}
+	return false
+}
+
+// GetCustomClaim retrieves a custom claim by key
+func (c *Claims) GetCustomClaim(key string) (interface{}, bool) {
+	val, ok := c.Custom[key]
+	return val, ok
+}
+
+// GetCustomClaimString retrieves a custom claim as a string
+func (c *Claims) GetCustomClaimString(key string) (string, bool) {
+	val, ok := c.Custom[key]
+	if !ok {
+		return "", false
+	}
+	str, ok := val.(string)
+	return str, ok
 }

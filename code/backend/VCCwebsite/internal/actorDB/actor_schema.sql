@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS actors (
     notes TEXT CHECK (notes IS NULL OR length(notes) <= 100),
     phone_number TEXT NOT NULL CHECK (trim(phone_number) <> ''),
     age_range TEXT,
+    admin INTEGER NOT NULL DEFAULT 0,
     pronouns TEXT,
     employee_id TEXT NOT NULL UNIQUE
         CHECK (employee_id GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'),
