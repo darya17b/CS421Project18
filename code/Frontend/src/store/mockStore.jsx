@@ -43,6 +43,10 @@ export const MockStoreProvider = ({ children }) => {
       setRequests((prev) => prev.filter((r) => r.id !== id));
       return true;
     },
+    deleteItem: async (id) => {
+      setItems((prev) => prev.filter((it) => it.id !== id));
+      return true;
+    },
     addItem: (item) => setItems((prev) => [item, ...prev]),
     getById: (id) => items.find((it) => it.id === id),
     flagProposed: (id) => {

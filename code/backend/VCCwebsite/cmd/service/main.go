@@ -2,6 +2,7 @@ package main
 
 import (
 	"VCCwebsite/api"
+	actordb "VCCwebsite/internal/actorDB"
 	"VCCwebsite/internal/db"
 	"VCCwebsite/internal/oAuth"
 	"context"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -76,20 +78,25 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	mux := http.NewServeMux()
-	mongoURI := os.Getenv("MONGO_URI")
-	log.Printf("MONGO_URI set: %v", mongoURI != "")
+
+	mongoURI, mongoURIEnv := db.ResolveMongoURI()
+	log.Printf("Mongo URI set: %v (source=%s)", mongoURI != "", mongoURIEnv)
+	if mongoURI == "" {
+		log.Printf("Mongo config missing (%s)", db.MongoConfigHint())
+	}
 
 	// Try to connect to MongoDB if MONGO_URI is set
 	ctx := context.Background()
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	client, err := db.Connect(cctx)
+
+	mongoClient, mongoSource, err := db.ConnectWithSource(cctx)
 	if err != nil {
-		log.Printf("mongodb connect error: %v — continuing without DB", err)
-		client = nil
+		log.Printf("mongodb connect error (source=%s): %v - continuing without MongoDB", mongoSource, err)
+		mongoClient = nil
 	}
-	if client != nil {
-		log.Println("Connected to MongoDB")
+	if mongoClient != nil {
+		log.Printf("Connected to MongoDB (source=%s)", mongoSource)
 		defer func() {
 			if err := db.MustDisconnect(context.Background(), client); err != nil {
 				log.Printf("error disconnecting mongo client: %v", err)
@@ -99,8 +106,17 @@ func main() {
 		log.Println("Running without MongoDB connection")
 	}
 
-	// Initialize Okta authentication middleware (optional - controlled by env vars)
-	var authMiddleware *oAuth.AuthMiddleware
+	requireMongo := strings.EqualFold(os.Getenv("REQUIRE_MONGO"), "true")
+	if requireMongo && mongoClient == nil {
+		log.Fatalf("MongoDB is required but unavailable (%s)", db.MongoConfigHint())
+	}
+	if !requireMongo && mongoClient == nil {
+		log.Printf("MongoDB unavailable; continuing in optional mode. Set REQUIRE_MONGO=true to fail fast (%s)", db.MongoConfigHint())
+	}
+
+	// Initialize Okta authentication middleware (optional)
+	var authMiddleware *oAuth.CachedAuthMiddleware
+	oktaDomain := os.Getenv("OKTA_DOMAIN")
 	oktaIssuer := os.Getenv("OKTA_ISSUER")
 	oktaClientID := os.Getenv("OKTA_CLIENT_ID")
 
@@ -137,15 +153,19 @@ func main() {
 	if authMiddleware != nil {
 		// Protected routes (authentication required)
 		log.Println("Applying authentication to API endpoints")
-		mux.Handle("/api/script-request", authMiddleware.Middleware(api.ScriptRequestHandler(client)))
-		mux.Handle("/api/document/versions", authMiddleware.Middleware(api.DocumentHandler(client)))
-		mux.Handle("/api/document/version", authMiddleware.Middleware(api.DocumentHandler(client)))
-		mux.Handle("/api/document/restore", authMiddleware.Middleware(api.DocumentHandler(client)))
-		mux.Handle("/api/document/medications", authMiddleware.Middleware(api.DocumentHandler(client)))
-		mux.Handle("/api/document/vitals", authMiddleware.Middleware(api.DocumentHandler(client)))
-		mux.Handle("/api/document", authMiddleware.Middleware(api.DocumentHandler(client)))
+		mux.Handle("/api/script-request", authMiddleware.Middleware(api.ScriptRequestHandler(mongoClient)))
+		mux.Handle("/api/document/versions", authMiddleware.Middleware(api.DocumentHandler(mongoClient)))
+		mux.Handle("/api/document/version", authMiddleware.Middleware(api.DocumentHandler(mongoClient)))
+		mux.Handle("/api/document/restore", authMiddleware.Middleware(api.DocumentHandler(mongoClient)))
+		mux.Handle("/api/document/medications", authMiddleware.Middleware(api.DocumentHandler(mongoClient)))
+		mux.Handle("/api/document/vitals", authMiddleware.Middleware(api.DocumentHandler(mongoClient)))
+		mux.Handle("/api/document", authMiddleware.Middleware(api.DocumentHandler(mongoClient)))
+		mux.Handle("/api/artifact", authMiddleware.Middleware(api.ArtifactHandler(mongoClient)))
+		mux.Handle("/api/artifact/", authMiddleware.Middleware(api.ArtifactHandler(mongoClient)))
+		mux.Handle("/api/artifacts", authMiddleware.Middleware(api.ArtifactHandler(mongoClient)))
+		mux.Handle("/api/artifacts/", authMiddleware.Middleware(api.ArtifactHandler(mongoClient)))
 
-		// User info endpoint - returns only WSUID and primary email
+		// FIX: was missing closing paren on w.Write([]byte(...))
 		mux.HandleFunc("/api/user", func(w http.ResponseWriter, r *http.Request) {
 			// Get claims from context
 			claims, ok := oAuth.GetClaimsFromContext(r.Context())
@@ -161,15 +181,18 @@ func main() {
 			})
 		})
 	} else {
-		// No authentication - routes are public
-		log.Println("⚠ API endpoints are PUBLIC (no authentication)")
-		mux.Handle("/api/script-request", api.ScriptRequestHandler(client))
-		mux.Handle("/api/document/versions", api.DocumentHandler(client))
-		mux.Handle("/api/document/version", api.DocumentHandler(client))
-		mux.Handle("/api/document/restore", api.DocumentHandler(client))
-		mux.Handle("/api/document/medications", api.DocumentHandler(client))
-		mux.Handle("/api/document/vitals", api.DocumentHandler(client))
-		mux.Handle("/api/document", api.DocumentHandler(client))
+		log.Println("API endpoints are PUBLIC (no authentication)")
+		mux.Handle("/api/script-request", api.ScriptRequestHandler(mongoClient))
+		mux.Handle("/api/document/versions", api.DocumentHandler(mongoClient))
+		mux.Handle("/api/document/version", api.DocumentHandler(mongoClient))
+		mux.Handle("/api/document/restore", api.DocumentHandler(mongoClient))
+		mux.Handle("/api/document/medications", api.DocumentHandler(mongoClient))
+		mux.Handle("/api/document/vitals", api.DocumentHandler(mongoClient))
+		mux.Handle("/api/document", api.DocumentHandler(mongoClient))
+		mux.Handle("/api/artifact", api.ArtifactHandler(mongoClient))
+		mux.Handle("/api/artifact/", api.ArtifactHandler(mongoClient))
+		mux.Handle("/api/artifacts", api.ArtifactHandler(mongoClient))
+		mux.Handle("/api/artifacts/", api.ArtifactHandler(mongoClient))
 	}
 
 	// Serve SPA (should be last)
@@ -193,7 +216,7 @@ func main() {
 	}
 
 	log.Printf("Server starting on :%s", port)
-	log.Printf("Serving static files from: ../../../../Frontend/dist")
+	log.Printf("Serving static files from: %s", staticPath)
 	log.Printf("API endpoints available at /api/*")
 
 	if err := http.ListenAndServe(":"+port, handler); err != nil {

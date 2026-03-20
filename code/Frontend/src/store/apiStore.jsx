@@ -44,10 +44,13 @@ function mapDocToItem(doc) {
 function mapRequestToItem(req) {
   if (!req || typeof req !== 'object') return null;
   const id = req.id || req._id || `REQ-${Math.random().toString(36).slice(2, 8)}`;
-  const title = req.chief_concern || req.diagnosis || req.summary_patient_story || 'Script Request';
-  const patient = req.patient_demog || req.case_setting || 'Unknown';
+  const draft = req.draft_script && typeof req.draft_script === 'object' ? req.draft_script : null;
+  const draftReasonForVisit = draft?.admin?.reson_for_visit || draft?.patient?.visit_reason || '';
+  const reasonForVisit = req.reason_for_visit || req.reson_for_visit || draftReasonForVisit || req.chief_concern || '';
+  const title = reasonForVisit || req.chief_concern || req.diagnosis || req.summary_patient_story || 'Script Request';
+  const patient = req.patient_demog || draft?.patient?.name || reasonForVisit || req.case_setting || 'Unknown';
   const department = req.class || req.simulation_modal || 'General';
-  const createdAt = req.createdAt || req.event || new Date().toISOString().slice(0, 10);
+  const createdAt = req.created_at || req.createdAt || req.event || new Date().toISOString().slice(0, 10);
   const summary = req.summary_patient_story || req.pert_aspects_patient_case || '';
 
   return {
@@ -57,6 +60,9 @@ function mapRequestToItem(req) {
     department,
     createdAt,
     summary,
+    status: req.status || 'Pending',
+    note: req.note || '',
+    approvedScriptId: req.approved_script_id || '',
     raw: req,
   };
 }
@@ -125,6 +131,13 @@ export const ApiStoreProvider = ({ children }) => {
     return true;
   }, []);
 
+  const deleteItem = useCallback(async (id) => {
+    if (!api.deleteDocument) return false;
+    await api.deleteDocument(id);
+    setItems((prev) => prev.filter((it) => it.id !== id));
+    return true;
+  }, []);
+
   const apiValue = useMemo(() => ({
     items,
     requests,
@@ -174,6 +187,7 @@ export const ApiStoreProvider = ({ children }) => {
     createRequest,
     updateRequest,
     deleteRequest,
+    deleteItem,
     
     toggleProposed: () => { console.warn('toggleProposed disabled: backend propose endpoint required'); },
     clearDrafts: () => {
@@ -192,7 +206,7 @@ export const ApiStoreProvider = ({ children }) => {
       setItems([]);
       setRequests([]);
     },
-  }), [items, requests, refreshRequests, createRequest, updateRequest, deleteRequest, requestsLoaded]);
+  }), [items, requests, refreshRequests, createRequest, updateRequest, deleteRequest, deleteItem, requestsLoaded]);
 
   return (
     <ApiStoreContext.Provider value={apiValue}>{children}</ApiStoreContext.Provider>

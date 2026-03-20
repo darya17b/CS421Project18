@@ -35,6 +35,11 @@ COPY --from=frontend-builder /app/dist ./static
 
 RUN mkdir -p /app/data
 
+ENV PORT=8080 \
+    STATIC_PATH=/app/static \
+    ACTOR_SQLITE_PATH=/app/data/actor.db \
+    ACTOR_SCHEMA_PATH=/app/internal/actorDB/actor_schema.sql
+
 EXPOSE 8080
 
 CMD ["./server"]
