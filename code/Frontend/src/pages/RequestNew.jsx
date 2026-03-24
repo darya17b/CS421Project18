@@ -2,6 +2,7 @@ import { useNavigate, useBeforeUnload } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { useToast } from "../components/Toast";
+import DOBDatePicker from "../components/DOBDatePicker";
 import { buildScriptFromForm } from "../utils/scriptFormat";
 import hpiDiagram from "../assets/hpi-diagram.png";
 
@@ -512,6 +513,9 @@ const RequestNew = () => {
 
   const onSubmit = async (e) => {
     e.preventDefault();
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     bypassNavigationRef.current = false;
     setSubmitting(true);
     let uploadedArtifacts = [];
@@ -676,7 +680,11 @@ const RequestNew = () => {
                   </label>
                   <label className="block space-y-1">
                     <span className="text-sm text-gray-700">Date of Birth</span>
-                    <input className={inputClass} value={getField(["patient", "date_of_birth"]) || ""} onChange={(e) => setField(["patient", "date_of_birth"], e.target.value)} />
+                    <DOBDatePicker
+                      className={inputClass}
+                      value={getField(["patient", "date_of_birth"]) || ""}
+                      onChange={(nextValue) => setField(["patient", "date_of_birth"], nextValue)}
+                    />
                   </label>
                   <label className="block space-y-1">
                     <span className="text-sm text-gray-700">Diagnosis</span>
@@ -1533,6 +1541,9 @@ const RequestNew = () => {
             type="button"
             className="rounded-full border border-gray-300 px-5 py-2 text-sm font-semibold hover:bg-gray-50"
             onClick={async () => {
+              if (document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur();
+              }
               const script = buildScriptFromForm(form);
               const { downloadScriptPdf } = await import("../utils/pdf");
               const item = {
