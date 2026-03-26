@@ -36,6 +36,14 @@ export const LandingSections = () => {
                 View Script Requests &rsaquo;
               </Link>
             </div>
+            <div className="landing-card">
+              <h2>Create Script</h2>
+              <p>Create a new script directly.</p>
+              <p>Script will automatically be added to the script library.</p>
+              <Link to="/create-script" className="landing-action text-[#981e32]">
+                Create Script &rsaquo;
+              </Link>
+            </div>
             <div className="landing-card landing-card--accent">
               <h2>Actor Database</h2>
               <p>View, search, and manage standardized patient actor records.</p>
