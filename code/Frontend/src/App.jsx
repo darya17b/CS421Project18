@@ -8,6 +8,7 @@ import FormsSearch from "./pages/FormsSearch";
 import Home from "./pages/Home";
 import Requests from "./pages/Requests";
 import RequestNew from "./pages/RequestNew";
+import CreateScript from "./pages/CreateScript";
 import ScriptDetail from "./pages/ScriptDetail";
 import ActorDatabase from "./pages/ActorDatabase";
 import { StoreProvider } from "./store";
@@ -45,6 +46,11 @@ const App = () => {
               <Route path="request-new" element={
                 <RequireAuth>
                   <RequestNew />
+                </RequireAuth>
+              } />
+              <Route path="create-script" element={
+                <RequireAuth>
+                  <CreateScript />
                 </RequireAuth>
               } />
               <Route path="forms/:id" element={
