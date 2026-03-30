@@ -272,7 +272,62 @@ func convertToScriptRequestWithID(rawDoc bson.M) ScriptRequestWithID {
 	docBytes, _ := bson.Marshal(rawDoc)
 	bson.Unmarshal(docBytes, &req.ScriptRequest)
 
+	// Newer writes use snake_case JSON keys (e.g. draft_script, draft_versions).
+	// Fill these explicitly so mixed legacy/new documents round-trip correctly.
+	if rawDraft, ok := rawDoc["draft_script"]; ok {
+		var draft scripts.StandardizedScript
+		if decodeViaJSON(rawDraft, &draft) {
+			req.DraftScript = &draft
+		}
+	}
+	if rawVersions, ok := rawDoc["draft_versions"]; ok {
+		var versions []scripts.ScriptRequestDraftVersion
+		if decodeViaJSON(rawVersions, &versions) {
+			req.DraftVersions = versions
+		}
+	}
+	if rawApprovedID, ok := rawDoc["approved_script_id"]; ok {
+		if approvedID := asString(rawApprovedID); approvedID != "" {
+			req.ApprovedScriptID = approvedID
+		}
+	}
+	if rawPublishedID, ok := rawDoc["published_script_id"]; ok {
+		if publishedID := asString(rawPublishedID); publishedID != "" {
+			req.PublishedScriptID = publishedID
+		}
+	}
+	if rawCreatedAt, ok := rawDoc["created_at"]; ok {
+		if createdAt := asString(rawCreatedAt); createdAt != "" {
+			req.CreatedAt = createdAt
+		}
+	}
+	if rawUpdatedAt, ok := rawDoc["updated_at"]; ok {
+		if updatedAt := asString(rawUpdatedAt); updatedAt != "" {
+			req.UpdatedAt = updatedAt
+		}
+	}
+
 	return req
+}
+
+func decodeViaJSON(raw any, target any) bool {
+	payload, err := json.Marshal(raw)
+	if err != nil {
+		return false
+	}
+	if err := json.Unmarshal(payload, target); err != nil {
+		return false
+	}
+	return true
+}
+
+func asString(raw any) string {
+	switch value := raw.(type) {
+	case string:
+		return value
+	default:
+		return ""
+	}
 }
 
 // buildScriptRequestFilterFromQuery builds a MongoDB filter from URL query parameters

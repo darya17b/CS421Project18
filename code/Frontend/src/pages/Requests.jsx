@@ -4,13 +4,13 @@ import { useStore } from "../store";
 import { useToast } from "../components/Toast";
 
 const STORAGE_KEY = "mock-request-statuses";
-const ACTION_STATUS_OPTIONS = ["In Review", "Approved", "Rejected"];
+const ACTION_STATUS_OPTIONS = ["In Review", "Rejected"];
 
 const normalizeStatus = (value) => {
   const raw = String(value || "").trim().toLowerCase();
   if (!raw) return "";
   if (raw === "in review" || raw === "in_review" || raw === "review") return "In Review";
-  if (raw === "approved") return "Approved";
+  if (raw === "approved" || raw === "published" || raw === "publish") return "Published";
   if (raw === "rejected") return "Rejected";
   if (raw === "pending") return "Pending";
   return value;
@@ -33,17 +33,41 @@ const saveStatus = (data) => {
   }
 };
 
+const cloneValue = (value) => JSON.parse(JSON.stringify(value));
+
+const uniqueArtifacts = (artifacts = []) => {
+  const seen = new Set();
+  const deduped = [];
+  artifacts.forEach((artifact) => {
+    if (!artifact || typeof artifact !== "object") return;
+    const key =
+      artifact.id ||
+      artifact._id ||
+      artifact.url ||
+      artifact.path ||
+      artifact.name ||
+      JSON.stringify(artifact);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    deduped.push(artifact);
+  });
+  return deduped;
+};
+
 const buildScriptFromRequest = (request) => {
   const raw = request?.raw || request || {};
   if (raw.draft_script && typeof raw.draft_script === "object") {
-    return { ...raw.draft_script, artifacts: raw.draft_script.artifacts || raw.artifacts || [] };
+    const draft = cloneValue(raw.draft_script);
+    draft.artifacts = uniqueArtifacts([
+      ...(Array.isArray(draft.artifacts) ? draft.artifacts : []),
+      ...(Array.isArray(raw.artifacts) ? raw.artifacts : []),
+    ]);
+    return draft;
   }
 
   const reasonForVisit =
     raw.reason_for_visit ||
     raw.reson_for_visit ||
-    raw.draft_script?.admin?.reson_for_visit ||
-    raw.draft_script?.patient?.visit_reason ||
     raw.chief_concern ||
     "";
 
@@ -52,18 +76,18 @@ const buildScriptFromRequest = (request) => {
       reson_for_visit: reasonForVisit,
       chief_concern: raw.chief_concern || "",
       diagnosis: raw.diagnosis || "",
+      case_letter: raw.class || "",
       class: raw.class || "",
       medical_event: raw.event || "",
-      event_dates: raw.event || "",
       learner_level: raw.learner_level || raw.pedagogy || "",
-      author: "approved-from-request",
       summory_of_story: raw.summary_patient_story || "",
       student_expectations: raw.student_expec || "",
       patient_demographic: raw.patient_demog || "",
       case_factors: raw.case_factors || raw.pert_aspects_patient_case || "",
+      special_supplies: raw.special_needs || "",
     },
     patient: {
-      name: raw.patient_demog || raw.draft_script?.patient?.name || "",
+      name: raw.patient_name || raw.patient_demog || "",
       visit_reason: reasonForVisit,
       context: raw.case_setting || "",
     },
@@ -80,16 +104,17 @@ const buildScriptFromRequest = (request) => {
       oppurtunity: raw.special_needs || "",
       feed_back: raw.additonal_ins || "",
     },
-    artifacts: raw.artifacts || [],
+    artifacts: uniqueArtifacts(Array.isArray(raw.artifacts) ? raw.artifacts : []),
   };
 };
 
 const Requests = () => {
   const location = useLocation();
   const from = `${location.pathname}${location.search}${location.hash}`;
-  const { requests, refreshRequests, updateRequest, addItem, deleteRequest } = useStore();
+  const { requests, refreshRequests, updateRequest, addItem, updateItem, fetchById } = useStore();
   const toast = useToast();
   const [statusMap, setStatusMap] = useState(() => loadStatus());
+  const [publishingId, setPublishingId] = useState("");
   const isAdmin = (() => {
     if (typeof window === "undefined") return true;
     const role = localStorage.getItem("role");
@@ -118,8 +143,8 @@ const Requests = () => {
         const backendUpdatedAt = it.raw?.updated_at || it.updatedAt;
         const previousStatus = normalizeStatus(next[it.id]?.status || "");
         const resolvedStatus =
-          backendStatus === "Approved"
-            ? "Approved"
+          backendStatus === "Published"
+            ? "Published"
             : (previousStatus && backendStatus === "Pending")
                 ? previousStatus
                 : (backendStatus || previousStatus || "Pending");
@@ -142,9 +167,9 @@ const Requests = () => {
         status: normalizeStatus(meta.status || it.status || "Pending"),
         note: meta.note ?? it.note ?? "",
         updatedAt: meta.updatedAt,
-        approvedScriptId: it.approvedScriptId || it.raw?.approved_script_id || "",
+        approvedScriptId: it.approvedScriptId || it.raw?.approved_script_id || it.raw?.published_script_id || "",
       };
-    }).filter((it) => String(it.status || "").toLowerCase() !== "approved");
+    }).filter((it) => normalizeStatus(it.status) !== "Published");
   }, [requests, statusMap]);
 
   const persistRequestMeta = async (req, overrides = {}) => {
@@ -163,47 +188,17 @@ const Requests = () => {
     return updated?.raw || updated || payload;
   };
 
-  const promoteApprovedRequest = async (req, latestRaw) => {
-    const existingScriptId = latestRaw?.approved_script_id || req.approvedScriptId || req.raw?.approved_script_id;
-    if (existingScriptId || typeof addItem !== "function") return existingScriptId || "";
-
-    const scriptPayload = buildScriptFromRequest({ ...req, raw: latestRaw || req.raw });
-    const created = await addItem(scriptPayload);
-    const createdId = created?.id || created?._id || "";
-
-    return createdId;
-  };
-
   const updateStatus = async (req, status) => {
     const normalizedStatus = normalizeStatus(status) || "Pending";
     const prevStatus = statusMap[req.id]?.status || req.status || "Pending";
-
-    if (normalizedStatus !== "Approved") {
-      setStatusMap((prev) => ({
-        ...prev,
-        [req.id]: { ...prev[req.id], status: normalizedStatus, updatedAt: new Date().toISOString() },
-      }));
-      toast.show(`Marked as ${normalizedStatus}`, { type: "info" });
-      return;
-    }
-
     setStatusMap((prev) => ({
       ...prev,
-      [req.id]: { ...prev[req.id], status: "Approved", updatedAt: new Date().toISOString() },
+      [req.id]: { ...prev[req.id], status: normalizedStatus, updatedAt: new Date().toISOString() },
     }));
 
     try {
-      const latestRaw = req.raw || {};
-      const createdId = await promoteApprovedRequest(req, latestRaw);
-      if (typeof deleteRequest === "function") {
-        await deleteRequest(req.id);
-      }
-      setStatusMap((prev) => {
-        const next = { ...prev };
-        delete next[req.id];
-        return next;
-      });
-      toast.show(createdId ? "Marked as Approved and added to Script Library" : "Marked as Approved", { type: "success" });
+      await persistRequestMeta(req, { status: normalizedStatus });
+      toast.show(`Marked as ${normalizedStatus}`, { type: "success" });
       if (typeof refreshRequests === "function") await refreshRequests();
     } catch (err) {
       console.warn("Failed to update request status", err);
@@ -211,7 +206,82 @@ const Requests = () => {
         ...prev,
         [req.id]: { ...prev[req.id], status: normalizeStatus(prevStatus), updatedAt: new Date().toISOString() },
       }));
-      toast.show("Failed to approve request", { type: "error" });
+      toast.show("Failed to update request status", { type: "error" });
+    }
+  };
+
+  const publishToLibrary = async (req) => {
+    if (publishingId) return;
+    const prevStatus = statusMap[req.id]?.status || req.status || "Pending";
+    setPublishingId(req.id);
+    try {
+      const raw = req.raw || {};
+      const scriptPayload = buildScriptFromRequest(req);
+      const changeNote = `Published from request ${req.id}`;
+      let publishedScriptId =
+        raw.published_script_id ||
+        raw.approved_script_id ||
+        req.approvedScriptId ||
+        "";
+
+      if (publishedScriptId) {
+        if (typeof updateItem === "function") {
+          await updateItem(publishedScriptId, scriptPayload, changeNote);
+        } else {
+          const { api } = await import("../api/client");
+          const createdBy = (typeof window !== "undefined" && localStorage.getItem("user")) || "admin";
+          await api.updateDocument(publishedScriptId, scriptPayload, {
+            change_note: changeNote,
+            created_by: createdBy,
+          });
+          if (typeof fetchById === "function") {
+            await fetchById(publishedScriptId);
+          }
+        }
+      } else {
+        if (typeof addItem !== "function") {
+          throw new Error("Script publishing is not configured.");
+        }
+        const created = await addItem(scriptPayload);
+        publishedScriptId = created?.id || created?._id || "";
+        if (!publishedScriptId) {
+          throw new Error("Script publish did not return a script id.");
+        }
+      }
+
+      setStatusMap((prev) => ({
+        ...prev,
+        [req.id]: {
+          ...prev[req.id],
+          status: "Published",
+          updatedAt: new Date().toISOString(),
+        },
+      }));
+
+      await persistRequestMeta(req, {
+        status: "Published",
+        approved_script_id: publishedScriptId,
+        published_script_id: publishedScriptId,
+        draft_script: scriptPayload,
+        artifacts: scriptPayload.artifacts || raw.artifacts || [],
+      });
+      if (typeof refreshRequests === "function") {
+        await refreshRequests();
+      }
+      toast.show("Published to Script Library", { type: "success" });
+    } catch (err) {
+      console.warn("Failed to publish request", err);
+      setStatusMap((prev) => ({
+        ...prev,
+        [req.id]: {
+          ...prev[req.id],
+          status: normalizeStatus(prevStatus) || "Pending",
+          updatedAt: new Date().toISOString(),
+        },
+      }));
+      toast.show("Failed to publish request", { type: "error" });
+    } finally {
+      setPublishingId("");
     }
   };
 
@@ -239,7 +309,7 @@ const Requests = () => {
 
   const resetMock = () => {
     setStatusMap({});
-    toast.show("Mock approvals reset", { type: "info" });
+    toast.show("Request status cache reset", { type: "info" });
   };
 
   if (!isAdmin) {
@@ -270,7 +340,7 @@ const Requests = () => {
             onClick={resetMock}
             className="text-sm font-semibold text-gray-700 hover:text-[#981e32]"
           >
-            Reset mock approvals
+            Reset mock statuses
           </button>
         </div>
       </div>
@@ -306,12 +376,19 @@ const Requests = () => {
                 >
                   Add note
                 </button>
+                <button
+                  onClick={() => { void publishToLibrary(req); }}
+                  disabled={publishingId === req.id}
+                  className="rounded border border-emerald-600 px-3 py-1 text-sm font-semibold text-emerald-700 hover:bg-emerald-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {publishingId === req.id ? "Publishing..." : "Publish to Library"}
+                </button>
                 <Link
-                  to={`/requests/forms/${encodeURIComponent(req.id)}`}
+                  to={`/request-new?requestId=${encodeURIComponent(req.id)}`}
                   state={{ request: req, from }}
                   className="rounded border border-gray-300 px-3 py-1 text-sm font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
                 >
-                  View script
+                  Edit in Form
                 </Link>
               </div>
             </div>

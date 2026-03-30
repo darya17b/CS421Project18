@@ -80,7 +80,14 @@ export const MockStoreProvider = ({ children }) => {
       }));
       return true;
     },
-    addItem: (item) => setItems((prev) => [item, ...prev]),
+    addItem: async (item) => {
+      const nextItem = {
+        id: item?.id || `DOC-${Date.now()}`,
+        ...(item || {}),
+      };
+      setItems((prev) => [nextItem, ...prev]);
+      return nextItem;
+    },
     getById: (id) => items.find((it) => it.id === id),
     flagProposed: (id) => {
       setItems((prev) => prev.map((it) => (it.id === id ? { ...it, proposed: true } : it)));
