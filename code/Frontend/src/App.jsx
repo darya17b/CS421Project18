@@ -44,7 +44,7 @@ const App = () => {
                 </RequireAuth>
               } />
               <Route path="request-new" element={
-                <RequireAuth>
+                <RequireAuth requiredRole="admin" redirectTo="/create-script">
                   <RequestNew />
                 </RequireAuth>
               } />

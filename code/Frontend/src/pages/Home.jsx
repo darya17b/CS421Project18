@@ -20,7 +20,7 @@ export const LandingSections = () => {
             <h2>Script Request</h2>
             <p>Fill out a form to create a new script request.</p>
             <p>Requests will be reviewed by Virtual Clinical Center administration.</p>
-            <Link to="/request-new" className="landing-action text-[#981e32]">
+            <Link to="/create-script" className="landing-action text-[#981e32]">
               Submit Script Request &rsaquo;
             </Link>
           </div>
