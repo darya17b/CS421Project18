@@ -640,8 +640,10 @@ const RequestNew = () => {
   );
   const shouldWarnOnLeave = hasUnsavedChanges && !submitting && !bypassNavigationRef.current;
 
-  const onSelectFormVersion = (event) => {
-    const nextKey = String(event.target.value || "").trim();
+  const onSelectFormVersion = (valueOrEvent) => {
+    const rawValue =
+      typeof valueOrEvent === "string" ? valueOrEvent : valueOrEvent?.target?.value;
+    const nextKey = String(rawValue || "").trim();
     if (!nextKey || nextKey === selectedFormVersionKey) return;
     const selectedVersion = formVersionOptions.find((entry) => entry.key === nextKey);
     if (!selectedVersion) return;
@@ -1132,27 +1134,32 @@ const RequestNew = () => {
 
         {isPrefillMode && prefillRequest ? (
           <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <label htmlFor="request-form-version" className="text-sm font-semibold text-gray-800">
-                Form Version
-              </label>
-              <select
-                id="request-form-version"
-                value={selectedFormVersionKey}
-                onChange={onSelectFormVersion}
-                disabled={formVersionsLoading || submitting}
-                className="w-full sm:w-72 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-              >
-                {formVersionOptions.length ? (
-                  formVersionOptions.map((entry) => (
-                    <option key={entry.key} value={entry.key}>
+            <div className="space-y-2">
+              <div className="text-sm font-semibold text-gray-800">Form Version</div>
+              <div className="flex flex-wrap gap-2">
+                {(formVersionOptions.length
+                  ? formVersionOptions
+                  : [{ key: "request-draft", label: "Request Draft" }]
+                ).map((entry) => {
+                  const isActive = entry.key === selectedFormVersionKey;
+                  return (
+                    <button
+                      key={entry.key}
+                      type="button"
+                      onClick={() => onSelectFormVersion(entry.key)}
+                      disabled={formVersionsLoading || submitting}
+                      aria-pressed={isActive}
+                      className={`rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+                        isActive
+                          ? "border-[#981e32] bg-[#981e32] text-white"
+                          : "border-gray-300 bg-white text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
+                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                    >
                       {entry.label}
-                    </option>
-                  ))
-                ) : (
-                  <option value="request-draft">Request Draft</option>
-                )}
-              </select>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div className="mt-2 text-xs text-gray-500">
               {formVersionsLoading
@@ -1196,12 +1203,19 @@ const RequestNew = () => {
                     <input className={inputClass} value={getField(["admin", "medical_event"]) || ""} onChange={(e) => setField(["admin", "medical_event"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Learner Level</span>
-                    <input className={inputClass} value={getField(["admin", "learner_level"]) || ""} onChange={(e) => setField(["admin", "learner_level"], e.target.value)} />
-                  </label>
-                  <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Level of the learner and discipline</span>
-                    <input className={inputClass} value={getField(["admin", "academic_year"]) || ""} onChange={(e) => setField(["admin", "academic_year"], e.target.value)} />
+                    <span className="text-sm text-gray-700">Level of learner and discipline</span>
+                    <input
+                      className={inputClass}
+                      value={firstNonEmptyString(
+                        getField(["admin", "learner_level"]),
+                        getField(["admin", "academic_year"])
+                      )}
+                      onChange={(e) => {
+                        const nextValue = e.target.value;
+                        setField(["admin", "learner_level"], nextValue);
+                        setField(["admin", "academic_year"], nextValue);
+                      }}
+                    />
                   </label>
                   <label className="block space-y-1">
                     <span className="text-sm text-gray-700">Case Authors</span>
@@ -2176,8 +2190,7 @@ const RequestNew = () => {
                   <li><span className="font-semibold">Diagnosis:</span> {getField(["admin", "diagnosis"]) || "-"}</li>
                   <li><span className="font-semibold">Case Letter:</span> {getField(["admin", "case_letter"]) || "-"}</li>
                   <li><span className="font-semibold">Event Format:</span> {getField(["admin", "medical_event"]) || "-"}</li>
-                  <li><span className="font-semibold">Learner Level:</span> {getField(["admin", "learner_level"]) || "-"}</li>
-                  <li><span className="font-semibold">Level of learner and discipline:</span> {getField(["admin", "academic_year"]) || "-"}</li>
+                  <li><span className="font-semibold">Level of learner and discipline:</span> {firstNonEmptyString(getField(["admin", "learner_level"]), getField(["admin", "academic_year"])) || "-"}</li>
                   <li><span className="font-semibold">Case Authors:</span> {getField(["admin", "case_authors"]) || "-"}</li>
                 </ul>
                 <div className="text-sm text-gray-700">
