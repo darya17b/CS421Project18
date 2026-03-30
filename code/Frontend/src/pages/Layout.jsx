@@ -1,6 +1,5 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
-import { useStore } from "../store";
 
 const shieldIcon = "/images/wsu-icon.svg";
 const lockupImage = "/images/wsu-com-lockup.png";
@@ -9,7 +8,6 @@ const FULL_NAME = "Washington State University Elson S. Floyd College of Medicin
 const Layout = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const store = useStore();
 
   const handleLogout = () => {
     localStorage.removeItem("user");
@@ -46,25 +44,6 @@ const Layout = () => {
               {user ? (
                 <>
                   <button onClick={handleLogout} className="px-3 py-1 rounded-full border border-transparent hover:border-[#981e32]">Logout</button>
-                  <button
-                    onClick={() => {
-                      try { toast.clear(); } catch {}
-                      try { store.clearDrafts(); } catch {}
-                      try { store.clearProposedFlags(); } catch {}
-                    }}
-                    className="px-3 py-1 rounded-full border border-transparent hover:border-[#981e32]"
-                  >
-                    Clear Notices
-                  </button>
-                  <button
-                    onClick={() => {
-                      try { store.resetData(); } catch {}
-                      try { toast.show("Data reset to seed", { type: "success" }); } catch {}
-                    }}
-                    className="px-3 py-1 rounded-full border border-transparent hover:border-[#981e32]"
-                  >
-                    Reset Data
-                  </button>
                 </>
               ) : (
                 <Link to="/login" className="px-3 py-1 rounded-full border border-transparent hover:border-[#981e32]">Login</Link>

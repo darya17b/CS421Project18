@@ -662,6 +662,7 @@ function buildScriptPdfDoc(item, versionObj) {
   drawField("List of special supplies needed for encounter", get(fields, ["admin", "special_supplies"], ""));
   drawField("Case factors associated with social determinants of health", get(fields, ["admin", "case_factors"], ""));
   drawField("Additional Instructions", get(fields, ["special", "feed_back"], ""));
+  drawParagraph("Physical Examination", get(fields, ["admin", "physical_examination"], ""));
   // Part 2
   startPart("Part 2 - Door Note and Learner Instruction", partPages);
   drawSectionHeading("Instructions to Learners:");

@@ -526,7 +526,8 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
   }, [requestFallback]);
   const activeItem = item || mappedRequest;
   const canRequestInlineEdit = isAdmin && requestInlineOnly && isRequestView;
-  const canInlineEdit = isAdmin && (isRequestView || !requestInlineOnly || canRequestInlineEdit);
+  // Keep inline editing limited to request-review flow only.
+  const canInlineEdit = canRequestInlineEdit;
   const nextVersionLabel = () => {
     const nums = (versions || [])
       .map((v) => {
@@ -626,7 +627,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     return (
       <section className="w-full p-4 text-center">
         <div className="text-gray-600">
-          Admin access required. <Link className="text-blue-600 hover:underline" to="/dashboard">Back</Link>
+          Admin access required. <Link className="text-[#981e32] font-semibold hover:underline" to="/dashboard">Back</Link>
         </div>
       </section>
     );
@@ -636,7 +637,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     return (
       <section className="w-full p-4 text-center">
         <div className="text-gray-600">
-          Not found. <Link className="text-blue-600 hover:underline" to={requestInlineOnly ? "/requests" : "/forms-search"}>Back</Link>
+          Not found. <Link className="text-[#981e32] font-semibold hover:underline" to={requestInlineOnly ? "/requests" : "/forms-search"}>Back</Link>
         </div>
       </section>
     );
@@ -1541,7 +1542,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     <div className="flex items-center justify-between flex-wrap gap-2">
       <div className="flex items-center gap-3">
         <h2 className="text-2xl font-semibold">{activeItem.title}</h2>
-        <Link to={backTarget} className="text-blue-600 hover:underline">Back</Link>
+        <Link to={backTarget} className="text-[#981e32] font-semibold hover:underline">Back</Link>
       </div>
       <div className="flex items-center gap-3 w-full lg:w-auto">
         <div className="flex-1 overflow-x-auto">
@@ -1560,14 +1561,16 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
             ))}
           </div>
         </div>
-        <button
-          className="rounded border px-3 py-1 hover:bg-gray-50"
-          onClick={() => { void saveEdits(form, "Snapshot"); }}
-          disabled={savingLine}
-          title="Save current state as a new version"
-        >
-          Save Version
-        </button>
+        {canInlineEdit ? (
+          <button
+            className="rounded border px-3 py-1 hover:bg-gray-50"
+            onClick={() => { void saveEdits(form, "Snapshot"); }}
+            disabled={savingLine}
+            title="Save current state as a new version"
+          >
+            Save Version
+          </button>
+        ) : null}
         <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => setArtifactsOpen(true)}>Resources</button>
         <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={printScriptPdf}>Print</button>
         <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => downloadScriptPdf(activeItem, current)}>Download PDF</button>

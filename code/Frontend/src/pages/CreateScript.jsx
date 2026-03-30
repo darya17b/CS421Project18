@@ -228,6 +228,14 @@ const CreateScript = () => {
     }
   };
 
+  const handleBacktrack = () => {
+    if (shouldWarnOnLeave) {
+      const ok = window.confirm("You have unsaved changes. Leave this page?");
+      if (!ok) return;
+    }
+    navigate("/dashboard");
+  };
+
   const onSubmit = async (event) => {
     event.preventDefault();
     bypassNavigationRef.current = false;
@@ -259,6 +267,15 @@ const CreateScript = () => {
   return (
     <section className="w-full">
       <div className="max-w-5xl mx-auto space-y-6">
+        <div className="flex justify-start">
+          <button
+            type="button"
+            onClick={handleBacktrack}
+            className="rounded-full bg-[#981e32] px-3 py-1 text-xs font-semibold text-white hover:bg-[#7f1829]"
+          >
+            ← Back
+          </button>
+        </div>
         <div className="space-y-1 text-center">
           <h2 className="text-2xl font-semibold">Create Script</h2>
           <p className="text-sm text-gray-600">Single-column form for standardized patient scripts.</p>
@@ -431,13 +448,7 @@ const CreateScript = () => {
             <button
               type="button"
               className="rounded-full border border-gray-300 px-5 py-2 text-sm font-semibold hover:bg-gray-50"
-              onClick={() => {
-                if (shouldWarnOnLeave) {
-                  const ok = window.confirm("You have unsaved changes. Leave this page?");
-                  if (!ok) return;
-                }
-                navigate("/dashboard");
-              }}
+              onClick={handleBacktrack}
             >
               Cancel
             </button>

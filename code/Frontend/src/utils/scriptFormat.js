@@ -257,6 +257,7 @@ export function buildScriptFromForm(f = {}) {
       patient_demographic: f.admin?.patient_demographic || '',
       special_supplies: f.admin?.special_supplies || '',
       case_factors: f.admin?.case_factors || '',
+      physical_examination: f.admin?.physical_examination || '',
     },
     patient: {
       name: f.patient?.name || 'Unknown',

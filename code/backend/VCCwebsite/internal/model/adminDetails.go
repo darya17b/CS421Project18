@@ -17,4 +17,5 @@ type AdminDetails struct {
 	PatientDemographic  string `json:"patient_demographic"`
 	SpecialSupplies     string `json:"special_supplies"`
 	CaseFactors         string `json:"case_factors"`
+	PhysicalExamination string `json:"physical_examination,omitempty"`
 }

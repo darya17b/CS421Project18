@@ -6,9 +6,131 @@ import { useStore } from "../store";
 import { useToast } from "../components/Toast";
 import { downloadResourcePdf, downloadMedicationCardPdf } from "../utils/pdf";
 import { getArtifactBadge, getArtifactName, getArtifactUrl, isMedicationCardName } from "../utils/artifacts";
+import { buildScriptFromForm } from "../utils/scriptFormat";
+
+const reviewOfSystemsFields = [
+  "general",
+  "skin",
+  "heent",
+  "neck",
+  "breast",
+  "respiratory",
+  "cardiovascular",
+  "gastrointestinal",
+  "genitourinary",
+  "peripheral_vascular",
+  "musculoskeletal",
+  "psychiatric",
+  "neurologival",
+  "endocine",
+];
+
+const cloneValue = (value) => JSON.parse(JSON.stringify(value));
+
+const extractTextList = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => {
+        if (typeof entry === "string") return entry;
+        if (!entry || typeof entry !== "object") return "";
+        if (entry.text) return entry.text;
+        if (entry.brand_substance || entry.amount || entry.unit || entry.frequency_reason) {
+          const brand = String(entry.brand_substance || "").trim();
+          const amount = String(entry.amount || "").trim();
+          const unit = String(entry.unit || "").trim();
+          const reason = String(entry.frequency_reason || "").trim();
+          const amountWithUnit = amount && unit ? `${amount}${unit}` : amount || "";
+          return [[brand, amountWithUnit].filter(Boolean).join(" "), reason].filter(Boolean).join(" - ");
+        }
+        return "";
+      })
+      .map((entry) => String(entry || "").trim())
+      .filter(Boolean);
+  }
+  const text = String(value || "").trim();
+  return text ? [text] : [];
+};
+
+const toBulletedText = (value) => {
+  const entries = extractTextList(value);
+  return entries.length ? entries.map((entry) => `- ${entry}`).join("\n") : "";
+};
+
+const toMultilineText = (value) => extractTextList(value).join("\n");
+
+const uniqueArtifacts = (artifacts = []) => {
+  const seen = new Set();
+  const deduped = [];
+  artifacts.forEach((artifact) => {
+    if (!artifact || typeof artifact !== "object") return;
+    const key =
+      artifact.id ||
+      artifact._id ||
+      artifact.url ||
+      artifact.path ||
+      artifact.name ||
+      JSON.stringify(artifact);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    deduped.push(artifact);
+  });
+  return deduped;
+};
+
+const buildSymptomReviewPayload = (symptomReview = {}) =>
+  reviewOfSystemsFields.reduce((acc, key) => {
+    acc[key] = toMultilineText(symptomReview?.[key]);
+    return acc;
+  }, {});
+
+const buildRequestPayloadFromLibraryItem = (item, scriptFields) => {
+  const normalizedScript = buildScriptFromForm(
+    scriptFields && typeof scriptFields === "object" ? cloneValue(scriptFields) : {}
+  );
+  const fields = normalizedScript && typeof normalizedScript === "object" ? normalizedScript : {};
+  const now = new Date().toISOString();
+  return {
+    reason_for_visit: fields.admin?.reson_for_visit || fields.patient?.visit_reason || "",
+    simulation_modal: fields.meta?.simulation_modal || "Standardized Patient",
+    case_setting: fields.patient?.context || "",
+    chief_concern: fields.admin?.chief_concern || "",
+    diagnosis: fields.admin?.diagnosis || "",
+    event: fields.admin?.medical_event || "",
+    pedagogy: fields.meta?.pedagogy || fields.admin?.learner_level || "",
+    class: fields.admin?.case_letter || fields.admin?.class || "",
+    learner_level: fields.admin?.learner_level || "",
+    summary_patient_story: fields.admin?.summory_of_story || "",
+    pert_aspects_patient_case: fields.admin?.case_factors || "",
+    physical_chars: fields.sp?.physical_chars || "",
+    student_expec: String(fields.admin?.student_expectations || "").trim(),
+    spec_phyis_findings: fields.sp?.current_ill_history?.symptom_quality || "",
+    patient_demog: fields.admin?.patient_demographic || fields.patient?.name || "",
+    special_needs: String(fields.special?.oppurtunity || fields.admin?.special_supplies || "").trim(),
+    case_factors: fields.admin?.case_factors || "",
+    additonal_ins: fields.special?.feed_back || "",
+    sympt_review: fields.med_hist?.sympton_review || buildSymptomReviewPayload({}),
+    status: "Pending",
+    note: `Sent from library script ${item.id}`,
+    created_at: now,
+    updated_at: now,
+    draft_script: fields,
+    draft_versions: [
+      {
+        version: "rv1",
+        notes: "Sent from library",
+        fields,
+        created_at: now,
+      },
+    ],
+    artifacts: uniqueArtifacts([
+      ...(Array.isArray(fields.artifacts) ? fields.artifacts : []),
+      ...(Array.isArray(item?.artifacts) ? item.artifacts : []),
+    ]),
+  };
+};
 
 const FormsSearch = () => {
-  const { items, refreshDocuments, deleteItem } = useStore();
+  const { items, refreshDocuments, deleteItem, createRequest } = useStore();
   const toast = useToast();
   const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
   const [artifactsOpen, setArtifactsOpen] = useState(false);
@@ -88,6 +210,38 @@ const FormsSearch = () => {
       }
     } catch {
       toast.show("Delete failed", { type: "error" });
+    }
+  };
+
+  const onSendBackToRequests = async (item) => {
+    if (!confirm(`Send ${item.title || item.id} back to requests?`)) return;
+    try {
+      const { api } = await import("../api/client");
+      let sourceScript = item?.versions?.[0]?.fields || null;
+      if (!sourceScript) {
+        const doc = await api.getDocument(item.id);
+        sourceScript = doc?.versions?.[0]?.fields || doc || null;
+      }
+      if (!sourceScript || typeof sourceScript !== "object") {
+        throw new Error("Script payload could not be loaded.");
+      }
+      const payload = buildRequestPayloadFromLibraryItem(item, sourceScript);
+      if (typeof createRequest === "function") {
+        await createRequest(payload);
+      } else {
+        await api.createScriptRequest(payload);
+      }
+      if (typeof deleteItem === "function") {
+        await deleteItem(item.id);
+      } else {
+        await api.deleteDocument(item.id);
+      }
+      if (typeof refreshDocuments === "function") {
+        await refreshDocuments();
+      }
+      toast.show("Sent back to requests", { type: "success" });
+    } catch (err) {
+      toast.show(err?.message || "Failed to send back to requests", { type: "error" });
     }
   };
 
@@ -192,7 +346,14 @@ const FormsSearch = () => {
       ) : (
         <div className="space-y-2">
           {visible.slice(0, 10).map((it) => (
-            <FormsListRow key={it.id} item={it} onArtifacts={onArtifacts} onPropose={onPropose} onDelete={onDelete} />
+            <FormsListRow
+              key={it.id}
+              item={it}
+              onArtifacts={onArtifacts}
+              onPropose={onPropose}
+              onDelete={onDelete}
+              onSendBackToRequests={onSendBackToRequests}
+            />
           ))}
         </div>
       )}

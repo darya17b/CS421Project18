@@ -111,10 +111,11 @@ const buildScriptFromRequest = (request) => {
 const Requests = () => {
   const location = useLocation();
   const from = `${location.pathname}${location.search}${location.hash}`;
-  const { requests, refreshRequests, updateRequest, addItem, updateItem, fetchById } = useStore();
+  const { requests, refreshRequests, updateRequest, deleteRequest, addItem, updateItem, fetchById } = useStore();
   const toast = useToast();
   const [statusMap, setStatusMap] = useState(() => loadStatus());
   const [publishingId, setPublishingId] = useState("");
+  const [deletingId, setDeletingId] = useState("");
   const isAdmin = (() => {
     if (typeof window === "undefined") return true;
     const role = localStorage.getItem("role");
@@ -307,9 +308,33 @@ const Requests = () => {
     }
   };
 
-  const resetMock = () => {
-    setStatusMap({});
-    toast.show("Request status cache reset", { type: "info" });
+  const deleteFromRequests = async (req) => {
+    if (deletingId) return;
+    const label = req.title || req.id || "this request";
+    if (!confirm(`Delete ${label} from requests?`)) return;
+    setDeletingId(req.id);
+    try {
+      if (typeof deleteRequest === "function") {
+        await deleteRequest(req.id);
+      } else {
+        const { api } = await import("../api/client");
+        await api.deleteScriptRequest(req.id);
+      }
+      setStatusMap((prev) => {
+        const next = { ...prev };
+        delete next[req.id];
+        return next;
+      });
+      if (typeof refreshRequests === "function") {
+        await refreshRequests();
+      }
+      toast.show("Request deleted", { type: "success" });
+    } catch (err) {
+      console.warn("Failed to delete request", err);
+      toast.show("Failed to delete request", { type: "error" });
+    } finally {
+      setDeletingId("");
+    }
   };
 
   if (!isAdmin) {
@@ -335,13 +360,6 @@ const Requests = () => {
         </div>
         <div className="flex items-center gap-3">
           <Link to="/dashboard" className="text-sm text-[#981e32] font-semibold hover:underline">Back to Dashboard</Link>
-          <button
-            type="button"
-            onClick={resetMock}
-            className="text-sm font-semibold text-gray-700 hover:text-[#981e32]"
-          >
-            Reset mock statuses
-          </button>
         </div>
       </div>
 
@@ -390,6 +408,13 @@ const Requests = () => {
                 >
                   Edit in Form
                 </Link>
+                <button
+                  onClick={() => { void deleteFromRequests(req); }}
+                  disabled={deletingId === req.id}
+                  className="rounded border border-red-600 px-3 py-1 text-sm font-semibold text-red-700 hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {deletingId === req.id ? "Deleting..." : "Delete"}
+                </button>
               </div>
             </div>
           ))

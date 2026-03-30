@@ -135,6 +135,23 @@ const buildScriptRequestPayload = (form = {}, draftScript = null, artifacts = []
   };
 };
 
+const formatFamilyHistoryEntry = (entry) => {
+  if (!entry || typeof entry !== "object") return "";
+  const member = String(entry.family_member || "").trim();
+  const details = String(entry.details || "").trim();
+  const additional = Array.isArray(entry.additional_details)
+    ? entry.additional_details
+        .map((detail) => {
+          if (typeof detail === "string") return detail;
+          if (!detail || typeof detail !== "object") return "";
+          return detail.text || "";
+        })
+        .map((detail) => String(detail || "").trim())
+        .filter(Boolean)
+    : [];
+  return [member, details, additional.join("; ")].filter(Boolean).join(" - ").trim();
+};
+
 const cloneValue = (value) => JSON.parse(JSON.stringify(value));
 
 const mergeDeep = (baseValue, sourceValue) => {
@@ -284,8 +301,6 @@ const RequestNew = () => {
   const navigate = useNavigate();
   const {
     createRequest,
-    getById,
-    fetchById,
     updateRequest,
     getRequestById,
     refreshRequests,
@@ -321,6 +336,7 @@ const RequestNew = () => {
       patient_demographic: "",
       special_supplies: "",
       case_factors: "",
+      physical_examination: "",
     },
     patient: {
       name: "",
@@ -443,6 +459,8 @@ const RequestNew = () => {
   const [saveVersionModalOpen, setSaveVersionModalOpen] = useState(false);
   const [saveVersionMode, setSaveVersionMode] = useState("new");
   const [overwriteVersionTarget, setOverwriteVersionTarget] = useState("");
+  const [inlineEdit, setInlineEdit] = useState(null);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -557,61 +575,17 @@ const RequestNew = () => {
         pushOption(`request-${versionId}`, `Saved ${versionId}`, fields);
       });
 
-      const linkedScriptId =
-        raw.published_script_id ||
-        raw.approved_script_id ||
-        prefillRequest.approvedScriptId ||
-        "";
-
-      if (!linkedScriptId) {
-        if (cancelled) return;
-        setFormVersionOptions(options);
-        setSelectedFormVersionKey("request-draft");
-        setFormVersionsLoading(false);
-        return;
-      }
-
-      setFormVersionsLoading(true);
-      try {
-        let scriptItem = typeof getById === "function" ? getById(linkedScriptId) : null;
-        if (!scriptItem && typeof fetchById === "function") {
-          scriptItem = await fetchById(linkedScriptId);
-        }
-
-        if (scriptItem?.versions?.length) {
-          scriptItem.versions.forEach((versionEntry, idx) => {
-            const versionId = String(versionEntry?.version || `v${idx + 1}`);
-            pushOption(`store-${versionId}`, `Library ${versionId}`, versionEntry?.fields || {});
-          });
-        } else {
-          const { api } = await import("../api/client");
-          const currentDoc = await api.getDocument(linkedScriptId).catch(() => null);
-          if (currentDoc && typeof currentDoc === "object") {
-            pushOption("library-current", "Library current", currentDoc);
-          }
-
-          const history = await api.listDocumentVersions(linkedScriptId).catch(() => []);
-          (Array.isArray(history) ? history : []).forEach((entry, idx) => {
-            const number = entry?.version_number ?? entry?.versionNumber ?? entry?.version ?? idx + 1;
-            const fields = entry?.document || entry?.fields || null;
-            pushOption(`library-v${number}`, `Library v${number}`, fields);
-          });
-        }
-      } catch (err) {
-        console.warn("Failed to load library versions for request form", err);
-      } finally {
-        if (cancelled) return;
-        setFormVersionOptions(options);
-        setSelectedFormVersionKey("request-draft");
-        setFormVersionsLoading(false);
-      }
+      if (cancelled) return;
+      setFormVersionOptions(options);
+      setSelectedFormVersionKey("request-draft");
+      setFormVersionsLoading(false);
     };
 
     void loadFormVersions();
     return () => {
       cancelled = true;
     };
-  }, [fetchById, getById, isPrefillMode, prefillRequest, requestId]);
+  }, [isPrefillMode, prefillRequest, requestId]);
 
   const requestSavedVersions = useMemo(() => {
     const raw = prefillRequest?.raw || prefillRequest || {};
@@ -653,6 +627,7 @@ const RequestNew = () => {
     }
     const nextForm = cloneValue(selectedVersion.form);
     setForm(nextForm);
+    setInlineEdit(null);
     setAttachments([]);
     initialSnapshotRef.current = JSON.stringify(nextForm);
     setSelectedFormVersionKey(nextKey);
@@ -794,6 +769,124 @@ const RequestNew = () => {
     setField(["med_hist", "family_hist"], next);
   };
 
+  const pathToKey = (path) => (Array.isArray(path) ? path.join(".") : String(path || ""));
+  const coerceInlineValue = (value, type) => {
+    if (type !== "number") return value;
+    if (value === "") return "";
+    const next = Number(value);
+    return Number.isNaN(next) ? "" : next;
+  };
+  const beginInlineEdit = ({ key, path, paths, type = "text", value }) => {
+    if (submitting) return;
+    const editKey = String(key || pathToKey(path || paths?.[0]) || "").trim();
+    if (!editKey) return;
+    const raw = value !== undefined ? value : Array.isArray(path) ? getField(path) : "";
+    setInlineEdit({
+      key: editKey,
+      path: Array.isArray(path) ? path : null,
+      paths: Array.isArray(paths) ? paths : null,
+      type,
+      value: raw === undefined || raw === null ? "" : String(raw),
+    });
+  };
+  const cancelInlineEdit = () => setInlineEdit(null);
+  const saveInlineEdit = () => {
+    if (!inlineEdit) return;
+    const nextValue = coerceInlineValue(inlineEdit.value, inlineEdit.type);
+    if (Array.isArray(inlineEdit.paths) && inlineEdit.paths.length) {
+      inlineEdit.paths.forEach((path) => setField(path, nextValue));
+    } else if (Array.isArray(inlineEdit.path)) {
+      setField(inlineEdit.path, nextValue);
+    }
+    setInlineEdit(null);
+  };
+  const renderInlineValue = ({
+    path,
+    paths,
+    key,
+    type = "text",
+    value,
+    displayValue,
+    empty = "-",
+    selectOptions = [],
+  }) => {
+    const editKey = String(key || pathToKey(path || paths?.[0]) || "").trim();
+    const raw = value !== undefined ? value : Array.isArray(path) ? getField(path) : "";
+    const shown = displayValue !== undefined ? displayValue : raw;
+    const normalized =
+      shown === 0
+        ? "0"
+        : shown === undefined || shown === null || String(shown).trim() === ""
+          ? empty
+          : String(shown);
+    if (inlineEdit?.key === editKey) {
+      return (
+        <span className="inline-flex items-center gap-1 align-middle">
+          {type === "select" ? (
+            <select
+              className="rounded border border-[#981e32] px-2 py-1 text-sm"
+              value={inlineEdit.value}
+              onChange={(event) =>
+                setInlineEdit((prev) => (prev ? { ...prev, value: event.target.value } : prev))
+              }
+              autoFocus
+            >
+              {selectOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type={type === "number" ? "number" : "text"}
+              className="rounded border border-[#981e32] px-2 py-1 text-sm"
+              value={inlineEdit.value}
+              onChange={(event) =>
+                setInlineEdit((prev) => (prev ? { ...prev, value: event.target.value } : prev))
+              }
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  saveInlineEdit();
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  cancelInlineEdit();
+                }
+              }}
+              autoFocus
+            />
+          )}
+          <button
+            type="button"
+            className="rounded border border-[#981e32] px-2 py-1 text-xs font-semibold text-[#981e32] hover:bg-[#981e32] hover:text-white"
+            onClick={saveInlineEdit}
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            className="rounded border px-2 py-1 text-xs font-semibold hover:bg-gray-50"
+            onClick={cancelInlineEdit}
+          >
+            Cancel
+          </button>
+        </span>
+      );
+    }
+    return (
+      <span
+        className="cursor-text rounded px-1 hover:bg-[#f7e7eb]"
+        title="Double-click to edit"
+        onDoubleClick={() => beginInlineEdit({ key: editKey, path, paths, type, value: raw })}
+      >
+        {normalized}
+      </span>
+    );
+  };
+
   const inputClass = "w-full rounded-full border border-gray-300 bg-white px-4 py-2 text-sm shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-gray-400";
   const textAreaClass = "w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-gray-400";
   const sectionLabelClass = "text-sm font-semibold text-gray-800";
@@ -841,6 +934,29 @@ const RequestNew = () => {
       : null))
     .filter(Boolean);
   const hasDiagramMarker = diagramMarkers.length > 0;
+  const pastMedicalGroups = [
+    ["child_hood_illness", "Childhood Illnesses"],
+    ["illness_and_hospital", "Medical Illnesses and Hospitalizations"],
+    ["surgeries", "Surgeries"],
+    ["obe_and_gye", "Obstetric/Gynecologic"],
+    ["transfusion", "Transfusion History"],
+    ["psychiatric", "Psychiatric History"],
+    ["trauma", "Trauma"],
+  ];
+  const preventativeGroups = [
+    ["immunization", "Immunizations"],
+    ["screening_tests", "Screening Tests"],
+    ["alternate_health_care", "Alternative/Complimentary Health Care"],
+    ["travel_exposure", "Travel/Exposure History"],
+  ];
+  const familyHistoryLines = (
+    Array.isArray(getField(["med_hist", "family_hist"])) ? getField(["med_hist", "family_hist"]) : []
+  )
+    .map((entry) => formatFamilyHistoryEntry(entry))
+    .filter(Boolean);
+  const attachmentNames = attachments
+    .map((file) => String(file?.name || "").trim())
+    .filter(Boolean);
 
   const placeDiagramHeart = (event) => {
     const target = diagramImageRef.current || event.currentTarget;
@@ -1110,9 +1226,31 @@ const RequestNew = () => {
     event.preventDefault();
   };
 
+  const toggleTopViewMode = () => {
+    setInlineEdit(null);
+    setIsPreviewMode((prev) => !prev);
+  };
+
+  const handleBacktrack = () => {
+    if (shouldWarnOnLeave) {
+      const ok = window.confirm("You have unsaved changes. Leave this page?");
+      if (!ok) return;
+    }
+    navigate(isPrefillMode ? "/requests" : "/dashboard");
+  };
+
   return (
     <section className="w-full px-4 py-6">
       <div className="max-w-5xl mx-auto space-y-6">
+        <div className="flex justify-start">
+          <button
+            type="button"
+            onClick={handleBacktrack}
+            className="rounded-full bg-[#981e32] px-3 py-1 text-xs font-semibold text-white hover:bg-[#7f1829]"
+          >
+            ← Back
+          </button>
+        </div>
         <div className="text-center space-y-1">
           <h2 className="text-2xl font-semibold">{isPrefillMode ? "Edit Request Form" : "Script Request"}</h2>
           <p className="text-sm text-gray-600">
@@ -1169,7 +1307,18 @@ const RequestNew = () => {
           </div>
         ) : null}
 
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={toggleTopViewMode}
+            className="rounded-full border border-[#981e32] px-6 py-2 text-sm font-semibold text-[#981e32] hover:bg-[#981e32] hover:text-white"
+          >
+            {isPreviewMode ? "Form fillout" : "preview"}
+          </button>
+        </div>
+
         <form onSubmit={onSubmit} onKeyDown={onFormKeyDown} className="space-y-6 text-left">
+          {!isPreviewMode ? (
           <div className="rounded-2xl border border-gray-300 bg-white shadow-sm p-6 space-y-8">
             <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
               <button
@@ -1331,18 +1480,27 @@ const RequestNew = () => {
                     <span className="text-sm text-gray-700">Pressure Bottom (mmHg)</span>
                     <input type="number" className={inputClass} value={getField(["patient", "vitals", "pressure", "bottom"]) ?? ""} onChange={(e) => setNumberField(["patient", "vitals", "pressure", "bottom"], e.target.value)} />
                   </label>
-                  <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Temperature Reading</span>
-                    <input type="number" className={inputClass} value={getField(["patient", "vitals", "temp", "reading"]) ?? ""} onChange={(e) => setNumberField(["patient", "vitals", "temp", "reading"], e.target.value)} />
-                  </label>
-                  <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Temperature Unit</span>
-                    <select className={`${inputClass} pr-8`} value={getField(["patient", "vitals", "temp", "unit"]) ?? ""} onChange={(e) => setNumberField(["patient", "vitals", "temp", "unit"], e.target.value)}>
-                      <option value="">Select unit</option>
-                      <option value="0">Celcius</option>
-                      <option value="1">Fahrenheit</option>
-                    </select>
-                  </label>
+                  <div className="space-y-1">
+                    <span className="text-sm text-gray-700">Temperature</span>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_1fr]">
+                      <input
+                        type="number"
+                        className={inputClass}
+                        placeholder="Reading"
+                        value={getField(["patient", "vitals", "temp", "reading"]) ?? ""}
+                        onChange={(e) => setNumberField(["patient", "vitals", "temp", "reading"], e.target.value)}
+                      />
+                      <select
+                        className={`${inputClass} pr-8`}
+                        value={getField(["patient", "vitals", "temp", "unit"]) ?? ""}
+                        onChange={(e) => setNumberField(["patient", "vitals", "temp", "unit"], e.target.value)}
+                      >
+                        <option value="">Select unit</option>
+                        <option value="0">Celsius</option>
+                        <option value="1">Fahrenheit</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -2100,6 +2258,17 @@ const RequestNew = () => {
               ) : null}
             </div>
 
+            <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="text-base font-semibold text-gray-900">Physical Examination</div>
+              <textarea
+                rows={4}
+                className={textAreaClass}
+                placeholder="Enter physical examination findings..."
+                value={getField(["admin", "physical_examination"]) || ""}
+                onChange={(e) => setField(["admin", "physical_examination"], e.target.value)}
+              />
+            </div>
+
             <div className="space-y-4">
               <div className={sectionLabelClass}>Attachments</div>
               <div className="text-sm text-gray-600">
@@ -2126,28 +2295,23 @@ const RequestNew = () => {
               ) : (
                 <div className="text-sm text-gray-500">No attachments added.</div>
               )}
-            </div>
-          </div>
+	            </div>
+	          </div>
+            ) : null}
 
-          <div className="flex flex-wrap gap-3">
+	          <div className="flex flex-wrap gap-3">
 	          <button type="submit" disabled={submitting || (isPrefillMode && (prefillLoading || !prefillRequest))} className="rounded-full bg-emerald-600 text-white px-5 py-2 text-sm font-semibold hover:bg-emerald-700 disabled:opacity-70">
 	            {submitting
 	              ? (isPrefillMode ? "Saving..." : "Submitting...")
 	              : (isPrefillMode ? "Save Version" : "Submit")}
 	          </button>
-	          <button
-	            type="button"
-	            className="rounded-full border border-gray-300 px-5 py-2 text-sm font-semibold hover:bg-gray-50"
-	            onClick={() => {
-              if (shouldWarnOnLeave) {
-	                const ok = window.confirm("You have unsaved changes. Leave this page?");
-	                if (!ok) return;
-	              }
-	              navigate(isPrefillMode ? "/requests" : "/dashboard");
-	            }}
-	          >
-	            Cancel
-          </button>
+		          <button
+		            type="button"
+		            className="rounded-full border border-gray-300 px-5 py-2 text-sm font-semibold hover:bg-gray-50"
+		            onClick={handleBacktrack}
+		          >
+		            Cancel
+	          </button>
           <button
             type="button"
             className="rounded-full border border-gray-300 px-5 py-2 text-sm font-semibold hover:bg-gray-50"
@@ -2171,32 +2335,74 @@ const RequestNew = () => {
             >
               Download PDF
             </button>
-          </div>
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6 space-y-4">
-            <div className="text-center space-y-1">
-              <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Virtual Clinical Center</div>
-              <h3 className="text-xl font-semibold text-[#981e32]">{getField(["admin", "reson_for_visit"]) || "Script Preview"}</h3>
-              <div className="text-sm text-gray-700">
-                {getField(["admin", "diagnosis"]) || "Diagnosis TBD"} | {getField(["admin", "case_letter"]) || "Case Letter"} | {getField(["admin", "case_authors"]) || "Case Authors"}
-              </div>
-            </div>
+	          </div>
+            {isPreviewMode ? (
+		          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6 space-y-4">
+	            <div className="text-xs text-gray-500">Tip: double-click a value below to edit inline.</div>
+	            <div className="text-center space-y-1">
+	              <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Virtual Clinical Center</div>
+	              <h3 className="text-xl font-semibold text-[#981e32]">
+                  {renderInlineValue({
+                    path: ["admin", "reson_for_visit"],
+                    displayValue: getField(["admin", "reson_for_visit"]) || "Script Preview",
+                    empty: "Script Preview",
+                  })}
+                </h3>
+	              <div className="text-sm text-gray-700">
+	                {renderInlineValue({
+                    path: ["admin", "diagnosis"],
+                    displayValue: getField(["admin", "diagnosis"]) || "Diagnosis TBD",
+                    empty: "Diagnosis TBD",
+                  })}{" "}
+                  |{" "}
+                  {renderInlineValue({
+                    path: ["admin", "case_letter"],
+                    displayValue: getField(["admin", "case_letter"]) || "Case Letter",
+                    empty: "Case Letter",
+                  })}{" "}
+                  |{" "}
+                  {renderInlineValue({
+                    path: ["admin", "case_authors"],
+                    displayValue: getField(["admin", "case_authors"]) || "Case Authors",
+                    empty: "Case Authors",
+                  })}
+	              </div>
+	            </div>
 
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <div className="font-semibold text-gray-900">Administrative Details</div>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  <li><span className="font-semibold">Diagnosis:</span> {getField(["admin", "reson_for_visit"]) || "-"}</li>
-                  <li><span className="font-semibold">Chief Complaint:</span> {getField(["admin", "chief_concern"]) || "-"}</li>
-                  <li><span className="font-semibold">Diagnosis:</span> {getField(["admin", "diagnosis"]) || "-"}</li>
-                  <li><span className="font-semibold">Case Letter:</span> {getField(["admin", "case_letter"]) || "-"}</li>
-                  <li><span className="font-semibold">Event Format:</span> {getField(["admin", "medical_event"]) || "-"}</li>
-                  <li><span className="font-semibold">Level of learner and discipline:</span> {firstNonEmptyString(getField(["admin", "learner_level"]), getField(["admin", "academic_year"])) || "-"}</li>
-                  <li><span className="font-semibold">Case Authors:</span> {getField(["admin", "case_authors"]) || "-"}</li>
-                </ul>
-                <div className="text-sm text-gray-700">
-                  <div className="font-semibold">Summary of Patient Story</div>
-                  <p className="text-gray-800">{getField(["admin", "summory_of_story"]) || "Add a short narrative to summarize the case."}</p>
-                </div>
+	                <div className="font-semibold text-gray-900">Administrative Details</div>
+	                <ul className="text-sm text-gray-700 space-y-1">
+	                  <li><span className="font-semibold">Diagnosis:</span> {renderInlineValue({ path: ["admin", "reson_for_visit"] })}</li>
+	                  <li><span className="font-semibold">Chief Complaint:</span> {renderInlineValue({ path: ["admin", "chief_concern"] })}</li>
+	                  <li><span className="font-semibold">Diagnosis:</span> {renderInlineValue({ path: ["admin", "diagnosis"] })}</li>
+	                  <li><span className="font-semibold">Case Letter:</span> {renderInlineValue({ path: ["admin", "case_letter"] })}</li>
+	                  <li><span className="font-semibold">Event Format:</span> {renderInlineValue({ path: ["admin", "medical_event"] })}</li>
+	                  <li>
+                      <span className="font-semibold">Level of learner and discipline:</span>{" "}
+                      {renderInlineValue({
+                        key: "admin.level_of_learner_discipline",
+                        paths: [["admin", "learner_level"], ["admin", "academic_year"]],
+                        value: firstNonEmptyString(
+                          getField(["admin", "learner_level"]),
+                          getField(["admin", "academic_year"])
+                        ),
+                      })}
+                    </li>
+	                  <li><span className="font-semibold">Case Authors:</span> {renderInlineValue({ path: ["admin", "case_authors"] })}</li>
+	                </ul>
+	                <div className="text-sm text-gray-700">
+	                  <div className="font-semibold">Summary of Patient Story</div>
+	                  <p className="text-gray-800">
+                      {renderInlineValue({
+                        path: ["admin", "summory_of_story"],
+                        displayValue:
+                          getField(["admin", "summory_of_story"]) ||
+                          "Add a short narrative to summarize the case.",
+                        empty: "Add a short narrative to summarize the case.",
+                      })}
+                    </p>
+	                </div>
                 <div className="text-sm text-gray-700">
                   <div className="font-semibold">Student Expectations</div>
                   {extractTextList(getField(["admin", "student_expectations"])).length ? (
@@ -2211,37 +2417,60 @@ const RequestNew = () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="font-semibold text-gray-900">Patient Snapshot</div>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  <li><span className="font-semibold">Patient:</span> {getField(["patient", "name"]) || "-"}</li>
-                  <li><span className="font-semibold">Diagnosis:</span> {getField(["patient", "visit_reason"]) || getField(["admin", "reson_for_visit"]) || "-"}</li>
-                  <li><span className="font-semibold">Context:</span> {getField(["patient", "context"]) || "-"}</li>
-                  <li><span className="font-semibold">Task:</span> {getField(["patient", "task"]) || "-"}</li>
-                  <li><span className="font-semibold">Patient Encounter Duration:</span> {getField(["patient", "encounter_duration"]) || "-"}</li>
-                </ul>
-                <div className="text-sm text-gray-700">
-                  <div className="font-semibold">Vital Signs</div>
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li>{(getField(["patient", "vitals", "heart_rate"]) ?? "") !== "" ? getField(["patient", "vitals", "heart_rate"]) : "-"} beats/min</li>
-                    <li>{(getField(["patient", "vitals", "respirations"]) ?? "") !== "" ? getField(["patient", "vitals", "respirations"]) : "-"} breaths/min</li>
-                    <li>{(getField(["patient", "vitals", "pressure", "top"]) ?? "") !== "" ? getField(["patient", "vitals", "pressure", "top"]) : "-"}/{(getField(["patient", "vitals", "pressure", "bottom"]) ?? "") !== "" ? getField(["patient", "vitals", "pressure", "bottom"]) : "-"} mmHg</li>
-                    <li>{(getField(["patient", "vitals", "blood_oxygen"]) ?? "") !== "" ? getField(["patient", "vitals", "blood_oxygen"]) : "-"}%</li>
-                    <li>{(getField(["patient", "vitals", "temp", "reading"]) ?? "") !== "" ? getField(["patient", "vitals", "temp", "reading"]) : "-"} {String(getField(["patient", "vitals", "temp", "unit"]) || "") === "1" ? "Fahrenheit" : "Celsius"}</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
+	              <div className="space-y-2">
+	                <div className="font-semibold text-gray-900">Patient Snapshot</div>
+	                <ul className="text-sm text-gray-700 space-y-1">
+	                  <li><span className="font-semibold">Patient:</span> {renderInlineValue({ path: ["patient", "name"] })}</li>
+	                  <li><span className="font-semibold">Date of Birth:</span> {renderInlineValue({ path: ["patient", "date_of_birth"] })}</li>
+	                  <li><span className="font-semibold">Diagnosis:</span> {renderInlineValue({ path: ["patient", "visit_reason"] })}</li>
+	                  <li><span className="font-semibold">Context:</span> {renderInlineValue({ path: ["patient", "context"] })}</li>
+	                  <li><span className="font-semibold">Task:</span> {renderInlineValue({ path: ["patient", "task"] })}</li>
+	                  <li><span className="font-semibold">Patient Encounter Duration:</span> {renderInlineValue({ path: ["patient", "encounter_duration"] })}</li>
+	                </ul>
+	                <div className="text-sm text-gray-700">
+	                  <div className="font-semibold">Vital Signs</div>
+	                  <ul className="list-disc pl-5 space-y-1">
+	                    <li>{renderInlineValue({ path: ["patient", "vitals", "heart_rate"], type: "number" })} beats/min</li>
+	                    <li>{renderInlineValue({ path: ["patient", "vitals", "respirations"], type: "number" })} breaths/min</li>
+	                    <li>
+                        {renderInlineValue({ path: ["patient", "vitals", "pressure", "top"], type: "number" })}
+                        /
+                        {renderInlineValue({ path: ["patient", "vitals", "pressure", "bottom"], type: "number" })} mmHg
+                      </li>
+	                    <li>{renderInlineValue({ path: ["patient", "vitals", "blood_oxygen"], type: "number" })}%</li>
+	                    <li>
+                        {renderInlineValue({ path: ["patient", "vitals", "temp", "reading"], type: "number" })}{" "}
+                        {renderInlineValue({
+                          path: ["patient", "vitals", "temp", "unit"],
+                          type: "select",
+                          displayValue:
+                            String(getField(["patient", "vitals", "temp", "unit"]) || "") === "1"
+                              ? "Fahrenheit"
+                              : "Celsius",
+                          selectOptions: [
+                            { value: "0", label: "Celsius" },
+                            { value: "1", label: "Fahrenheit" },
+                          ],
+                        })}
+                      </li>
+	                  </ul>
+	                </div>
+	              </div>
+	            </div>
 
             <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <div className="font-semibold text-gray-900">SP Content</div>
-                <div className="text-sm text-gray-700">
-                  <div className="font-semibold">Opening Statement</div>
-                  <p className="text-gray-800">{getField(["sp", "opening_statement"]) || "-"}</p>
-                </div>
-                <div className="text-sm text-gray-700">
-                  <div className="font-semibold">Character Attributes</div>
+		              <div className="space-y-2">
+		                <div className="font-semibold text-gray-900">SP Content</div>
+		                <div className="text-sm text-gray-700">
+		                  <div className="font-semibold">Opening Statement</div>
+		                  <p className="text-gray-800">{renderInlineValue({ path: ["sp", "opening_statement"] })}</p>
+		                </div>
+	                <div className="text-sm text-gray-700">
+	                  <div className="font-semibold">Physical Characteristics and Nonverbal Behavior</div>
+	                  <p className="text-gray-800">{renderInlineValue({ path: ["sp", "physical_chars"] })}</p>
+	                </div>
+	                <div className="text-sm text-gray-700">
+	                  <div className="font-semibold">Character Attributes</div>
                   <div className="grid grid-cols-2 gap-2">
                     {["anxiety", "suprise", "confusion", "guilt", "sadness", "indecision", "assertiveness", "frustration", "fear", "anger"].map((k) => (
                       <div key={k} className="flex items-center justify-between rounded border px-2 py-1">
@@ -2253,20 +2482,20 @@ const RequestNew = () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="font-semibold text-gray-900">History of Present Illness (HPI)</div>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  <li><span className="font-semibold">Setting in Which Symptom(s) Occur:</span> {extractTextList(getField(["sp", "current_ill_history", "symptom_settings"])).join(", ") || "-"}</li>
-                  <li><span className="font-semibold">Timing of Symptom(s):</span> {extractTextList(getField(["sp", "current_ill_history", "symptom_timing"])).join(", ") || "-"}</li>
-                  <li><span className="font-semibold">Associated Symptoms:</span> {extractTextList(getField(["sp", "current_ill_history", "associated_symptoms"])).join(", ") || "-"}</li>
-                  <li><span className="font-semibold">Radiation of Symptom(s):</span> {extractTextList(getField(["sp", "current_ill_history", "radiation_of_symptoms"])).join(", ") || "-"}</li>
-                  <li><span className="font-semibold">Quality of Symptom(s):</span> {getField(["sp", "current_ill_history", "symptom_quality"]) || "-"}</li>
-                  <li><span className="font-semibold">Alleviating Factors of Symptom(s):</span> {getField(["sp", "current_ill_history", "alleviating_factors"]) || "-"}</li>
-                  <li><span className="font-semibold">Aggravating Factors of Symptom(s):</span> {getField(["sp", "current_ill_history", "aggravating_factors"]) || "-"}</li>
-                  <li><span className="font-semibold">Severity (0-10):</span> {getField(["sp", "current_ill_history", "pain"]) ?? 0}</li>
-                </ul>
-              </div>
-            </div>
+	              <div className="space-y-2">
+	                <div className="font-semibold text-gray-900">History of Present Illness (HPI)</div>
+	                <ul className="text-sm text-gray-700 space-y-1">
+	                  <li><span className="font-semibold">Setting in Which Symptom(s) Occur:</span> {extractTextList(getField(["sp", "current_ill_history", "symptom_settings"])).join(", ") || "-"}</li>
+	                  <li><span className="font-semibold">Timing of Symptom(s):</span> {extractTextList(getField(["sp", "current_ill_history", "symptom_timing"])).join(", ") || "-"}</li>
+	                  <li><span className="font-semibold">Associated Symptoms:</span> {extractTextList(getField(["sp", "current_ill_history", "associated_symptoms"])).join(", ") || "-"}</li>
+	                  <li><span className="font-semibold">Radiation of Symptom(s):</span> {extractTextList(getField(["sp", "current_ill_history", "radiation_of_symptoms"])).join(", ") || "-"}</li>
+	                  <li><span className="font-semibold">Quality of Symptom(s):</span> {renderInlineValue({ path: ["sp", "current_ill_history", "symptom_quality"] })}</li>
+	                  <li><span className="font-semibold">Alleviating Factors of Symptom(s):</span> {renderInlineValue({ path: ["sp", "current_ill_history", "alleviating_factors"] })}</li>
+	                  <li><span className="font-semibold">Aggravating Factors of Symptom(s):</span> {renderInlineValue({ path: ["sp", "current_ill_history", "aggravating_factors"] })}</li>
+	                  <li><span className="font-semibold">Severity (0-10):</span> {renderInlineValue({ path: ["sp", "current_ill_history", "pain"], type: "number", empty: "0" })}</li>
+	                </ul>
+	              </div>
+	            </div>
 
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
@@ -2298,26 +2527,88 @@ const RequestNew = () => {
                   </div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <div className="font-semibold text-gray-900">Case Factors and Supplies</div>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  <li><span className="font-semibold">Special Supplies:</span> {getField(["admin", "special_supplies"]) || "-"}</li>
-                  <li><span className="font-semibold">Case Factors:</span> {getField(["admin", "case_factors"]) || "-"}</li>
-                  <li><span className="font-semibold">Patient Demographic:</span> {getField(["admin", "patient_demographic"]) || "-"}</li>
-                </ul>
-              </div>
-            </div>
+	              <div className="space-y-2">
+	                <div className="font-semibold text-gray-900">Case Factors and Supplies</div>
+	                <ul className="text-sm text-gray-700 space-y-1">
+	                  <li><span className="font-semibold">Special Supplies:</span> {renderInlineValue({ path: ["admin", "special_supplies"] })}</li>
+	                  <li><span className="font-semibold">Case Factors:</span> {renderInlineValue({ path: ["admin", "case_factors"] })}</li>
+	                  <li><span className="font-semibold">Patient Demographic:</span> {renderInlineValue({ path: ["admin", "patient_demographic"] })}</li>
+	                </ul>
+	              </div>
+	            </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <div className="font-semibold text-gray-900">Social History</div>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  <li><span className="font-semibold">Background:</span> {getField(["med_hist", "social_hist", "personal_background"]) || "-"}</li>
-                  <li><span className="font-semibold">Nutrition/Exercise:</span> {getField(["med_hist", "social_hist", "nutrion_and_exercise"]) || "-"}</li>
-                  <li><span className="font-semibold">Community/Employment:</span> {getField(["med_hist", "social_hist", "community_and_employment"]) || "-"}</li>
-                  <li><span className="font-semibold">Safety Measures:</span> {getField(["med_hist", "social_hist", "safety_measure"]) || "-"}</li>
-                  <li><span className="font-semibold">Life Stressors:</span> {getField(["med_hist", "social_hist", "life_stressors"]) || "-"}</li>
-                </ul>
+	            <div className="grid md:grid-cols-2 gap-6">
+		              <div className="space-y-2">
+		                <div className="font-semibold text-gray-900">Past Medical History</div>
+		                <div className="space-y-2 text-sm text-gray-700">
+		                  {pastMedicalGroups.map(([key, label]) => {
+		                    const lines = extractTextList(getField(["med_hist", "past_med_his", key]));
+		                    return (
+		                      <div key={`preview-pmh-${key}`}>
+		                        <div className="font-semibold text-gray-800">{label}</div>
+		                        {lines.length ? (
+		                          <ul className="list-disc pl-5">
+		                            {lines.map((entry, idx) => (
+		                              <li key={`preview-pmh-line-${key}-${idx}`}>{entry}</li>
+		                            ))}
+		                          </ul>
+		                        ) : (
+		                          <div>-</div>
+		                        )}
+		                      </div>
+		                    );
+	                  })}
+	                </div>
+	              </div>
+		              <div className="space-y-2">
+		                <div className="font-semibold text-gray-900">Preventative Medicine</div>
+		                <div className="space-y-2 text-sm text-gray-700">
+		                  {preventativeGroups.map(([key, label]) => {
+		                    const lines = extractTextList(getField(["med_hist", "preventative_measure", key]));
+		                    return (
+		                      <div key={`preview-preventative-${key}`}>
+		                        <div className="font-semibold text-gray-800">{label}</div>
+		                        {lines.length ? (
+		                          <ul className="list-disc pl-5">
+		                            {lines.map((entry, idx) => (
+		                              <li key={`preview-preventative-line-${key}-${idx}`}>{entry}</li>
+		                            ))}
+		                          </ul>
+		                        ) : (
+		                          <div>-</div>
+		                        )}
+		                      </div>
+	                    );
+	                  })}
+	                </div>
+	              </div>
+	            </div>
+
+	            <div className="space-y-2">
+	              <div className="font-semibold text-gray-900">Family Medical History</div>
+	              <div className="rounded border bg-gray-50 px-3 py-2 text-sm text-gray-700">
+	                {familyHistoryLines.length ? (
+	                  <ul className="list-disc pl-5 space-y-1">
+	                    {familyHistoryLines.map((line, idx) => (
+	                      <li key={`preview-family-history-${idx}`}>{line}</li>
+	                    ))}
+	                  </ul>
+	                ) : (
+	                  <div>None</div>
+	                )}
+	              </div>
+	            </div>
+
+	            <div className="grid md:grid-cols-2 gap-6">
+		              <div className="space-y-2">
+		                <div className="font-semibold text-gray-900">Social History</div>
+	                <ul className="text-sm text-gray-700 space-y-1">
+	                  <li><span className="font-semibold">Background:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "personal_background"] })}</li>
+	                  <li><span className="font-semibold">Nutrition/Exercise:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "nutrion_and_exercise"] })}</li>
+	                  <li><span className="font-semibold">Community/Employment:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "community_and_employment"] })}</li>
+	                  <li><span className="font-semibold">Safety Measures:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "safety_measure"] })}</li>
+	                  <li><span className="font-semibold">Life Stressors:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "life_stressors"] })}</li>
+	                </ul>
                 <div className="text-sm text-gray-700">
                   <div className="font-semibold">Substance Abuse</div>
                   <ul className="list-disc pl-5">
@@ -2354,9 +2645,9 @@ const RequestNew = () => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="font-semibold text-gray-900">Prompts and Special Instructions</div>
-              <div className="space-y-2 text-sm text-gray-700">
+	            <div className="space-y-2">
+	              <div className="font-semibold text-gray-900">Prompts and Special Instructions</div>
+	              <div className="space-y-2 text-sm text-gray-700">
                 {promptInstructionFields.map(([k, label]) => (
                   <div key={`preview-special-${k}`} className="rounded border px-2 py-1 bg-gray-50">
                     <div className="font-semibold text-gray-800">{label}</div>
@@ -2368,10 +2659,31 @@ const RequestNew = () => {
                       <div>-</div>
                     )}
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
+	                ))}
+	              </div>
+	            </div>
+	            <div className="space-y-2">
+	              <div className="font-semibold text-gray-900">Physical Examination</div>
+	              <p className="whitespace-pre-wrap text-sm text-gray-700">
+	                {String(getField(["admin", "physical_examination"]) || "").trim() || "-"}
+	              </p>
+	            </div>
+	            <div className="space-y-2">
+	              <div className="font-semibold text-gray-900">Attachments</div>
+	              <div className="rounded border bg-gray-50 px-3 py-2 text-sm text-gray-700">
+	                {attachmentNames.length ? (
+	                  <ul className="list-disc pl-5 space-y-1">
+	                    {attachmentNames.map((name, idx) => (
+	                      <li key={`preview-attachment-${idx}`}>{name}</li>
+	                    ))}
+	                  </ul>
+	                ) : (
+	                  <div>No attachments added.</div>
+	                )}
+	              </div>
+	            </div>
+	          </div>
+          ) : null}
         </form>
       </div>
       <Modal
