@@ -18,4 +18,5 @@ type AdminDetails struct {
 	SpecialSupplies     string `json:"special_supplies"`
 	CaseFactors         string `json:"case_factors"`
 	PhysicalExamination string `json:"physical_examination,omitempty"`
+	FinalPageNotes      string `json:"final_page_notes,omitempty"`
 }

@@ -125,6 +125,10 @@ const buildScriptRequestPayload = (form = {}, draftScript = null, artifacts = []
     special_needs: toMultilineText(form.special?.oppurtunity),
     case_factors: form.admin?.case_factors || "",
     additonal_ins: form.special?.feed_back || "",
+    final_page_notes: form.admin?.final_page_notes || "",
+    other_sp_notes: form.sp?.other_sp_notes || "",
+    sp_feedback_enabled: Boolean(form.sp?.sp_feedback_enabled),
+    custom_feedback_notes: form.sp?.custom_feedback_notes || "",
     sympt_review: buildSymptomReviewPayload(form.med_hist?.sympton_review),
     status: "Pending",
     note: "",
@@ -178,6 +182,18 @@ const firstNonEmptyString = (...values) => {
     if (text) return text;
   }
   return "";
+};
+
+const firstDefinedBoolean = (...values) => {
+  for (const value of values) {
+    if (value === undefined || value === null || value === "") continue;
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    const text = String(value).trim().toLowerCase();
+    if (text === "true" || text === "1" || text === "yes" || text === "on") return true;
+    if (text === "false" || text === "0" || text === "no" || text === "off") return false;
+  }
+  return false;
 };
 
 const uniqueArtifacts = (artifacts = []) => {
@@ -238,6 +254,7 @@ const buildPrefillFormFromRequest = (initialForm, requestItem) => {
       raw.pert_aspects_patient_case
     ),
     special_supplies: firstNonEmptyString(next.admin?.special_supplies, raw.special_needs),
+    final_page_notes: firstNonEmptyString(next.admin?.final_page_notes, raw.final_page_notes),
   };
 
   next.patient = {
@@ -250,6 +267,16 @@ const buildPrefillFormFromRequest = (initialForm, requestItem) => {
   next.sp = {
     ...(next.sp || {}),
     physical_chars: firstNonEmptyString(next.sp?.physical_chars, raw.physical_chars),
+    other_sp_notes: firstNonEmptyString(next.sp?.other_sp_notes, raw.other_sp_notes),
+    sp_feedback_enabled: firstDefinedBoolean(
+      next.sp?.sp_feedback_enabled,
+      raw.sp_feedback_enabled,
+      raw.sp_feedback
+    ),
+    custom_feedback_notes: firstNonEmptyString(
+      next.sp?.custom_feedback_notes,
+      raw.custom_feedback_notes
+    ),
     current_ill_history: {
       ...(next.sp?.current_ill_history || {}),
       symptom_quality: firstNonEmptyString(
@@ -337,6 +364,7 @@ const RequestNew = () => {
       special_supplies: "",
       case_factors: "",
       physical_examination: "",
+      final_page_notes: "",
     },
     patient: {
       name: "",
@@ -368,6 +396,9 @@ const RequestNew = () => {
         anger: "",
       },
       physical_chars: "",
+      other_sp_notes: "",
+      sp_feedback_enabled: false,
+      custom_feedback_notes: "",
       current_ill_history: {
         symptom_settings: [emptyTextRow()],
         symptom_timing: [emptyTextRow()],
@@ -406,6 +437,12 @@ const RequestNew = () => {
         community_and_employment: "",
         safety_measure: "",
         life_stressors: "",
+        social_support: {
+          family_friends: "",
+          financial: "",
+          healthcare_access_insurance: "",
+          religious_or_community_groups: "",
+        },
         substance_use: [emptyTextRow()],
         sexual_history_entries: [emptyTextRow()],
         sex_history: {
@@ -1409,11 +1446,11 @@ const RequestNew = () => {
                     <input className={inputClass} value={getField(["admin", "patient_demographic"]) || ""} onChange={(e) => setField(["admin", "patient_demographic"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Special Supplies</span>
+                    <span className="text-sm text-gray-700">Special Supplies & Props Needed</span>
                     <input className={inputClass} value={getField(["admin", "special_supplies"]) || ""} onChange={(e) => setField(["admin", "special_supplies"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Case Factors</span>
+                    <span className="text-sm text-gray-700">Case Factors (Social Determinants of Health)</span>
                     <textarea rows={2} className={textAreaClass} value={getField(["admin", "case_factors"]) || ""} onChange={(e) => setField(["admin", "case_factors"], e.target.value)} />
                   </label>
                 </div>
@@ -1469,15 +1506,15 @@ const RequestNew = () => {
                     <input type="number" className={inputClass} value={getField(["patient", "vitals", "respirations"]) ?? ""} onChange={(e) => setNumberField(["patient", "vitals", "respirations"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Blood Oxygen (%)</span>
+                    <span className="text-sm text-gray-700">Blood Oxygen Saturation (%)</span>
                     <input type="number" className={inputClass} value={getField(["patient", "vitals", "blood_oxygen"]) ?? ""} onChange={(e) => setNumberField(["patient", "vitals", "blood_oxygen"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Pressure Top (mmHg)</span>
+                    <span className="text-sm text-gray-700">Systolic Pressure (mmHg)</span>
                     <input type="number" className={inputClass} value={getField(["patient", "vitals", "pressure", "top"]) ?? ""} onChange={(e) => setNumberField(["patient", "vitals", "pressure", "top"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Pressure Bottom (mmHg)</span>
+                    <span className="text-sm text-gray-700">Diastolic Pressure (mmHg)</span>
                     <input type="number" className={inputClass} value={getField(["patient", "vitals", "pressure", "bottom"]) ?? ""} onChange={(e) => setNumberField(["patient", "vitals", "pressure", "bottom"], e.target.value)} />
                   </label>
                   <div className="space-y-1">
@@ -1523,6 +1560,35 @@ const RequestNew = () => {
               <label className="block space-y-1">
                 <span className="text-sm text-gray-700">Physical Characteristics and Nonverbal Behavior</span>
                 <textarea rows={2} className={textAreaClass} value={getField(["sp", "physical_chars"]) || ""} onChange={(e) => setField(["sp", "physical_chars"], e.target.value)} />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-sm text-gray-700">Other SP Notes</span>
+                <textarea
+                  rows={3}
+                  className={textAreaClass}
+                  value={getField(["sp", "other_sp_notes"]) || ""}
+                  onChange={(e) => setField(["sp", "other_sp_notes"], e.target.value)}
+                />
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-[#981e32] focus:ring-[#981e32]"
+                  checked={Boolean(getField(["sp", "sp_feedback_enabled"]))}
+                  onChange={(e) => setField(["sp", "sp_feedback_enabled"], e.target.checked)}
+                />
+                <span>SP Feedback (adds a Feedback Page to PDF output)</span>
+              </label>
+              <label className="block space-y-1">
+                <span className="text-sm text-gray-700">Custom Feedback Notes</span>
+                <textarea
+                  rows={3}
+                  className={textAreaClass}
+                  value={getField(["sp", "custom_feedback_notes"]) || ""}
+                  onChange={(e) => setField(["sp", "custom_feedback_notes"], e.target.value)}
+                  disabled={!getField(["sp", "sp_feedback_enabled"])}
+                  placeholder="Enter SP feedback guidance for the feedback page..."
+                />
               </label>
               <div className="space-y-2">
                 <div className="text-sm text-gray-700">Symptom Location Diagram (click to place heart)</div>
@@ -2106,6 +2172,28 @@ const RequestNew = () => {
                 </label>
               ))}
 
+              <div className="space-y-3">
+                <div className="text-sm font-semibold text-gray-700">Social Support</div>
+                {[
+                  ["family_friends", "Family & Friends"],
+                  ["financial", "Financial"],
+                  ["healthcare_access_insurance", "Healthcare Access & Insurance"],
+                  ["religious_or_community_groups", "Religious or Community Groups"],
+                ].map(([k, label]) => (
+                  <label key={k} className="block space-y-1">
+                    <span className="text-sm text-gray-700">{label}</span>
+                    <textarea
+                      rows={2}
+                      className={textAreaClass}
+                      value={getField(["med_hist", "social_hist", "social_support", k]) || ""}
+                      onChange={(e) =>
+                        setField(["med_hist", "social_hist", "social_support", k], e.target.value)
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-700">Substance Abuse</span>
@@ -2135,32 +2223,24 @@ const RequestNew = () => {
                 ))}
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-700">Sexual History</span>
-                  <button
-                    type="button"
-                    onClick={() => addListRow(["med_hist", "social_hist", "sexual_history_entries"], emptyTextRow)}
-                    className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
-                  >
-                    + Line
-                  </button>
-                </div>
-                {getList(["med_hist", "social_hist", "sexual_history_entries"], emptyTextRow).map((entry, idx) => (
-                  <div key={`sexual-history-${idx}`} className="flex items-center gap-2">
-                    <input
-                      className={inputClass}
-                      value={String(entry?.text || "")}
-                      onChange={(e) => updateListRowText(["med_hist", "social_hist", "sexual_history_entries"], idx, e.target.value, emptyTextRow)}
+              <div className="space-y-3">
+                <div className="text-sm font-semibold text-gray-700">Sexual History</div>
+                {[
+                  ["current_partners", "Current Sexual Partners"],
+                  ["past_partners", "Lifetime Sexual Partners"],
+                  ["contraceptives", "Contraceptives"],
+                  ["hiv_risk_history", "HIV Risk History"],
+                  ["safety_in_relations", "Safety in Relationships"],
+                ].map(([k, label]) => (
+                  <label key={k} className="block space-y-1">
+                    <span className="text-sm text-gray-700">{label}</span>
+                    <textarea
+                      rows={2}
+                      className={textAreaClass}
+                      value={getField(["med_hist", "social_hist", "sex_history", k]) || ""}
+                      onChange={(e) => setField(["med_hist", "social_hist", "sex_history", k], e.target.value)}
                     />
-                    <button
-                      type="button"
-                      onClick={() => removeListRow(["med_hist", "social_hist", "sexual_history_entries"], idx, emptyTextRow)}
-                      className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
-                    >
-                      Remove
-                    </button>
-                  </div>
+                  </label>
                 ))}
               </div>
                 </div>
@@ -2266,6 +2346,17 @@ const RequestNew = () => {
                 placeholder="Enter physical examination findings..."
                 value={getField(["admin", "physical_examination"]) || ""}
                 onChange={(e) => setField(["admin", "physical_examination"], e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="text-base font-semibold text-gray-900">Final Page Notes</div>
+              <textarea
+                rows={4}
+                className={textAreaClass}
+                placeholder="Enter notes for Part 5..."
+                value={getField(["admin", "final_page_notes"]) || ""}
+                onChange={(e) => setField(["admin", "final_page_notes"], e.target.value)}
               />
             </div>
 
@@ -2428,17 +2519,20 @@ const RequestNew = () => {
 	                  <li><span className="font-semibold">Patient Encounter Duration:</span> {renderInlineValue({ path: ["patient", "encounter_duration"] })}</li>
 	                </ul>
 	                <div className="text-sm text-gray-700">
-	                  <div className="font-semibold">Vital Signs</div>
-	                  <ul className="list-disc pl-5 space-y-1">
-	                    <li>{renderInlineValue({ path: ["patient", "vitals", "heart_rate"], type: "number" })} beats/min</li>
-	                    <li>{renderInlineValue({ path: ["patient", "vitals", "respirations"], type: "number" })} breaths/min</li>
-	                    <li>
-                        {renderInlineValue({ path: ["patient", "vitals", "pressure", "top"], type: "number" })}
-                        /
-                        {renderInlineValue({ path: ["patient", "vitals", "pressure", "bottom"], type: "number" })} mmHg
-                      </li>
-	                    <li>{renderInlineValue({ path: ["patient", "vitals", "blood_oxygen"], type: "number" })}%</li>
-	                    <li>
+                  <div className="font-semibold">Vital Signs</div>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li><span className="font-semibold">Heart Rate:</span> {renderInlineValue({ path: ["patient", "vitals", "heart_rate"], type: "number" })} beats/min</li>
+                    <li><span className="font-semibold">Respirations:</span> {renderInlineValue({ path: ["patient", "vitals", "respirations"], type: "number" })} breaths/min</li>
+                    <li>
+                      <span className="font-semibold">Systolic Pressure:</span>{" "}
+                      {renderInlineValue({ path: ["patient", "vitals", "pressure", "top"], type: "number" })} mmHg
+                    </li>
+                    <li>
+                      <span className="font-semibold">Diastolic Pressure:</span>{" "}
+                      {renderInlineValue({ path: ["patient", "vitals", "pressure", "bottom"], type: "number" })} mmHg
+                    </li>
+                    <li><span className="font-semibold">Blood Oxygen Saturation:</span> {renderInlineValue({ path: ["patient", "vitals", "blood_oxygen"], type: "number" })}%</li>
+                    <li>
                         {renderInlineValue({ path: ["patient", "vitals", "temp", "reading"], type: "number" })}{" "}
                         {renderInlineValue({
                           path: ["patient", "vitals", "temp", "unit"],
@@ -2465,12 +2559,30 @@ const RequestNew = () => {
 		                  <div className="font-semibold">Opening Statement</div>
 		                  <p className="text-gray-800">{renderInlineValue({ path: ["sp", "opening_statement"] })}</p>
 		                </div>
-	                <div className="text-sm text-gray-700">
-	                  <div className="font-semibold">Physical Characteristics and Nonverbal Behavior</div>
-	                  <p className="text-gray-800">{renderInlineValue({ path: ["sp", "physical_chars"] })}</p>
-	                </div>
-	                <div className="text-sm text-gray-700">
-	                  <div className="font-semibold">Character Attributes</div>
+                <div className="text-sm text-gray-700">
+                  <div className="font-semibold">Physical Characteristics and Nonverbal Behavior</div>
+                  <p className="text-gray-800">{renderInlineValue({ path: ["sp", "physical_chars"] })}</p>
+                </div>
+                <div className="text-sm text-gray-700">
+                  <div className="font-semibold">Other SP Notes</div>
+                  <p className="text-gray-800">{renderInlineValue({ path: ["sp", "other_sp_notes"] })}</p>
+                </div>
+                <div className="text-sm text-gray-700">
+                  <div className="font-semibold">SP Feedback</div>
+                  <p className="text-gray-800">
+                    {Boolean(getField(["sp", "sp_feedback_enabled"])) ? "Enabled" : "Disabled"}
+                  </p>
+                </div>
+                {Boolean(getField(["sp", "sp_feedback_enabled"])) ? (
+                  <div className="text-sm text-gray-700">
+                    <div className="font-semibold">Custom Feedback Notes</div>
+                    <p className="text-gray-800">
+                      {String(getField(["sp", "custom_feedback_notes"]) || "").trim() || "-"}
+                    </p>
+                  </div>
+                ) : null}
+                <div className="text-sm text-gray-700">
+                  <div className="font-semibold">Character Attributes</div>
                   <div className="grid grid-cols-2 gap-2">
                     {["anxiety", "suprise", "confusion", "guilt", "sadness", "indecision", "assertiveness", "frustration", "fear", "anger"].map((k) => (
                       <div key={k} className="flex items-center justify-between rounded border px-2 py-1">
@@ -2527,14 +2639,14 @@ const RequestNew = () => {
                   </div>
                 </div>
               </div>
-	              <div className="space-y-2">
-	                <div className="font-semibold text-gray-900">Case Factors and Supplies</div>
-	                <ul className="text-sm text-gray-700 space-y-1">
-	                  <li><span className="font-semibold">Special Supplies:</span> {renderInlineValue({ path: ["admin", "special_supplies"] })}</li>
-	                  <li><span className="font-semibold">Case Factors:</span> {renderInlineValue({ path: ["admin", "case_factors"] })}</li>
-	                  <li><span className="font-semibold">Patient Demographic:</span> {renderInlineValue({ path: ["admin", "patient_demographic"] })}</li>
-	                </ul>
-	              </div>
+              <div className="space-y-2">
+                <div className="font-semibold text-gray-900">Case Factors and Special Supplies</div>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li><span className="font-semibold">Special Supplies & Props Needed:</span> {renderInlineValue({ path: ["admin", "special_supplies"] })}</li>
+                  <li><span className="font-semibold">Case Factors (Social Determinants of Health):</span> {renderInlineValue({ path: ["admin", "case_factors"] })}</li>
+                  <li><span className="font-semibold">Patient Demographic:</span> {renderInlineValue({ path: ["admin", "patient_demographic"] })}</li>
+                </ul>
+              </div>
 	            </div>
 
 	            <div className="grid md:grid-cols-2 gap-6">
@@ -2602,13 +2714,22 @@ const RequestNew = () => {
 	            <div className="grid md:grid-cols-2 gap-6">
 		              <div className="space-y-2">
 		                <div className="font-semibold text-gray-900">Social History</div>
-	                <ul className="text-sm text-gray-700 space-y-1">
-	                  <li><span className="font-semibold">Background:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "personal_background"] })}</li>
-	                  <li><span className="font-semibold">Nutrition/Exercise:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "nutrion_and_exercise"] })}</li>
-	                  <li><span className="font-semibold">Community/Employment:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "community_and_employment"] })}</li>
-	                  <li><span className="font-semibold">Safety Measures:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "safety_measure"] })}</li>
-	                  <li><span className="font-semibold">Life Stressors:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "life_stressors"] })}</li>
-	                </ul>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li><span className="font-semibold">Background:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "personal_background"] })}</li>
+                  <li><span className="font-semibold">Nutrition/Exercise:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "nutrion_and_exercise"] })}</li>
+                  <li><span className="font-semibold">Community/Employment:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "community_and_employment"] })}</li>
+                  <li><span className="font-semibold">Safety Measures:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "safety_measure"] })}</li>
+                  <li><span className="font-semibold">Life Stressors:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "life_stressors"] })}</li>
+                </ul>
+                <div className="text-sm text-gray-700">
+                  <div className="font-semibold">Social Support</div>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li><span className="font-semibold">Family & Friends:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "social_support", "family_friends"] })}</li>
+                    <li><span className="font-semibold">Financial:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "social_support", "financial"] })}</li>
+                    <li><span className="font-semibold">Healthcare Access & Insurance:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "social_support", "healthcare_access_insurance"] })}</li>
+                    <li><span className="font-semibold">Religious or Community Groups:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "social_support", "religious_or_community_groups"] })}</li>
+                  </ul>
+                </div>
                 <div className="text-sm text-gray-700">
                   <div className="font-semibold">Substance Abuse</div>
                   <ul className="list-disc pl-5">
@@ -2619,10 +2740,12 @@ const RequestNew = () => {
                 </div>
                 <div className="text-sm text-gray-700">
                   <div className="font-semibold">Sexual History</div>
-                  <ul className="list-disc pl-5">
-                    {extractTextList(getField(["med_hist", "social_hist", "sexual_history_entries"])).length
-                      ? extractTextList(getField(["med_hist", "social_hist", "sexual_history_entries"])).map((entry, idx) => <li key={`preview-sexual-history-${idx}`}>{entry}</li>)
-                      : <li>None</li>}
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li><span className="font-semibold">Current Sexual Partners:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "current_partners"] })}</li>
+                    <li><span className="font-semibold">Lifetime Sexual Partners:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "past_partners"] })}</li>
+                    <li><span className="font-semibold">Contraceptives:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "contraceptives"] })}</li>
+                    <li><span className="font-semibold">HIV Risk History:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "hiv_risk_history"] })}</li>
+                    <li><span className="font-semibold">Safety in Relationships:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "safety_in_relations"] })}</li>
                   </ul>
                 </div>
               </div>
@@ -2662,12 +2785,18 @@ const RequestNew = () => {
 	                ))}
 	              </div>
 	            </div>
-	            <div className="space-y-2">
-	              <div className="font-semibold text-gray-900">Physical Examination</div>
-	              <p className="whitespace-pre-wrap text-sm text-gray-700">
-	                {String(getField(["admin", "physical_examination"]) || "").trim() || "-"}
-	              </p>
-	            </div>
+            <div className="space-y-2">
+              <div className="font-semibold text-gray-900">Physical Examination</div>
+              <p className="whitespace-pre-wrap text-sm text-gray-700">
+                {String(getField(["admin", "physical_examination"]) || "").trim() || "-"}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <div className="font-semibold text-gray-900">Final Page Notes</div>
+              <p className="whitespace-pre-wrap text-sm text-gray-700">
+                {String(getField(["admin", "final_page_notes"]) || "").trim() || "-"}
+              </p>
+            </div>
 	            <div className="space-y-2">
 	              <div className="font-semibold text-gray-900">Attachments</div>
 	              <div className="rounded border bg-gray-50 px-3 py-2 text-sm text-gray-700">

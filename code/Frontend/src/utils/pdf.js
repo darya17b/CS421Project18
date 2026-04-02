@@ -659,8 +659,8 @@ function buildScriptPdfDoc(item, versionObj) {
     bulletPrefix: "-",
   });
   drawField("Demographics of patient/recruitment guidelines", get(fields, ["admin", "patient_demographic"], ""), { emptyText: "Unknown" });
-  drawField("List of special supplies needed for encounter", get(fields, ["admin", "special_supplies"], ""));
-  drawField("Case factors associated with social determinants of health", get(fields, ["admin", "case_factors"], ""));
+  drawField("Special Supplies & Props Needed", get(fields, ["admin", "special_supplies"], ""));
+  drawField("Case Factors (Social Determinants of Health)", get(fields, ["admin", "case_factors"], ""));
   drawField("Additional Instructions", get(fields, ["special", "feed_back"], ""));
   drawParagraph("Physical Examination", get(fields, ["admin", "physical_examination"], ""));
   // Part 2
@@ -681,10 +681,11 @@ function buildScriptPdfDoc(item, versionObj) {
   const tempUnit = get(fields, ["patient", "vitals", "temp", "unit"], "");
 
   const vitalLines = [
-    hr > 0 ? `${hr} Beats/min` : "",
-    rr > 0 ? `${rr} Respirations/min` : "",
-    bpTop > 0 && bpBottom > 0 ? `${bpTop}/${bpBottom} mmHg` : "",
-    spo2 > 0 ? `${spo2} %` : "",
+    hr > 0 ? `Heart Rate: ${hr} Beats/min` : "",
+    rr > 0 ? `Respirations: ${rr} Respirations/min` : "",
+    bpTop > 0 ? `Systolic Pressure: ${bpTop} mmHg` : "",
+    bpBottom > 0 ? `Diastolic Pressure: ${bpBottom} mmHg` : "",
+    spo2 > 0 ? `Blood Oxygen Saturation: ${spo2} %` : "",
     formatTemperaturePair(tempReading, tempUnit),
   ].filter(Boolean);
   drawListField("Vital Signs", vitalLines, {
@@ -716,6 +717,7 @@ function buildScriptPdfDoc(item, versionObj) {
     .replace(/\s*\r?\n\s*/g, " ")
     .trim();
   drawField("Nonverbal behavior and physical characteristics", nonverbalBehavior);
+  drawParagraph("Other SP Notes", get(fields, ["sp", "other_sp_notes"], ""));
   newBodyPage();
 
   drawField("Chief Complaint", get(fields, ["admin", "chief_concern"], get(fields, ["patient", "visit_reason"], "")), {
@@ -911,17 +913,42 @@ function buildScriptPdfDoc(item, versionObj) {
   drawField("Military, Community, Educational & Employment History", get(fields, ["med_hist", "social_hist", "community_and_employment"], ""), socialNbredFieldStyle);
   drawField("Safety Measures", get(fields, ["med_hist", "social_hist", "safety_measure"], ""), socialNbredFieldStyle);
   drawField("Significant Life Stressors", get(fields, ["med_hist", "social_hist", "life_stressors"], ""), socialNbredFieldStyle);
+  drawSectionHeading("Social Support:");
+  drawField(
+    "Family & Friends",
+    get(fields, ["med_hist", "social_hist", "social_support", "family_friends"], ""),
+    socialNbredFieldStyle
+  );
+  drawField(
+    "Financial",
+    get(fields, ["med_hist", "social_hist", "social_support", "financial"], ""),
+    socialNbredFieldStyle
+  );
+  drawField(
+    "Healthcare Access & Insurance",
+    get(fields, ["med_hist", "social_hist", "social_support", "healthcare_access_insurance"], ""),
+    socialNbredFieldStyle
+  );
+  drawField(
+    "Religious or Community Groups",
+    get(fields, ["med_hist", "social_hist", "social_support", "religious_or_community_groups"], ""),
+    socialNbredFieldStyle
+  );
   drawListField("Substance Abuse", normalizeTextEntries(get(fields, ["med_hist", "social_hist", "substance_use"], "")), socialNbredListStyle);
   const sexHist = get(fields, ["med_hist", "social_hist", "sex_history"], {});
   const explicitSexualHistoryEntries = normalizeTextEntries(get(fields, ["med_hist", "social_hist", "sexual_history_entries"], ""));
   const sexualHistoryEntries = explicitSexualHistoryEntries.length
     ? explicitSexualHistoryEntries
     : [
-      pad(sexHist.current_partners) ? `Current partners: ${pad(sexHist.current_partners)}` : "",
-      pad(sexHist.past_partners) ? `Past partners: ${pad(sexHist.past_partners)}` : "",
+      pad(sexHist.current_partners) ? `Current Sexual Partners: ${pad(sexHist.current_partners)}` : "",
+      pad(sexHist.lifetime_partners || sexHist.past_partners)
+        ? `Lifetime Sexual Partners: ${pad(sexHist.lifetime_partners || sexHist.past_partners)}`
+        : "",
       pad(sexHist.contraceptives) ? `Contraceptives: ${pad(sexHist.contraceptives)}` : "",
-      pad(sexHist.hiv_risk_history) ? `HIV risk: ${pad(sexHist.hiv_risk_history)}` : "",
-      pad(sexHist.safety_in_relations) ? `Safety: ${pad(sexHist.safety_in_relations)}` : "",
+      pad(sexHist.hiv_risk_history) ? `HIV Risk History: ${pad(sexHist.hiv_risk_history)}` : "",
+      pad(sexHist.safety_in_relations)
+        ? `Safety in Relationships: ${pad(sexHist.safety_in_relations)}`
+        : "",
     ].filter(Boolean);
   drawListField("Sexual History", sexualHistoryEntries, socialNbredListStyle);
   newBodyPage();
@@ -987,6 +1014,12 @@ function buildScriptPdfDoc(item, versionObj) {
   // Part 5
   defaultFieldValueSize = 11;
   startPart("Part 5 - Notes for Internal Use Only", partPages);
+  drawParagraph("Final Page Notes", get(fields, ["admin", "final_page_notes"], ""));
+  if (Boolean(get(fields, ["sp", "sp_feedback_enabled"], false))) {
+    newBodyPage();
+    drawSectionHeading("SP Feedback");
+    drawParagraph("Custom Feedback Notes", get(fields, ["sp", "custom_feedback_notes"], ""));
+  }
 
   writeContentsPage(partPages);
   addPageNumbers();
@@ -1428,10 +1461,11 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
     : "";
 
   const vitalLines = [
-    `${pad(get(fields, ["patient", "vitals", "heart_rate"], "")) || "None"} beats/min`,
-    `${pad(get(fields, ["patient", "vitals", "respirations"], "")) || "None"} respirations/min`,
-    `${pad(get(fields, ["patient", "vitals", "pressure", "top"], "")) || "None"}/${pad(get(fields, ["patient", "vitals", "pressure", "bottom"], "")) || "None"} mmHg`,
-    `${pad(get(fields, ["patient", "vitals", "blood_oxygen"], "")) || "None"} %`,
+    `Heart Rate: ${pad(get(fields, ["patient", "vitals", "heart_rate"], "")) || "None"} beats/min`,
+    `Respirations: ${pad(get(fields, ["patient", "vitals", "respirations"], "")) || "None"} respirations/min`,
+    `Systolic Pressure: ${pad(get(fields, ["patient", "vitals", "pressure", "top"], "")) || "None"} mmHg`,
+    `Diastolic Pressure: ${pad(get(fields, ["patient", "vitals", "pressure", "bottom"], "")) || "None"} mmHg`,
+    `Blood Oxygen Saturation: ${pad(get(fields, ["patient", "vitals", "blood_oxygen"], "")) || "None"} %`,
     doorTempPair || "None",
   ];
 

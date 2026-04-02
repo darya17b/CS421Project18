@@ -238,6 +238,23 @@ export function buildScriptFromForm(f = {}) {
   const studentExpectations = extractTextEntries(f.admin?.student_expectations);
   const substanceUseEntries = extractTextEntries(f.med_hist?.social_hist?.substance_use);
   const sexualHistoryEntries = extractTextEntries(f.med_hist?.social_hist?.sexual_history_entries);
+  const sexHistory = f.med_hist?.social_hist?.sex_history || {};
+  const currentSexualPartners = String(sexHistory.current_partners || "").trim();
+  const lifetimeSexualPartners = String(
+    sexHistory.lifetime_partners || sexHistory.past_partners || ""
+  ).trim();
+  const contraceptives = String(sexHistory.contraceptives || "").trim();
+  const hivRiskHistory = String(sexHistory.hiv_risk_history || "").trim();
+  const safetyInRelationships = String(sexHistory.safety_in_relations || "").trim();
+  const normalizedSexualHistoryEntries = sexualHistoryEntries.length
+    ? sexualHistoryEntries
+    : [
+      currentSexualPartners ? `Current Sexual Partners: ${currentSexualPartners}` : "",
+      lifetimeSexualPartners ? `Lifetime Sexual Partners: ${lifetimeSexualPartners}` : "",
+      contraceptives ? `Contraceptives: ${contraceptives}` : "",
+      hivRiskHistory ? `HIV Risk History: ${hivRiskHistory}` : "",
+      safetyInRelationships ? `Safety in Relationships: ${safetyInRelationships}` : "",
+    ].filter(Boolean);
 
   return {
     admin: {
@@ -258,6 +275,7 @@ export function buildScriptFromForm(f = {}) {
       special_supplies: f.admin?.special_supplies || '',
       case_factors: f.admin?.case_factors || '',
       physical_examination: f.admin?.physical_examination || '',
+      final_page_notes: f.admin?.final_page_notes || '',
     },
     patient: {
       name: f.patient?.name || 'Unknown',
@@ -295,6 +313,9 @@ export function buildScriptFromForm(f = {}) {
         anger: Number(f.sp?.attributes?.anger || 1),
       },
       physical_chars: f.sp?.physical_chars || '',
+      other_sp_notes: f.sp?.other_sp_notes || '',
+      sp_feedback_enabled: Boolean(f.sp?.sp_feedback_enabled),
+      custom_feedback_notes: f.sp?.custom_feedback_notes || '',
       current_ill_history: {
         body_location: f.sp?.current_ill_history?.body_location || '',
         symptom_settings: extractTextEntries(f.sp?.current_ill_history?.symptom_settings).join('\n'),
@@ -335,15 +356,24 @@ export function buildScriptFromForm(f = {}) {
         community_and_employment: f.med_hist?.social_hist?.community_and_employment || '',
         safety_measure: f.med_hist?.social_hist?.safety_measure || '',
         life_stressors: f.med_hist?.social_hist?.life_stressors || '',
+        social_support: {
+          family_friends: f.med_hist?.social_hist?.social_support?.family_friends || '',
+          financial: f.med_hist?.social_hist?.social_support?.financial || '',
+          healthcare_access_insurance:
+            f.med_hist?.social_hist?.social_support?.healthcare_access_insurance || '',
+          religious_or_community_groups:
+            f.med_hist?.social_hist?.social_support?.religious_or_community_groups || '',
+        },
         substance_use: substanceUseEntries.join('\n'),
         sex_history: {
-          current_partners: Number(f.med_hist?.social_hist?.sex_history?.current_partners || 0),
-          past_partners: Number(f.med_hist?.social_hist?.sex_history?.past_partners || 0),
-          contraceptives: f.med_hist?.social_hist?.sex_history?.contraceptives || '',
-          hiv_risk_history: f.med_hist?.social_hist?.sex_history?.hiv_risk_history || '',
-          safety_in_relations: f.med_hist?.social_hist?.sex_history?.safety_in_relations || sexualHistoryEntries.join('\n') || '',
+          current_partners: currentSexualPartners,
+          past_partners: lifetimeSexualPartners,
+          lifetime_partners: lifetimeSexualPartners,
+          contraceptives,
+          hiv_risk_history: hivRiskHistory,
+          safety_in_relations: safetyInRelationships || sexualHistoryEntries.join('\n') || '',
         },
-        sexual_history_entries: sexualHistoryEntries,
+        sexual_history_entries: normalizedSexualHistoryEntries,
       },
       sympton_review: {
         general: extractTextEntries(f.med_hist?.sympton_review?.general).join('\n'),

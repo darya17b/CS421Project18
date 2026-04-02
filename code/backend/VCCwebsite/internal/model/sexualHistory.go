@@ -1,8 +1,9 @@
 package scripts
 
 type SexualHistory struct {
-	CurrentPartners   uint32 `json:"current_partners"`
-	PastPartners      uint32 `json:"past_partners"`
+	CurrentPartners   string `json:"current_partners"`
+	PastPartners      string `json:"past_partners"`
+	LifetimePartners  string `json:"lifetime_partners,omitempty"`
 	Contraceptives    string `json:"contraceptives"`
 	HIVRiskHistory    string `json:"hiv_risk_history"`
 	SafetyInRelations string `json:"safety_in_relations"`

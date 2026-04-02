@@ -26,6 +26,10 @@ type ScriptRequest struct {
 	SpecialNeeds           string                      `json:"special_needs"`
 	CaseFactors            string                      `json:"case_factors"`
 	AdditonalIns           string                      `json:"additonal_ins"`
+	FinalPageNotes         string                      `json:"final_page_notes,omitempty"`
+	OtherSPNotes           string                      `json:"other_sp_notes,omitempty"`
+	SPFeedbackEnabled      bool                        `json:"sp_feedback_enabled,omitempty"`
+	CustomFeedbackNotes    string                      `json:"custom_feedback_notes,omitempty"`
 	SymptReview            ReviewOfSymptoms            `json:"sympt_review"`
 	Status                 string                      `json:"status"`
 	Note                   string                      `json:"note"`

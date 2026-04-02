@@ -40,7 +40,7 @@ export const LandingSections = () => {
               <h2>Create Script</h2>
               <p>Create a new script directly.</p>
               <p>Script will automatically be added to the script library.</p>
-              <Link to="/create-script" className="landing-action text-[#981e32]">
+              <Link to="/request-new" className="landing-action text-[#981e32]">
                 Create Script &rsaquo;
               </Link>
             </div>
