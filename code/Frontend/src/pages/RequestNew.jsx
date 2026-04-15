@@ -7,45 +7,86 @@ import DOBDatePicker from "../components/DOBDatePicker";
 import { buildScriptFromForm } from "../utils/scriptFormat";
 import hpiDiagram from "../assets/hpi-diagram.png";
 
-const ratingOptions = [
-  { label: "None (1)", value: 1 },
-  { label: "Mild (2)", value: 2 },
-  { label: "Moderate (3)", value: 3 },
-  { label: "Concerning (4)", value: 4 },
-  { label: "Severe (5)", value: 5 },
-];
-
 const emptyTextRow = () => ({ text: "" });
 const emptyPrescriptionRow = () => ({
-  brand_substance: "",
+  generic_name: "",
+  brand_name: "",
+  route: "",
   amount: "",
   unit: "",
-  frequency_reason: "",
+  frequency: "",
+  reason: "",
 });
 const emptyNonPrescriptionRow = () => ({
-  brand_substance: "",
+  generic_name: "",
+  brand_name: "",
+  route: "",
   amount: "",
   unit: "",
-  frequency_reason: "",
+  frequency: "",
+  reason: "",
+});
+const emptyAllergyRow = () => ({
+  allergen: "",
+  reaction: "",
+  severity: "",
+  notes: "",
+});
+const emptyObstetricGynecologic = () => ({
+  menstrual_history: "",
+  lmp: "",
+  lmp_details: "",
+  pregnancies: "",
+  births: "",
+  pregnancy_births_explanation: "",
 });
 
 const emptyFamilyRow = () => ({
   family_member: "",
+  age_text: "",
   details: "",
-  additional_details: [emptyTextRow()],
 });
 
-const formatNonPrescriptionEntry = (entry) => {
+const formatMedicationEntry = (entry) => {
   if (typeof entry === "string") return String(entry || "").trim();
   if (!entry || typeof entry !== "object") return "";
-  const brand = String(entry.brand_substance || entry.brand || "").trim();
+  const genericName = String(entry.generic_name || entry.generic || "").trim();
+  const brandName = String(entry.brand_name || entry.brand_substance || entry.brand || "").trim();
+  const medicationName = String(entry.name || "").trim();
+  const name = genericName && brandName
+    ? `${genericName} (${brandName})`
+    : genericName || brandName || medicationName;
+  const route = String(entry.route || "").trim();
   const amount = String(entry.amount || "").trim();
   const unit = String(entry.unit || "").trim();
-  const frequencyReason = String(entry.frequency_reason || entry.reason || "").trim();
-  const amountWithUnit = amount && unit ? `${amount}${unit}` : amount || "";
-  return [[brand, amountWithUnit].filter(Boolean).join(" "), frequencyReason]
+  const dose = String(entry.dose || "").trim();
+  const amountWithUnit = amount && unit ? `${amount}${unit}` : amount || dose;
+  const frequency = String(entry.frequency || "").trim();
+  const reason = String(entry.reason || entry.frequency_reason || "").trim();
+  const schedule = [frequency ? `frequency: ${frequency}` : "", reason ? `reason: ${reason}` : ""]
+    .filter(Boolean)
+    .join(", ");
+  return [[name, amountWithUnit].filter(Boolean).join(" "), route ? `route: ${route}` : "", schedule]
     .filter(Boolean)
     .join(" - ")
+    .trim();
+};
+
+const formatAllergyEntry = (entry) => {
+  if (typeof entry === "string") return String(entry || "").trim();
+  if (!entry || typeof entry !== "object") return "";
+  const allergen = String(entry.allergen || entry.text || "").trim();
+  const reaction = String(entry.reaction || "").trim();
+  const severity = String(entry.severity || "").trim();
+  const notes = String(entry.notes || "").trim();
+  return [
+    allergen,
+    reaction ? `reaction: ${reaction}` : "",
+    severity ? `severity: ${severity}` : "",
+    notes ? `notes: ${notes}` : "",
+  ]
+    .filter(Boolean)
+    .join(" | ")
     .trim();
 };
 
@@ -56,13 +97,31 @@ const extractTextList = (value) => {
         if (typeof entry === "string") return entry;
         if (!entry || typeof entry !== "object") return "";
         if (entry.text) return entry.text;
-        if (entry.brand_substance || entry.amount || entry.unit || entry.frequency_reason) {
-          return formatNonPrescriptionEntry(entry);
+        if (
+          entry.generic_name || entry.brand_name || entry.route || entry.amount || entry.unit || entry.frequency || entry.reason
+          || entry.brand_substance || entry.frequency_reason || entry.brand || entry.generic || entry.name || entry.dose
+        ) {
+          return formatMedicationEntry(entry);
+        }
+        if (entry.allergen || entry.reaction || entry.severity || entry.notes) {
+          return formatAllergyEntry(entry);
         }
         return "";
       })
       .map((entry) => String(entry || "").trim())
       .filter(Boolean);
+  }
+  if (value && typeof value === "object" && (value.allergen || value.reaction || value.severity || value.notes)) {
+    const allergy = formatAllergyEntry(value);
+    return allergy ? [allergy] : [];
+  }
+  if (
+    value && typeof value === "object"
+    && (value.generic_name || value.brand_name || value.route || value.amount || value.unit || value.frequency || value.reason
+      || value.brand_substance || value.frequency_reason || value.brand || value.generic || value.name || value.dose)
+  ) {
+    const medication = formatMedicationEntry(value);
+    return medication ? [medication] : [];
   }
   const text = String(value || "").trim();
   return text ? [text] : [];
@@ -96,6 +155,98 @@ const promptInstructionFields = [
   ["oppurtunity", "Questions the patient will ask if given the opportunity"],
 ];
 
+const characterAttributeFields = [
+  ["anxiety", "Anxiety"],
+  ["suprise", "Surprise"],
+  ["confusion", "Confusion"],
+  ["guilt", "Guilt"],
+  ["sadness", "Sadness"],
+  ["indecision", "Indecision"],
+  ["assertiveness", "Assertiveness"],
+  ["frustration", "Frustration"],
+  ["fear", "Fear"],
+  ["anger", "Anger"],
+];
+
+const characterAttributeLevelOptions = [
+  { value: "", label: "Select level" },
+  { value: "None", label: "None" },
+  { value: "Mild", label: "Mild" },
+  { value: "Moderate", label: "Moderate" },
+  { value: "Concerning", label: "Concerning" },
+  { value: "Severe", label: "Severe" },
+];
+
+const disclosureFrameworkFields = [
+  [
+    "offered_spontaneously",
+    "Information offered spontaneously",
+    "Disclosed after any open-ended question",
+  ],
+  [
+    "elicited_generally_prompted",
+    "Information elicited when generally prompted",
+    "Open-ended question about a specific topic",
+  ],
+  [
+    "hidden_until_directly_asked",
+    "Information hidden until asked directly",
+    "Requires specific questioning",
+  ],
+  [
+    "must_relay_accurately",
+    "Information that MUST be relayed accurately",
+    "",
+  ],
+];
+
+const presentationBehaviorFields = [
+  ["affect", "Affect"],
+  ["body_language", "Body Language"],
+  ["facial_expression", "Facial Expression"],
+  ["eye_contact", "Eye Contact"],
+  ["speech", "Speech"],
+  ["note", "Note"],
+];
+
+const genderIdentityFields = [
+  ["pronouns", "Pronouns"],
+  ["identifies_as", "Identifies as"],
+  ["sex_assigned_at_birth", "Sex assigned at birth"],
+  ["gender_presentation", "Gender presentation"],
+];
+
+const obstetricGynecologicTextFields = [
+  ["menstrual_history", "Menstrual History"],
+  ["lmp", "LMP"],
+  ["lmp_details", "LMP Details"],
+  ["pregnancy_births_explanation", "If pregnancies \u2260 births, explain"],
+];
+
+const socialHistorySplitFields = [
+  ["level_of_education", "Level of Education"],
+  ["occupation", "Occupation"],
+  ["health_literacy", "Health Literacy"],
+  ["military_service", "Military Service"],
+];
+
+const familyMemberOptions = [
+  "Mother",
+  "Father",
+  "Sister",
+  "Brother",
+  "Daughter",
+  "Son",
+  "Maternal Grandmother",
+  "Maternal Grandfather",
+  "Paternal Grandmother",
+  "Paternal Grandfather",
+  "Aunt",
+  "Uncle",
+  "Cousin",
+  "Other",
+];
+
 const toMultilineText = (value) => extractTextList(value).join("\n");
 
 const buildSymptomReviewPayload = (symptomReview = {}) =>
@@ -106,22 +257,32 @@ const buildSymptomReviewPayload = (symptomReview = {}) =>
 
 const buildScriptRequestPayload = (form = {}, draftScript = null, artifacts = []) => {
   const now = new Date().toISOString();
+  const selectedCaseType = normalizeCaseType(form.admin?.case_type) || "Standardized";
   return {
     reason_for_visit: form.admin?.reson_for_visit || form.patient?.visit_reason || "",
-    simulation_modal: "Standardized Patient",
-    case_setting: form.patient?.context || "",
+    simulation_modal: selectedCaseType,
+    case_type: selectedCaseType,
+    case_setting: form.admin?.case_setting || form.patient?.context || "",
     chief_concern: form.admin?.chief_concern || "",
     diagnosis: form.admin?.diagnosis || "",
+    abbreviated_diagnosis: form.admin?.abbreviated_diagnosis || "",
+    icd10_code: form.admin?.icd10_code || "",
     event: form.admin?.medical_event || "",
     pedagogy: form.admin?.learner_level || "",
     class: form.admin?.case_letter || form.admin?.class || "",
     learner_level: form.admin?.learner_level || "",
     summary_patient_story: form.admin?.summory_of_story || "",
     pert_aspects_patient_case: form.admin?.case_factors || "",
-    physical_chars: form.sp?.physical_chars || "",
+    physical_chars:
+      form.sp?.presentation_behaviors?.body_language || form.sp?.physical_chars || "",
     student_expec: toBulletedText(form.admin?.student_expectations),
+    learning_objectives: toBulletedText(form.admin?.learning_objectives),
     spec_phyis_findings: form.sp?.current_ill_history?.symptom_quality || "",
     patient_demog: form.admin?.patient_demographic || "",
+    vitals_included_on_door_note:
+      form.patient?.vitals_included_on_door_note === false ? false : true,
+    staff_room_setup_instructions: form.admin?.staff_room_setup_instructions || "",
+    content_warning: form.admin?.content_warning || "",
     special_needs: toMultilineText(form.special?.oppurtunity),
     case_factors: form.admin?.case_factors || "",
     additonal_ins: form.special?.feed_back || "",
@@ -142,18 +303,13 @@ const buildScriptRequestPayload = (form = {}, draftScript = null, artifacts = []
 const formatFamilyHistoryEntry = (entry) => {
   if (!entry || typeof entry !== "object") return "";
   const member = String(entry.family_member || "").trim();
+  const ageText = String(entry.age_text || entry.age || "").trim();
   const details = String(entry.details || "").trim();
-  const additional = Array.isArray(entry.additional_details)
-    ? entry.additional_details
-        .map((detail) => {
-          if (typeof detail === "string") return detail;
-          if (!detail || typeof detail !== "object") return "";
-          return detail.text || "";
-        })
-        .map((detail) => String(detail || "").trim())
-        .filter(Boolean)
-    : [];
-  return [member, details, additional.join("; ")].filter(Boolean).join(" - ").trim();
+  return [
+    member,
+    ageText ? `Age: ${ageText}` : "",
+    details,
+  ].filter(Boolean).join(" - ").trim();
 };
 
 const cloneValue = (value) => JSON.parse(JSON.stringify(value));
@@ -194,6 +350,249 @@ const firstDefinedBoolean = (...values) => {
     if (text === "false" || text === "0" || text === "no" || text === "off") return false;
   }
   return false;
+};
+
+const normalizeCaseType = (...values) => {
+  for (const value of values) {
+    const text = String(value || "").trim().toLowerCase();
+    if (!text) continue;
+    if (text.includes("standardized")) return "Standardized";
+    if (text.includes("simulated")) return "Simulated";
+  }
+  return "";
+};
+
+const normalizeCharacterAttributeLevel = (value) => {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  const lowered = text.toLowerCase();
+  if (lowered === "none" || text === "1") return "None";
+  if (lowered === "mild" || text === "2") return "Mild";
+  if (lowered === "moderate" || text === "3") return "Moderate";
+  if (lowered === "concerning" || text === "4") return "Concerning";
+  if (lowered === "severe" || text === "5") return "Severe";
+  return "";
+};
+
+const splitMultilineEntries = (value) => String(value || "")
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter(Boolean);
+
+const normalizeMedicationRowsForForm = (value, rowFactory, options = {}) => {
+  const { ensureAtLeastOne = true } = options;
+  const rawRows = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? splitMultilineEntries(value)
+      : value
+        ? [value]
+        : [];
+  const rows = rawRows
+    .map((entry) => {
+      if (typeof entry === "string") {
+        const text = entry.trim();
+        if (!text) return null;
+        return {
+          ...rowFactory(),
+          brand_name: text,
+        };
+      }
+      if (!entry || typeof entry !== "object") return null;
+      const genericName = String(entry.generic_name || entry.generic || "").trim();
+      const brandName = String(
+        entry.brand_name || entry.brand_substance || entry.brand || entry.name || ""
+      ).trim();
+      const route = String(entry.route || "").trim();
+      const amount = String(entry.amount || "").trim();
+      const unit = String(entry.unit || "").trim();
+      const frequency = String(entry.frequency || "").trim();
+      const reason = String(entry.reason || entry.frequency_reason || "").trim();
+      const dose = String(entry.dose || "").trim();
+      const amountValue = amount || dose;
+      const nextRow = {
+        ...rowFactory(),
+        ...entry,
+        generic_name: genericName,
+        brand_name: brandName,
+        route,
+        amount: amountValue,
+        unit,
+        frequency,
+        reason,
+      };
+      return nextRow;
+    })
+    .filter((entry) => {
+      if (!entry) return false;
+      return [
+        entry.generic_name,
+        entry.brand_name,
+        entry.route,
+        entry.amount,
+        entry.unit,
+        entry.frequency,
+        entry.reason,
+      ].some((field) => hasText(field));
+    });
+  if (rows.length) return rows;
+  return ensureAtLeastOne ? [rowFactory()] : [];
+};
+
+const normalizeAllergyRowsForForm = (value, options = {}) => {
+  const { ensureAtLeastOne = true } = options;
+  const rawRows = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? splitMultilineEntries(value)
+      : value
+        ? [value]
+        : [];
+  const rows = rawRows
+    .map((entry) => {
+      if (typeof entry === "string") {
+        const text = entry.trim();
+        if (!text) return null;
+        return {
+          ...emptyAllergyRow(),
+          allergen: text,
+        };
+      }
+      if (!entry || typeof entry !== "object") return null;
+      const allergen = String(entry.allergen || entry.text || "").trim();
+      const reaction = String(entry.reaction || "").trim();
+      const severity = String(entry.severity || "").trim();
+      const notes = String(entry.notes || "").trim();
+      return {
+        ...emptyAllergyRow(),
+        ...entry,
+        allergen,
+        reaction,
+        severity,
+        notes,
+      };
+    })
+    .filter((entry) =>
+      entry && [entry.allergen, entry.reaction, entry.severity, entry.notes].some((field) => hasText(field))
+    );
+  if (rows.length) return rows;
+  return ensureAtLeastOne ? [emptyAllergyRow()] : [];
+};
+
+const normalizeFamilyHistoryRowsForForm = (value, options = {}) => {
+  const { ensureAtLeastOne = true } = options;
+  const rawRows = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? splitMultilineEntries(value)
+      : value
+        ? [value]
+        : [];
+  const rows = rawRows
+    .map((entry) => {
+      if (typeof entry === "string") {
+        const text = entry.trim();
+        if (!text) return null;
+        return {
+          ...emptyFamilyRow(),
+          details: text,
+        };
+      }
+      if (!entry || typeof entry !== "object") return null;
+      const familyMember = String(entry.family_member || entry.relation || "").trim();
+      const ageText = String(entry.age_text || entry.age || "").trim();
+      const details = String(
+        entry.details
+        || entry.conditions
+        || entry.health_status
+        || entry.notes
+        || entry.additonal_info
+        || ""
+      ).trim();
+      const additionalLegacy = extractTextList(entry.additional_details).join("\n");
+      const combinedDetails = [details, additionalLegacy]
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .join("\n");
+      return {
+        ...emptyFamilyRow(),
+        ...entry,
+        family_member: familyMember,
+        age_text: ageText,
+        details: combinedDetails,
+      };
+    })
+    .filter((entry) =>
+      entry && [entry.family_member, entry.age_text, entry.details].some((field) => hasText(field))
+    );
+  if (rows.length) return rows;
+  return ensureAtLeastOne ? [emptyFamilyRow()] : [];
+};
+
+const toNumberOrEmpty = (value) => {
+  if (value === 0 || value === "0") return 0;
+  if (value === undefined || value === null || value === "") return "";
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : "";
+};
+
+const normalizeObstetricGynecologicForForm = (value, legacyValue = "") => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return {
+      ...emptyObstetricGynecologic(),
+      ...value,
+      menstrual_history: firstNonEmptyString(value.menstrual_history, legacyValue),
+      lmp: String(value.lmp || "").trim(),
+      lmp_details: String(value.lmp_details || "").trim(),
+      pregnancies: toNumberOrEmpty(value.pregnancies),
+      births: toNumberOrEmpty(value.births),
+      pregnancy_births_explanation: String(value.pregnancy_births_explanation || "").trim(),
+    };
+  }
+  const fallbackText = firstNonEmptyString(value, legacyValue);
+  return {
+    ...emptyObstetricGynecologic(),
+    menstrual_history: fallbackText,
+  };
+};
+
+const normalizeSocialHistoryForForm = (value) => {
+  const source = value && typeof value === "object" ? value : {};
+  const sexHistory = source.sex_history && typeof source.sex_history === "object"
+    ? source.sex_history
+    : {};
+  const legacyCombined = String(source.community_and_employment || "").trim();
+  const levelOfEducation = String(source.level_of_education || "").trim();
+  const occupation = String(source.occupation || "").trim();
+  const healthLiteracy = String(source.health_literacy || "").trim();
+  const militaryService = String(source.military_service || "").trim();
+  const currentPartnersRaw = sexHistory.current_partners;
+  const lifetimePartnersRaw = sexHistory.lifetime_partners ?? sexHistory.past_partners;
+  const currentPartners = toNumberOrEmpty(currentPartnersRaw);
+  const lifetimePartners = toNumberOrEmpty(lifetimePartnersRaw);
+  const otherDetails = firstNonEmptyString(
+    sexHistory.other_details,
+    [
+      sexHistory.contraceptives ? `Contraceptives: ${sexHistory.contraceptives}` : "",
+      sexHistory.hiv_risk_history ? `HIV Risk History: ${sexHistory.hiv_risk_history}` : "",
+      sexHistory.safety_in_relations ? `Safety in Relationships: ${sexHistory.safety_in_relations}` : "",
+      ...extractTextList(source.sexual_history_entries),
+    ].filter(Boolean).join("\n")
+  );
+  return {
+    ...source,
+    level_of_education: levelOfEducation,
+    occupation: occupation || (!levelOfEducation && !healthLiteracy && !militaryService ? legacyCombined : ""),
+    health_literacy: healthLiteracy,
+    military_service: militaryService,
+    sex_history: {
+      ...sexHistory,
+      current_partners: currentPartners,
+      past_partners: lifetimePartners,
+      lifetime_partners: lifetimePartners,
+      other_details: otherDetails,
+    },
+  };
 };
 
 const uniqueArtifacts = (artifacts = []) => {
@@ -242,12 +641,24 @@ const buildPrefillFormFromRequest = (initialForm, requestItem) => {
     ),
     chief_concern: firstNonEmptyString(next.admin?.chief_concern, raw.chief_concern),
     diagnosis: firstNonEmptyString(next.admin?.diagnosis, raw.diagnosis),
+    abbreviated_diagnosis: firstNonEmptyString(
+      next.admin?.abbreviated_diagnosis,
+      raw.abbreviated_diagnosis
+    ),
+    icd10_code: firstNonEmptyString(next.admin?.icd10_code, raw.icd10_code),
+    case_setting: firstNonEmptyString(next.admin?.case_setting, raw.case_setting, next.patient?.context),
+    case_type: normalizeCaseType(next.admin?.case_type, raw.case_type, raw.simulation_modal),
     case_letter: firstNonEmptyString(next.admin?.case_letter, next.admin?.class, raw.class),
     class: firstNonEmptyString(next.admin?.class, next.admin?.case_letter, raw.class),
     medical_event: firstNonEmptyString(next.admin?.medical_event, raw.event),
     learner_level: firstNonEmptyString(next.admin?.learner_level, raw.learner_level, raw.pedagogy),
     summory_of_story: firstNonEmptyString(next.admin?.summory_of_story, raw.summary_patient_story),
     patient_demographic: firstNonEmptyString(next.admin?.patient_demographic, raw.patient_demog),
+    staff_room_setup_instructions: firstNonEmptyString(
+      next.admin?.staff_room_setup_instructions,
+      raw.staff_room_setup_instructions
+    ),
+    content_warning: firstNonEmptyString(next.admin?.content_warning, raw.content_warning),
     case_factors: firstNonEmptyString(
       next.admin?.case_factors,
       raw.case_factors,
@@ -260,13 +671,45 @@ const buildPrefillFormFromRequest = (initialForm, requestItem) => {
   next.patient = {
     ...(next.patient || {}),
     name: firstNonEmptyString(next.patient?.name, raw.patient_name, raw.patient_demog),
-    visit_reason: firstNonEmptyString(next.patient?.visit_reason, next.admin.reson_for_visit),
-    context: firstNonEmptyString(next.patient?.context, raw.case_setting),
+    visit_reason: firstNonEmptyString(next.admin?.reson_for_visit, next.patient?.visit_reason),
+    context: firstNonEmptyString(next.patient?.context, raw.case_setting, next.admin?.case_setting),
+    vitals_included_on_door_note: firstDefinedBoolean(
+      raw.vitals_included_on_door_note,
+      next.patient?.vitals_included_on_door_note,
+      true
+    ),
   };
 
   next.sp = {
     ...(next.sp || {}),
     physical_chars: firstNonEmptyString(next.sp?.physical_chars, raw.physical_chars),
+    disclosure_framework: {
+      ...(next.sp?.disclosure_framework || {}),
+    },
+    character_attributes: {
+      ...(next.sp?.character_attributes || {}),
+      anxiety: normalizeCharacterAttributeLevel(next.sp?.character_attributes?.anxiety),
+      suprise: normalizeCharacterAttributeLevel(next.sp?.character_attributes?.suprise),
+      confusion: normalizeCharacterAttributeLevel(next.sp?.character_attributes?.confusion),
+      guilt: normalizeCharacterAttributeLevel(next.sp?.character_attributes?.guilt),
+      sadness: normalizeCharacterAttributeLevel(next.sp?.character_attributes?.sadness),
+      indecision: normalizeCharacterAttributeLevel(next.sp?.character_attributes?.indecision),
+      assertiveness: normalizeCharacterAttributeLevel(next.sp?.character_attributes?.assertiveness),
+      frustration: normalizeCharacterAttributeLevel(next.sp?.character_attributes?.frustration),
+      fear: normalizeCharacterAttributeLevel(next.sp?.character_attributes?.fear),
+      anger: normalizeCharacterAttributeLevel(next.sp?.character_attributes?.anger),
+    },
+    presentation_behaviors: {
+      ...(next.sp?.presentation_behaviors || {}),
+      body_language: firstNonEmptyString(
+        next.sp?.presentation_behaviors?.body_language,
+        next.sp?.physical_chars,
+        raw.physical_chars
+      ),
+    },
+    gender_identity_expression: {
+      ...(next.sp?.gender_identity_expression || {}),
+    },
     other_sp_notes: firstNonEmptyString(next.sp?.other_sp_notes, raw.other_sp_notes),
     sp_feedback_enabled: firstDefinedBoolean(
       next.sp?.sp_feedback_enabled,
@@ -283,6 +726,7 @@ const buildPrefillFormFromRequest = (initialForm, requestItem) => {
         next.sp?.current_ill_history?.symptom_quality,
         raw.spec_phyis_findings
       ),
+      pain_notes: firstNonEmptyString(next.sp?.current_ill_history?.pain_notes, raw.pain_notes),
     },
   };
 
@@ -293,6 +737,10 @@ const buildPrefillFormFromRequest = (initialForm, requestItem) => {
 
   if (!extractTextList(next.admin?.student_expectations).length && extractTextList(raw.student_expec).length) {
     next.admin.student_expectations = extractTextList(raw.student_expec).map((text) => ({ text }));
+  }
+
+  if (!extractTextList(next.admin?.learning_objectives).length && extractTextList(raw.learning_objectives).length) {
+    next.admin.learning_objectives = extractTextList(raw.learning_objectives).map((text) => ({ text }));
   }
 
   if (!extractTextList(next.special?.oppurtunity).length && extractTextList(raw.special_needs).length) {
@@ -308,8 +756,40 @@ const buildPrefillFormFromRequest = (initialForm, requestItem) => {
       prefilledSymptomReview[key] = entries.map((text) => ({ text }));
     }
   });
+  const allergyCandidates = [
+    next.med_hist?.allergies,
+    next.med_hist?.allergies_list,
+    raw.allergies_list,
+    raw.allergies,
+  ];
+  let normalizedAllergies = [];
+  allergyCandidates.some((candidate) => {
+    const rows = normalizeAllergyRowsForForm(candidate, { ensureAtLeastOne: false });
+    if (!rows.length) return false;
+    normalizedAllergies = rows;
+    return true;
+  });
   next.med_hist = {
     ...(next.med_hist || {}),
+    medications: normalizeMedicationRowsForForm(next.med_hist?.medications, emptyPrescriptionRow),
+    non_prescription_medications: normalizeMedicationRowsForForm(
+      next.med_hist?.non_prescription_medications,
+      emptyNonPrescriptionRow
+    ),
+    allergies: normalizedAllergies.length ? normalizedAllergies : [emptyAllergyRow()],
+    family_hist: normalizeFamilyHistoryRowsForForm(next.med_hist?.family_hist),
+    family_general_notes: firstNonEmptyString(
+      next.med_hist?.family_general_notes,
+      raw.family_general_notes
+    ),
+    social_hist: normalizeSocialHistoryForForm(next.med_hist?.social_hist),
+    past_med_his: {
+      ...(next.med_hist?.past_med_his || {}),
+      obstetric_gynecologic: normalizeObstetricGynecologicForForm(
+        next.med_hist?.past_med_his?.obstetric_gynecologic,
+        next.med_hist?.past_med_his?.obe_and_gye
+      ),
+    },
     sympton_review: prefilledSymptomReview,
   };
 
@@ -320,7 +800,47 @@ const buildFormFromScriptFields = (initialForm, scriptFields) => {
   if (!scriptFields || typeof scriptFields !== "object") {
     return cloneValue(initialForm);
   }
-  return mergeDeep(cloneValue(initialForm), scriptFields);
+  const merged = mergeDeep(cloneValue(initialForm), scriptFields);
+  return {
+    ...merged,
+    sp: {
+      ...(merged.sp || {}),
+      character_attributes: {
+        ...(merged.sp?.character_attributes || {}),
+        anxiety: normalizeCharacterAttributeLevel(merged.sp?.character_attributes?.anxiety),
+        suprise: normalizeCharacterAttributeLevel(merged.sp?.character_attributes?.suprise),
+        confusion: normalizeCharacterAttributeLevel(merged.sp?.character_attributes?.confusion),
+        guilt: normalizeCharacterAttributeLevel(merged.sp?.character_attributes?.guilt),
+        sadness: normalizeCharacterAttributeLevel(merged.sp?.character_attributes?.sadness),
+        indecision: normalizeCharacterAttributeLevel(merged.sp?.character_attributes?.indecision),
+        assertiveness: normalizeCharacterAttributeLevel(merged.sp?.character_attributes?.assertiveness),
+        frustration: normalizeCharacterAttributeLevel(merged.sp?.character_attributes?.frustration),
+        fear: normalizeCharacterAttributeLevel(merged.sp?.character_attributes?.fear),
+        anger: normalizeCharacterAttributeLevel(merged.sp?.character_attributes?.anger),
+      },
+    },
+    med_hist: {
+      ...(merged.med_hist || {}),
+      medications: normalizeMedicationRowsForForm(merged.med_hist?.medications, emptyPrescriptionRow),
+      non_prescription_medications: normalizeMedicationRowsForForm(
+        merged.med_hist?.non_prescription_medications,
+        emptyNonPrescriptionRow
+      ),
+      allergies: normalizeAllergyRowsForForm(
+        merged.med_hist?.allergies ?? merged.med_hist?.allergies_list
+      ),
+      family_hist: normalizeFamilyHistoryRowsForForm(merged.med_hist?.family_hist),
+      family_general_notes: firstNonEmptyString(merged.med_hist?.family_general_notes),
+      social_hist: normalizeSocialHistoryForForm(merged.med_hist?.social_hist),
+      past_med_his: {
+        ...(merged.med_hist?.past_med_his || {}),
+        obstetric_gynecologic: normalizeObstetricGynecologicForForm(
+          merged.med_hist?.past_med_his?.obstetric_gynecologic,
+          merged.med_hist?.past_med_his?.obe_and_gye
+        ),
+      },
+    },
+  };
 };
 
 const RequestNew = () => {
@@ -338,6 +858,7 @@ const RequestNew = () => {
   const [isPart1Open, setIsPart1Open] = useState(true);
   const [isPart2Open, setIsPart2Open] = useState(false);
   const [isSpInfoOpen, setIsSpInfoOpen] = useState(false);
+  const [isHpiOpen, setIsHpiOpen] = useState(false);
   const [isMedAllergiesOpen, setIsMedAllergiesOpen] = useState(false);
   const [isPmhOpen, setIsPmhOpen] = useState(false);
   const [isFamilyHistoryOpen, setIsFamilyHistoryOpen] = useState(false);
@@ -351,6 +872,10 @@ const RequestNew = () => {
       reson_for_visit: "",
       chief_concern: "",
       diagnosis: "",
+      abbreviated_diagnosis: "",
+      icd10_code: "",
+      case_setting: "",
+      case_type: "Standardized",
       case_letter: "",
       class: "",
       medical_event: "",
@@ -360,7 +885,10 @@ const RequestNew = () => {
       author: "",
       summory_of_story: "",
       student_expectations: [emptyTextRow()],
+      learning_objectives: [emptyTextRow()],
       patient_demographic: "",
+      staff_room_setup_instructions: "",
+      content_warning: "",
       special_supplies: "",
       case_factors: "",
       physical_examination: "",
@@ -377,6 +905,7 @@ const RequestNew = () => {
         temp: { reading: "", unit: "" },
       },
       visit_reason: "",
+      vitals_included_on_door_note: true,
       context: "",
       task: "",
       encounter_duration: "",
@@ -396,6 +925,38 @@ const RequestNew = () => {
         anger: "",
       },
       physical_chars: "",
+      disclosure_framework: {
+        offered_spontaneously: "",
+        elicited_generally_prompted: "",
+        hidden_until_directly_asked: "",
+        must_relay_accurately: "",
+      },
+      character_attributes: {
+        anxiety: "",
+        suprise: "",
+        confusion: "",
+        guilt: "",
+        sadness: "",
+        indecision: "",
+        assertiveness: "",
+        frustration: "",
+        fear: "",
+        anger: "",
+      },
+      presentation_behaviors: {
+        affect: "",
+        body_language: "",
+        facial_expression: "",
+        eye_contact: "",
+        speech: "",
+        note: "",
+      },
+      gender_identity_expression: {
+        pronouns: "",
+        identifies_as: "",
+        sex_assigned_at_birth: "",
+        gender_presentation: "",
+      },
       other_sp_notes: "",
       sp_feedback_enabled: false,
       custom_feedback_notes: "",
@@ -408,21 +969,22 @@ const RequestNew = () => {
         alleviating_factors: "",
         aggravating_factors: "",
         pain: "",
+        pain_notes: "",
         symptom_diagram: [],
       },
     },
     med_hist: {
       medications: [emptyPrescriptionRow()],
       non_prescription_medications: [emptyNonPrescriptionRow()],
-      allergies: [emptyTextRow()],
+      allergies: [emptyAllergyRow()],
       past_med_his: {
         child_hood_illness: [emptyTextRow()],
+        trauma: [emptyTextRow()],
         illness_and_hospital: [emptyTextRow()],
         surgeries: [emptyTextRow()],
-        obe_and_gye: [emptyTextRow()],
+        obstetric_gynecologic: emptyObstetricGynecologic(),
         transfusion: [emptyTextRow()],
         psychiatric: [emptyTextRow()],
-        trauma: [emptyTextRow()],
       },
       preventative_measure: {
         immunization: [emptyTextRow()],
@@ -431,9 +993,14 @@ const RequestNew = () => {
         screening_tests: [emptyTextRow()],
       },
       family_hist: [emptyFamilyRow()],
+      family_general_notes: "",
       social_hist: {
         personal_background: "",
         nutrion_and_exercise: "",
+        level_of_education: "",
+        occupation: "",
+        health_literacy: "",
+        military_service: "",
         community_and_employment: "",
         safety_measure: "",
         life_stressors: "",
@@ -447,7 +1014,9 @@ const RequestNew = () => {
         sexual_history_entries: [emptyTextRow()],
         sex_history: {
           current_partners: "",
+          lifetime_partners: "",
           past_partners: "",
+          other_details: "",
           contraceptives: "",
           hiv_risk_history: "",
           safety_in_relations: "",
@@ -768,43 +1337,6 @@ const RequestNew = () => {
     ));
     setField(["med_hist", "family_hist"], next);
   };
-  const updateFamilyAdditionalDetail = (memberIndex, detailIndex, value) => {
-    const current = getList(["med_hist", "family_hist"], emptyFamilyRow);
-    const next = current.map((entry, idx) => {
-      if (idx !== memberIndex) return entry;
-      const details = Array.isArray(entry?.additional_details) && entry.additional_details.length
-        ? entry.additional_details
-        : [emptyTextRow()];
-      const updated = details.map((detail, dIdx) => (
-        dIdx === detailIndex ? { ...(detail || {}), text: value } : detail
-      ));
-      return { ...(entry || {}), additional_details: updated };
-    });
-    setField(["med_hist", "family_hist"], next);
-  };
-  const addFamilyAdditionalDetail = (memberIndex) => {
-    const current = getList(["med_hist", "family_hist"], emptyFamilyRow);
-    const next = current.map((entry, idx) => {
-      if (idx !== memberIndex) return entry;
-      const details = Array.isArray(entry?.additional_details) && entry.additional_details.length
-        ? entry.additional_details
-        : [emptyTextRow()];
-      return { ...(entry || {}), additional_details: [...details, emptyTextRow()] };
-    });
-    setField(["med_hist", "family_hist"], next);
-  };
-  const removeFamilyAdditionalDetail = (memberIndex, detailIndex) => {
-    const current = getList(["med_hist", "family_hist"], emptyFamilyRow);
-    const next = current.map((entry, idx) => {
-      if (idx !== memberIndex) return entry;
-      const details = Array.isArray(entry?.additional_details) && entry.additional_details.length
-        ? entry.additional_details
-        : [emptyTextRow()];
-      const filtered = details.filter((_, dIdx) => dIdx !== detailIndex);
-      return { ...(entry || {}), additional_details: filtered.length ? filtered : [emptyTextRow()] };
-    });
-    setField(["med_hist", "family_hist"], next);
-  };
 
   const pathToKey = (path) => (Array.isArray(path) ? path.join(".") : String(path || ""));
   const coerceInlineValue = (value, type) => {
@@ -973,12 +1505,11 @@ const RequestNew = () => {
   const hasDiagramMarker = diagramMarkers.length > 0;
   const pastMedicalGroups = [
     ["child_hood_illness", "Childhood Illnesses"],
+    ["trauma", "Trauma"],
     ["illness_and_hospital", "Medical Illnesses and Hospitalizations"],
     ["surgeries", "Surgeries"],
-    ["obe_and_gye", "Obstetric/Gynecologic"],
     ["transfusion", "Transfusion History"],
     ["psychiatric", "Psychiatric History"],
-    ["trauma", "Trauma"],
   ];
   const preventativeGroups = [
     ["immunization", "Immunizations"],
@@ -1369,7 +1900,7 @@ const RequestNew = () => {
               {isPart1Open ? (
                 <div className="space-y-4">
                   <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Diagnosis</span>
+                    <span className="text-sm text-gray-700">Patient's Reason for the Visit</span>
                     <input className={inputClass} value={getField(["admin", "reson_for_visit"]) || ""} onChange={(e) => setField(["admin", "reson_for_visit"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
@@ -1379,6 +1910,40 @@ const RequestNew = () => {
                   <label className="block space-y-1">
                     <span className="text-sm text-gray-700">Diagnosis</span>
                     <input className={inputClass} value={getField(["admin", "diagnosis"]) || ""} onChange={(e) => setField(["admin", "diagnosis"], e.target.value)} />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-sm text-gray-700">Abbreviated Diagnosis for Script Name</span>
+                    <input className={inputClass} value={getField(["admin", "abbreviated_diagnosis"]) || ""} onChange={(e) => setField(["admin", "abbreviated_diagnosis"], e.target.value)} />
+                    <p className="text-xs text-gray-500">Used when system windows cannot display long names.</p>
+                  </label>
+                  <label className="block space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm text-gray-700">ICD-10 Code</span>
+                      <a
+                        href="https://icd.who.int/browse10/2016/en"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-semibold text-[#981e32] hover:underline"
+                      >
+                        Browse ICD-10
+                      </a>
+                    </div>
+                    <input className={inputClass} value={getField(["admin", "icd10_code"]) || ""} onChange={(e) => setField(["admin", "icd10_code"], e.target.value)} />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-sm text-gray-700">Case Setting</span>
+                    <input className={inputClass} value={getField(["admin", "case_setting"]) || ""} onChange={(e) => setField(["admin", "case_setting"], e.target.value)} />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-sm text-gray-700">Case Type</span>
+                    <select
+                      className={`${inputClass} pr-8`}
+                      value={normalizeCaseType(getField(["admin", "case_type"])) || "Standardized"}
+                      onChange={(e) => setField(["admin", "case_type"], normalizeCaseType(e.target.value))}
+                    >
+                      <option value="Simulated">Simulated</option>
+                      <option value="Standardized">Standardized</option>
+                    </select>
                   </label>
                   <label className="block space-y-1">
                     <span className="text-sm text-gray-700">Case Letter</span>
@@ -1441,9 +2006,47 @@ const RequestNew = () => {
                       </div>
                     ))}
                   </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-700">Learning Objectives</span>
+                      <button
+                        type="button"
+                        onClick={() => addListRow(["admin", "learning_objectives"], emptyTextRow)}
+                        className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
+                      >
+                        + Add bullet
+                      </button>
+                    </div>
+                    {getList(["admin", "learning_objectives"], emptyTextRow).map((entry, idx) => (
+                      <div key={`learning-objective-${idx}`} className="flex items-center gap-2">
+                        <span className="text-gray-600">-</span>
+                        <input
+                          className={inputClass}
+                          placeholder="Learning objective"
+                          value={String(entry?.text || "")}
+                          onChange={(e) => updateListRowText(["admin", "learning_objectives"], idx, e.target.value, emptyTextRow)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeListRow(["admin", "learning_objectives"], idx, emptyTextRow)}
+                          className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                   <label className="block space-y-1">
-                    <span className="text-sm text-gray-700">Patient Demographic</span>
+                    <span className="text-sm text-gray-700">SP Demographics & Recruitment Guidelines</span>
                     <input className={inputClass} value={getField(["admin", "patient_demographic"]) || ""} onChange={(e) => setField(["admin", "patient_demographic"], e.target.value)} />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-sm text-gray-700">Special Instructions for Staff & Room Setup</span>
+                    <textarea rows={2} className={textAreaClass} value={getField(["admin", "staff_room_setup_instructions"]) || ""} onChange={(e) => setField(["admin", "staff_room_setup_instructions"], e.target.value)} />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-sm text-gray-700">Content Warning</span>
+                    <textarea rows={2} className={textAreaClass} value={getField(["admin", "content_warning"]) || ""} onChange={(e) => setField(["admin", "content_warning"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
                     <span className="text-sm text-gray-700">Special Supplies & Props Needed</span>
@@ -1483,15 +2086,27 @@ const RequestNew = () => {
                   </label>
                   <label className="block space-y-1">
                     <span className="text-sm text-gray-700">Diagnosis</span>
-                    <input className={inputClass} value={getField(["patient", "visit_reason"]) || ""} onChange={(e) => setField(["patient", "visit_reason"], e.target.value)} />
+                    <input
+                      className={`${inputClass} bg-gray-100 text-gray-600`}
+                      value={getField(["admin", "diagnosis"]) || ""}
+                      readOnly
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={getField(["patient", "vitals_included_on_door_note"]) !== false}
+                      onChange={(e) => setField(["patient", "vitals_included_on_door_note"], e.target.checked)}
+                    />
+                    <span>Vitals included on door note</span>
                   </label>
                   <label className="block space-y-1">
                     <span className="text-sm text-gray-700">Context</span>
-                    <input className={inputClass} value={getField(["patient", "context"]) || ""} onChange={(e) => setField(["patient", "context"], e.target.value)} />
+                    <textarea rows={3} className={textAreaClass} value={getField(["patient", "context"]) || ""} onChange={(e) => setField(["patient", "context"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
                     <span className="text-sm text-gray-700">Task</span>
-                    <input className={inputClass} value={getField(["patient", "task"]) || ""} onChange={(e) => setField(["patient", "task"], e.target.value)} />
+                    <textarea rows={3} className={textAreaClass} value={getField(["patient", "task"]) || ""} onChange={(e) => setField(["patient", "task"], e.target.value)} />
                   </label>
                   <label className="block space-y-1">
                     <span className="text-sm text-gray-700">Patient Encounter Duration</span>
@@ -1553,17 +2168,82 @@ const RequestNew = () => {
               </button>
               {isSpInfoOpen ? (
                 <div className="space-y-4">
-              <label className="block space-y-1">
-                <span className="text-sm text-gray-700">Opening Statement</span>
-                <textarea rows={2} className={textAreaClass} value={getField(["sp", "opening_statement"]) || ""} onChange={(e) => setField(["sp", "opening_statement"], e.target.value)} />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-sm text-gray-700">Physical Characteristics and Nonverbal Behavior</span>
-                <textarea rows={2} className={textAreaClass} value={getField(["sp", "physical_chars"]) || ""} onChange={(e) => setField(["sp", "physical_chars"], e.target.value)} />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-sm text-gray-700">Other SP Notes</span>
-                <textarea
+	              <label className="block space-y-1">
+	                <span className="text-sm text-gray-700">Opening Statement</span>
+	                <textarea rows={2} className={textAreaClass} value={getField(["sp", "opening_statement"]) || ""} onChange={(e) => setField(["sp", "opening_statement"], e.target.value)} />
+	              </label>
+	              <div className={sectionLabelClass}>Disclosure Framework</div>
+	              {disclosureFrameworkFields.map(([key, label, helperText]) => (
+	                <label key={`disclosure-${key}`} className="block space-y-1">
+	                  <span className="text-sm text-gray-700">{label}</span>
+	                  {helperText ? <span className="block text-xs text-gray-500">{helperText}</span> : null}
+	                  <textarea
+	                    rows={3}
+	                    className={textAreaClass}
+	                    value={getField(["sp", "disclosure_framework", key]) || ""}
+	                    onChange={(e) => setField(["sp", "disclosure_framework", key], e.target.value)}
+	                  />
+	                </label>
+	              ))}
+	              <div className={sectionLabelClass}>Character Attributes</div>
+	              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+	                {characterAttributeFields.map(([key, label]) => (
+	                  <label key={`character-attribute-${key}`} className="block space-y-1">
+	                    <span className="text-sm text-gray-700">{label}</span>
+                      <select
+                        className={`${inputClass} pr-8`}
+                        value={normalizeCharacterAttributeLevel(getField(["sp", "character_attributes", key]))}
+                        onChange={(e) => setField(["sp", "character_attributes", key], normalizeCharacterAttributeLevel(e.target.value))}
+                      >
+                        {characterAttributeLevelOptions.map((option) => (
+                          <option key={`character-attribute-level-${key}-${option.value || "blank"}`} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+	                  </label>
+	                ))}
+	              </div>
+	              <div className={sectionLabelClass}>Presentation & Resulting Behaviors</div>
+	              {presentationBehaviorFields.map(([key, label]) => (
+	                <label key={`presentation-${key}`} className="block space-y-1">
+	                  <span className="text-sm text-gray-700">{label}</span>
+	                  <textarea
+	                    rows={3}
+	                    className={textAreaClass}
+	                    value={getField(["sp", "presentation_behaviors", key]) || ""}
+	                    onChange={(e) => setField(["sp", "presentation_behaviors", key], e.target.value)}
+	                    placeholder={
+	                      key === "note" ? "changes as the case progresses, etc." : ""
+	                    }
+	                  />
+	                </label>
+	              ))}
+	              <div className={sectionLabelClass}>Gender Identity & Expression</div>
+	              <a
+	                href="https://thecenter.wsu.edu/resources/"
+	                target="_blank"
+	                rel="noreferrer"
+	                className="inline-block text-xs font-semibold text-[#981e32] hover:underline"
+	              >
+	                https://thecenter.wsu.edu/resources/
+	              </a>
+	              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+	                {genderIdentityFields.map(([key, label]) => (
+	                  <label key={`gender-identity-${key}`} className="block space-y-1">
+	                    <span className="text-sm text-gray-700">{label}</span>
+	                    <textarea
+	                      rows={2}
+	                      className={textAreaClass}
+	                      value={getField(["sp", "gender_identity_expression", key]) || ""}
+	                      onChange={(e) => setField(["sp", "gender_identity_expression", key], e.target.value)}
+	                    />
+	                  </label>
+	                ))}
+	              </div>
+	              <label className="block space-y-1">
+	                <span className="text-sm text-gray-700">Other SP Notes</span>
+	                <textarea
                   rows={3}
                   className={textAreaClass}
                   value={getField(["sp", "other_sp_notes"]) || ""}
@@ -1590,137 +2270,147 @@ const RequestNew = () => {
                   placeholder="Enter SP feedback guidance for the feedback page..."
                 />
               </label>
-              <div className="space-y-2">
-                <div className="text-sm text-gray-700">Symptom Location Diagram (click to place heart)</div>
-                <div className="inline-block rounded border border-gray-300 bg-white p-2">
-                  <div className="relative inline-block">
-                    <img
-                      ref={diagramImageRef}
-                      src={hpiDiagram}
-                      alt="Human outline symptom diagram"
-                      onClick={placeDiagramHeart}
-                      className="block w-56 h-auto select-none cursor-crosshair"
-                      draggable="false"
-                    />
-                    {diagramMarkers.map((marker, idx) => (
-                      <span
-                        key={`diagram-marker-${idx}`}
-                        className="absolute text-red-600 text-xl leading-none pointer-events-none -translate-x-1/2 -translate-y-1/2"
-                        style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
-                      >
-                        {"\u2665"}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={removeLastDiagramHeart}
-                    className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
-                  >
-                    Undo last
-                  </button>
-                  <button
-                    type="button"
-                    onClick={clearDiagramHeart}
-                    className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
-                  >
-                    Clear all
-                  </button>
-                  <span className="text-xs text-gray-500">
-                    {hasDiagramMarker
-                      ? `${diagramMarkers.length} marker${diagramMarkers.length === 1 ? "" : "s"} set`
-                      : "No markers set"}
-                  </span>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {["anxiety", "suprise", "confusion", "guilt", "sadness", "indecision", "assertiveness", "frustration", "fear", "anger"].map((k) => (
-                  <label key={k} className="block space-y-1">
-                    <span className="text-sm text-gray-700">{k[0].toUpperCase() + k.slice(1)}</span>
-                    <select className={`${inputClass} pr-8`} value={Number(getField(["sp", "attributes", k]) || 1)} onChange={(e) => setNumberField(["sp", "attributes", k], e.target.value)}>
-                      {ratingOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
-              </div>
-              <div className={sectionLabelClass}>History of Present Illness (HPI)</div>
-              {[
-                ["symptom_settings", "Setting in Which Symptom(s) Occur"],
-                ["symptom_timing", "Timing of Symptom(s)"],
-                ["associated_symptoms", "Associated Symptoms"],
-                ["radiation_of_symptoms", "Radiation of Symptom(s)"],
-              ].map(([k, label]) => (
-                <div key={k} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700">{label}</span>
-                    <button
-                      type="button"
-                      onClick={() => addListRow(["sp", "current_ill_history", k], emptyTextRow)}
-                      className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
-                      aria-label="Add row"
-                    >
-                      +
-                    </button>
-                  </div>
-                  {getList(["sp", "current_ill_history", k], emptyTextRow).map((entry, idx) => (
-                    <div key={`${k}-row-${idx}`} className="flex items-center gap-2">
-                      <input
-                        className={`${inputClass} flex-1`}
-                        value={typeof entry === "string" ? entry : entry?.text || ""}
-                        onChange={(e) => updateListRowText(["sp", "current_ill_history", k], idx, e.target.value, emptyTextRow)}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeListRow(["sp", "current_ill_history", k], idx, emptyTextRow)}
-                        className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
-                        aria-label="Remove row"
-                      >
-                        –
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ))}
-              {[
-                ["alleviating_factors", "Alleviating Factors of Symptom(s)"],
-                ["aggravating_factors", "Aggravating Factors of Symptom(s)"],
-              ].map(([k, label]) => (
-                <label key={k} className="block space-y-1">
-                  <span className="text-sm text-gray-700">{label}</span>
-                  <input className={inputClass} value={getField(["sp", "current_ill_history", k]) || ""} onChange={(e) => setField(["sp", "current_ill_history", k], e.target.value)} />
-                </label>
-              ))}
-              <label className="block space-y-1">
-                <span className="text-sm text-gray-700">Quality of Symptom(s)</span>
-                <input
-                  className={inputClass}
-                  value={getField(["sp", "current_ill_history", "symptom_quality"]) || ""}
-                  onChange={(e) => setField(["sp", "current_ill_history", "symptom_quality"], e.target.value)}
-                />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-sm text-gray-700">Pain Severity</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    step="1"
-                    className={`${inputClass} max-w-[120px]`}
-                    value={getField(["sp", "current_ill_history", "pain"]) ?? ""}
-                    onChange={(e) => setNumberField(["sp", "current_ill_history", "pain"], e.target.value)}
-                  />
-                  <span className="text-sm text-gray-700">/10</span>
-                </div>
-              </label>
                 </div>
               ) : null}
             </div>
 
+	            <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+	              <button
+	                type="button"
+	                onClick={() => setIsHpiOpen((prev) => !prev)}
+	                className="flex w-full items-center justify-between text-left"
+	              >
+	                <span className="text-base font-semibold text-gray-900">History of Present Illness (HPI)</span>
+	                <span className="text-base font-semibold text-gray-700">{isHpiOpen ? "(-)" : "(+)"}</span>
+	              </button>
+	              {isHpiOpen ? (
+	                <div className="space-y-4">
+	                  <div className="space-y-2">
+	                    <div className="text-sm text-gray-700">Symptom Location Diagram (click to place heart)</div>
+	                    <div className="inline-block rounded border border-gray-300 bg-white p-2">
+	                      <div className="relative inline-block">
+	                        <img
+	                          ref={diagramImageRef}
+	                          src={hpiDiagram}
+	                          alt="Human outline symptom diagram"
+	                          onClick={placeDiagramHeart}
+	                          className="block w-56 h-auto select-none cursor-crosshair"
+	                          draggable="false"
+	                        />
+	                        {diagramMarkers.map((marker, idx) => (
+	                          <span
+	                            key={`diagram-marker-${idx}`}
+	                            className="absolute text-red-600 text-xl leading-none pointer-events-none -translate-x-1/2 -translate-y-1/2"
+	                            style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
+	                          >
+	                            {"\u2665"}
+	                          </span>
+	                        ))}
+	                      </div>
+	                    </div>
+	                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={removeLastDiagramHeart}
+                        className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
+                      >
+                        Undo last
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearDiagramHeart}
+                        className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
+                      >
+                        Clear all
+                      </button>
+	                      <span className="text-xs text-gray-500">
+	                        {hasDiagramMarker
+	                          ? `${diagramMarkers.length} marker${diagramMarkers.length === 1 ? "" : "s"} set`
+	                          : "No markers set"}
+	                      </span>
+	                    </div>
+	                  </div>
+                  {[
+                    ["symptom_settings", "Setting in Which Symptom(s) Occur"],
+                    ["symptom_timing", "Timing of Symptom(s)"],
+                    ["associated_symptoms", "Associated Symptoms"],
+                    ["radiation_of_symptoms", "Radiation of Symptom(s)"],
+                  ].map(([k, label]) => (
+                    <div key={k} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-700">{label}</span>
+	                        <button
+	                          type="button"
+	                          onClick={() => addListRow(["sp", "current_ill_history", k], emptyTextRow)}
+	                          className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
+                          aria-label="Add row"
+                        >
+	                          +
+	                        </button>
+	                      </div>
+	                      {getList(["sp", "current_ill_history", k], emptyTextRow).map((entry, idx) => (
+	                        <div key={`${k}-row-${idx}`} className="flex items-center gap-2">
+	                          <input
+	                            className={`${inputClass} flex-1`}
+	                            value={typeof entry === "string" ? entry : entry?.text || ""}
+	                            onChange={(e) => updateListRowText(["sp", "current_ill_history", k], idx, e.target.value, emptyTextRow)}
+	                          />
+                          <button
+                            type="button"
+                            onClick={() => removeListRow(["sp", "current_ill_history", k], idx, emptyTextRow)}
+                            className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
+                            aria-label="Remove row"
+                          >
+                            -
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {[
+                    ["alleviating_factors", "Alleviating Factors of Symptom(s)"],
+                    ["aggravating_factors", "Aggravating Factors of Symptom(s)"],
+                  ].map(([k, label]) => (
+                    <label key={k} className="block space-y-1">
+                      <span className="text-sm text-gray-700">{label}</span>
+                      <input className={inputClass} value={getField(["sp", "current_ill_history", k]) || ""} onChange={(e) => setField(["sp", "current_ill_history", k], e.target.value)} />
+                    </label>
+                  ))}
+                  <label className="block space-y-1">
+                    <span className="text-sm text-gray-700">Quality of Symptom(s)</span>
+                    <input
+                      className={inputClass}
+                      value={getField(["sp", "current_ill_history", "symptom_quality"]) || ""}
+                      onChange={(e) => setField(["sp", "current_ill_history", "symptom_quality"], e.target.value)}
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-sm text-gray-700">Pain Severity</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+	                        min="0"
+	                        max="10"
+	                        step="1"
+	                        className={`${inputClass} max-w-[120px]`}
+	                        value={getField(["sp", "current_ill_history", "pain"]) ?? ""}
+	                        onChange={(e) => setNumberField(["sp", "current_ill_history", "pain"], e.target.value)}
+	                      />
+                      <span className="text-sm text-gray-700">/10</span>
+                    </div>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-sm text-gray-700">Pain Notes</span>
+                    <textarea
+                      rows={3}
+                      className={textAreaClass}
+                      value={getField(["sp", "current_ill_history", "pain_notes"]) || ""}
+                      onChange={(e) => setField(["sp", "current_ill_history", "pain_notes"], e.target.value)}
+                    />
+                  </label>
+                </div>
+              ) : null}
+            </div>
             <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
               <button
                 type="button"
@@ -1755,15 +2445,26 @@ const RequestNew = () => {
                         Remove
                       </button>
                     </div>
-                    <label className="block space-y-1">
-                      <span className="text-sm text-gray-700">Brand/Substance</span>
-                      <input
-                        className={inputClass}
-                        placeholder="Acetaminophen"
-                        value={String(entry?.brand_substance || "")}
-                        onChange={(e) => updateListRowField(["med_hist", "medications"], idx, "brand_substance", e.target.value, emptyPrescriptionRow)}
-                      />
-                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className="block space-y-1">
+                        <span className="text-sm text-gray-700">Generic Name</span>
+                        <input
+                          className={inputClass}
+                          placeholder="Acetaminophen"
+                          value={String(entry?.generic_name || entry?.generic || "")}
+                          onChange={(e) => updateListRowField(["med_hist", "medications"], idx, "generic_name", e.target.value, emptyPrescriptionRow)}
+                        />
+                      </label>
+                      <label className="block space-y-1">
+                        <span className="text-sm text-gray-700">Brand Name</span>
+                        <input
+                          className={inputClass}
+                          placeholder="Tylenol"
+                          value={String(entry?.brand_name || entry?.brand_substance || entry?.brand || entry?.name || "")}
+                          onChange={(e) => updateListRowField(["med_hist", "medications"], idx, "brand_name", e.target.value, emptyPrescriptionRow)}
+                        />
+                      </label>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <label className="block space-y-1">
                         <span className="text-sm text-gray-700">Amount</span>
@@ -1794,14 +2495,34 @@ const RequestNew = () => {
                       </label>
                     </div>
                     <label className="block space-y-1">
-                      <span className="text-sm text-gray-700">Frequency + Reason</span>
+                      <span className="text-sm text-gray-700">Route</span>
                       <input
                         className={inputClass}
-                        placeholder="Take one or two tablets as needed for headache"
-                        value={String(entry?.frequency_reason || "")}
-                        onChange={(e) => updateListRowField(["med_hist", "medications"], idx, "frequency_reason", e.target.value, emptyPrescriptionRow)}
+                        placeholder="Oral"
+                        value={String(entry?.route || "")}
+                        onChange={(e) => updateListRowField(["med_hist", "medications"], idx, "route", e.target.value, emptyPrescriptionRow)}
                       />
                     </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className="block space-y-1">
+                        <span className="text-sm text-gray-700">Frequency</span>
+                        <input
+                          className={inputClass}
+                          placeholder="Every 6 hours"
+                          value={String(entry?.frequency || "")}
+                          onChange={(e) => updateListRowField(["med_hist", "medications"], idx, "frequency", e.target.value, emptyPrescriptionRow)}
+                        />
+                      </label>
+                      <label className="block space-y-1">
+                        <span className="text-sm text-gray-700">Reason</span>
+                        <input
+                          className={inputClass}
+                          placeholder="Headache pain"
+                          value={String(entry?.reason || entry?.frequency_reason || "")}
+                          onChange={(e) => updateListRowField(["med_hist", "medications"], idx, "reason", e.target.value, emptyPrescriptionRow)}
+                        />
+                      </label>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1829,15 +2550,26 @@ const RequestNew = () => {
                         Remove
                       </button>
                     </div>
-                    <label className="block space-y-1">
-                      <span className="text-sm text-gray-700">Brand/Substance</span>
-                      <input
-                        className={inputClass}
-                        placeholder="Acetaminophen"
-                        value={String(entry?.brand_substance || "")}
-                        onChange={(e) => updateListRowField(["med_hist", "non_prescription_medications"], idx, "brand_substance", e.target.value, emptyNonPrescriptionRow)}
-                      />
-                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className="block space-y-1">
+                        <span className="text-sm text-gray-700">Generic Name</span>
+                        <input
+                          className={inputClass}
+                          placeholder="Ibuprofen"
+                          value={String(entry?.generic_name || entry?.generic || "")}
+                          onChange={(e) => updateListRowField(["med_hist", "non_prescription_medications"], idx, "generic_name", e.target.value, emptyNonPrescriptionRow)}
+                        />
+                      </label>
+                      <label className="block space-y-1">
+                        <span className="text-sm text-gray-700">Brand Name</span>
+                        <input
+                          className={inputClass}
+                          placeholder="Advil"
+                          value={String(entry?.brand_name || entry?.brand_substance || entry?.brand || entry?.name || "")}
+                          onChange={(e) => updateListRowField(["med_hist", "non_prescription_medications"], idx, "brand_name", e.target.value, emptyNonPrescriptionRow)}
+                        />
+                      </label>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <label className="block space-y-1">
                         <span className="text-sm text-gray-700">Amount</span>
@@ -1868,14 +2600,34 @@ const RequestNew = () => {
                       </label>
                     </div>
                     <label className="block space-y-1">
-                      <span className="text-sm text-gray-700">Frequency + Reason</span>
+                      <span className="text-sm text-gray-700">Route</span>
                       <input
                         className={inputClass}
-                        placeholder="Take one or two tablets as needed for headache"
-                        value={String(entry?.frequency_reason || "")}
-                        onChange={(e) => updateListRowField(["med_hist", "non_prescription_medications"], idx, "frequency_reason", e.target.value, emptyNonPrescriptionRow)}
+                        placeholder="Oral"
+                        value={String(entry?.route || "")}
+                        onChange={(e) => updateListRowField(["med_hist", "non_prescription_medications"], idx, "route", e.target.value, emptyNonPrescriptionRow)}
                       />
                     </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className="block space-y-1">
+                        <span className="text-sm text-gray-700">Frequency</span>
+                        <input
+                          className={inputClass}
+                          placeholder="As needed"
+                          value={String(entry?.frequency || "")}
+                          onChange={(e) => updateListRowField(["med_hist", "non_prescription_medications"], idx, "frequency", e.target.value, emptyNonPrescriptionRow)}
+                        />
+                      </label>
+                      <label className="block space-y-1">
+                        <span className="text-sm text-gray-700">Reason</span>
+                        <input
+                          className={inputClass}
+                          placeholder="Pain relief"
+                          value={String(entry?.reason || entry?.frequency_reason || "")}
+                          onChange={(e) => updateListRowField(["med_hist", "non_prescription_medications"], idx, "reason", e.target.value, emptyNonPrescriptionRow)}
+                        />
+                      </label>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1885,28 +2637,62 @@ const RequestNew = () => {
                   <span className="text-sm text-gray-700">Allergies</span>
                   <button
                     type="button"
-                    onClick={() => addListRow(["med_hist", "allergies"], emptyTextRow)}
+                    onClick={() => addListRow(["med_hist", "allergies"], emptyAllergyRow)}
                     className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
                   >
                     + Allergy
                   </button>
                 </div>
-                {getList(["med_hist", "allergies"], emptyTextRow).map((entry, idx) => (
-                  <div key={`allergy-${idx}`} className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-gray-600">Allergy {idx + 1}</span>
-                    <input
-                      className={inputClass}
-                      placeholder="Penicillin: rash"
-                      value={String(entry?.text || "")}
-                      onChange={(e) => updateListRowText(["med_hist", "allergies"], idx, e.target.value, emptyTextRow)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeListRow(["med_hist", "allergies"], idx, emptyTextRow)}
-                      className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
-                    >
-                      Remove
-                    </button>
+                {getList(["med_hist", "allergies"], emptyAllergyRow).map((entry, idx) => (
+                  <div key={`allergy-${idx}`} className="rounded-lg border border-gray-200 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-gray-600">Allergy {idx + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeListRow(["med_hist", "allergies"], idx, emptyAllergyRow)}
+                        className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className="block space-y-1">
+                        <span className="text-sm text-gray-700">Allergen</span>
+                        <input
+                          className={inputClass}
+                          placeholder="Penicillin"
+                          value={String(entry?.allergen || entry?.text || "")}
+                          onChange={(e) => updateListRowField(["med_hist", "allergies"], idx, "allergen", e.target.value, emptyAllergyRow)}
+                        />
+                      </label>
+                      <label className="block space-y-1">
+                        <span className="text-sm text-gray-700">Reaction</span>
+                        <input
+                          className={inputClass}
+                          placeholder="Rash"
+                          value={String(entry?.reaction || "")}
+                          onChange={(e) => updateListRowField(["med_hist", "allergies"], idx, "reaction", e.target.value, emptyAllergyRow)}
+                        />
+                      </label>
+                      <label className="block space-y-1">
+                        <span className="text-sm text-gray-700">Severity</span>
+                        <input
+                          className={inputClass}
+                          placeholder="Mild, Moderate, Severe"
+                          value={String(entry?.severity || "")}
+                          onChange={(e) => updateListRowField(["med_hist", "allergies"], idx, "severity", e.target.value, emptyAllergyRow)}
+                        />
+                      </label>
+                      <label className="block space-y-1">
+                        <span className="text-sm text-gray-700">Notes</span>
+                        <input
+                          className={inputClass}
+                          placeholder="Additional context"
+                          value={String(entry?.notes || "")}
+                          onChange={(e) => updateListRowField(["med_hist", "allergies"], idx, "notes", e.target.value, emptyAllergyRow)}
+                        />
+                      </label>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1953,42 +2739,68 @@ const RequestNew = () => {
                   </div>
                 ))}
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-700">Medical Illnesses and Hospitalizations</span>
-                  <button
-                    type="button"
-                    onClick={() => addListRow(["med_hist", "past_med_his", "illness_and_hospital"], emptyTextRow)}
-                    className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
-                  >
-                    + Line
-                  </button>
-                </div>
-                {getList(["med_hist", "past_med_his", "illness_and_hospital"], emptyTextRow).map((entry, idx) => (
-                  <div key={`pmh-hospital-${idx}`} className="flex items-center gap-2">
-                    <input
-                      className={inputClass}
-                      value={String(entry?.text || "")}
-                      onChange={(e) => updateListRowText(["med_hist", "past_med_his", "illness_and_hospital"], idx, e.target.value, emptyTextRow)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeListRow(["med_hist", "past_med_his", "illness_and_hospital"], idx, emptyTextRow)}
-                      className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-              {[
-                ["surgeries", "Surgeries"],
-                ["obe_and_gye", "Obstetric/Gynecologic"],
-                ["transfusion", "Transfusion History"],
-                ["psychiatric", "Psychiatric History"],
-                ["trauma", "Trauma"],
-              ].map(([k, label]) => (
-                <div key={k} className="space-y-2">
+	              <div className="space-y-2">
+	                <div className="flex items-center justify-between">
+	                  <span className="text-sm text-gray-700">Trauma</span>
+	                  <button
+	                    type="button"
+	                    onClick={() => addListRow(["med_hist", "past_med_his", "trauma"], emptyTextRow)}
+	                    className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
+	                  >
+	                    + Line
+	                  </button>
+	                </div>
+	                {getList(["med_hist", "past_med_his", "trauma"], emptyTextRow).map((entry, idx) => (
+	                  <div key={`pmh-trauma-${idx}`} className="flex items-center gap-2">
+	                    <input
+	                      className={inputClass}
+	                      value={String(entry?.text || "")}
+	                      onChange={(e) => updateListRowText(["med_hist", "past_med_his", "trauma"], idx, e.target.value, emptyTextRow)}
+	                    />
+	                    <button
+	                      type="button"
+	                      onClick={() => removeListRow(["med_hist", "past_med_his", "trauma"], idx, emptyTextRow)}
+	                      className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
+	                    >
+	                      Remove
+	                    </button>
+	                  </div>
+	                ))}
+	              </div>
+	              <div className="space-y-2">
+	                <div className="flex items-center justify-between">
+	                  <span className="text-sm text-gray-700">Medical Illnesses and Hospitalizations</span>
+	                  <button
+	                    type="button"
+	                    onClick={() => addListRow(["med_hist", "past_med_his", "illness_and_hospital"], emptyTextRow)}
+	                    className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
+	                  >
+	                    + Line
+	                  </button>
+	                </div>
+	                {getList(["med_hist", "past_med_his", "illness_and_hospital"], emptyTextRow).map((entry, idx) => (
+	                  <div key={`pmh-hospital-${idx}`} className="flex items-center gap-2">
+	                    <input
+	                      className={inputClass}
+	                      value={String(entry?.text || "")}
+	                      onChange={(e) => updateListRowText(["med_hist", "past_med_his", "illness_and_hospital"], idx, e.target.value, emptyTextRow)}
+	                    />
+	                    <button
+	                      type="button"
+	                      onClick={() => removeListRow(["med_hist", "past_med_his", "illness_and_hospital"], idx, emptyTextRow)}
+	                      className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
+	                    >
+	                      Remove
+	                    </button>
+	                  </div>
+	                ))}
+	              </div>
+	              {[
+	                ["surgeries", "Surgeries"],
+	                ["transfusion", "Transfusion History"],
+	                ["psychiatric", "Psychiatric History"],
+	              ].map(([k, label]) => (
+	                <div key={k} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-700">{label}</span>
                     <button
@@ -2013,12 +2825,57 @@ const RequestNew = () => {
                       >
                         Remove
                       </button>
-                    </div>
-                  ))}
-                </div>
-              ))}
+	                    </div>
+	                  ))}
+	                </div>
+	              ))}
+	              <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+	                <div className={sectionLabelClass}>Obstetric / Gynecologic</div>
+	                {obstetricGynecologicTextFields.slice(0, 3).map(([key, label]) => (
+	                  <label key={`obgyn-text-${key}`} className="block space-y-1">
+	                    <span className="text-sm text-gray-700">{label}</span>
+	                    <input
+	                      className={inputClass}
+	                      value={String(getField(["med_hist", "past_med_his", "obstetric_gynecologic", key]) || "")}
+	                      onChange={(e) => setField(["med_hist", "past_med_his", "obstetric_gynecologic", key], e.target.value)}
+	                    />
+	                  </label>
+	                ))}
+	                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+	                  <label className="block space-y-1">
+	                    <span className="text-sm text-gray-700">Pregnancies</span>
+	                    <input
+	                      type="number"
+	                      min="0"
+	                      step="1"
+	                      className={inputClass}
+	                      value={getField(["med_hist", "past_med_his", "obstetric_gynecologic", "pregnancies"]) ?? ""}
+	                      onChange={(e) => setNumberField(["med_hist", "past_med_his", "obstetric_gynecologic", "pregnancies"], e.target.value)}
+	                    />
+	                  </label>
+	                  <label className="block space-y-1">
+	                    <span className="text-sm text-gray-700">Births</span>
+	                    <input
+	                      type="number"
+	                      min="0"
+	                      step="1"
+	                      className={inputClass}
+	                      value={getField(["med_hist", "past_med_his", "obstetric_gynecologic", "births"]) ?? ""}
+	                      onChange={(e) => setNumberField(["med_hist", "past_med_his", "obstetric_gynecologic", "births"], e.target.value)}
+	                    />
+	                  </label>
+	                </div>
+	                <label className="block space-y-1">
+	                  <span className="text-sm text-gray-700">{obstetricGynecologicTextFields[3][1]}</span>
+	                  <input
+	                    className={inputClass}
+	                    value={String(getField(["med_hist", "past_med_his", "obstetric_gynecologic", "pregnancy_births_explanation"]) || "")}
+	                    onChange={(e) => setField(["med_hist", "past_med_his", "obstetric_gynecologic", "pregnancy_births_explanation"], e.target.value)}
+	                  />
+	                </label>
+	              </div>
 
-              <div className={sectionLabelClass}>Preventative Medicine</div>
+	              <div className={sectionLabelClass}>Preventative Medicine</div>
               {[
                 ["immunization", "Immunizations"],
                 ["screening_tests", "Screening Tests"],
@@ -2067,9 +2924,9 @@ const RequestNew = () => {
                 <span className="text-base font-semibold text-gray-900">Family Medical History</span>
                 <span className="text-base font-semibold text-gray-700">{isFamilyHistoryOpen ? "(-)" : "(+)"}</span>
               </button>
-              {isFamilyHistoryOpen ? (
-                <div className="space-y-2">
-              <div className="space-y-2">
+	              {isFamilyHistoryOpen ? (
+	                <div className="space-y-2">
+	              <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <button
                     type="button"
@@ -2079,74 +2936,70 @@ const RequestNew = () => {
                     + Family member
                   </button>
                 </div>
-                <div className="text-xs text-gray-500">Family Tree (e.g. health status, age, cause of death for appropriate family members)</div>
-                {getList(["med_hist", "family_hist"], emptyFamilyRow).map((entry, idx) => (
-                  <div key={`family-history-${idx}`} className="rounded-lg border border-gray-200 p-3 space-y-2">
-                    <div className="flex items-center justify-between">
+	                <div className="text-xs text-gray-500">Family Tree (e.g. health status, age, cause of death for appropriate family members)</div>
+	                {getList(["med_hist", "family_hist"], emptyFamilyRow).map((entry, idx) => (
+	                  <div key={`family-history-${idx}`} className="rounded-lg border border-gray-200 p-3 space-y-2">
+	                    <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-gray-600">Member {idx + 1}</span>
                       <button
                         type="button"
                         onClick={() => removeListRow(["med_hist", "family_hist"], idx, emptyFamilyRow)}
                         className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                    <label className="block space-y-1">
-                      <span className="text-sm text-gray-700">Family Member</span>
-                      <input
-                        className={inputClass}
-                        placeholder="Father, Mother, Sister, Brother..."
-                        value={String(entry?.family_member || "")}
-                        onChange={(e) => updateFamilyHistoryRow(idx, "family_member", e.target.value)}
-                      />
-                    </label>
-                    <label className="block space-y-1">
-                      <span className="text-sm text-gray-700">Health Details</span>
-                      <input
-                        className={inputClass}
-                        placeholder="Coronary Artery Disease, Atrial Fibrillation, high blood pressure"
-                        value={String(entry?.details || "")}
-                        onChange={(e) => updateFamilyHistoryRow(idx, "details", e.target.value)}
-                      />
-                    </label>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-700">Additional Details (optional)</span>
-                        <button
-                          type="button"
-                          onClick={() => addFamilyAdditionalDetail(idx)}
-                          className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
-                        >
-                          + Detail
-                        </button>
-                      </div>
-                      {(Array.isArray(entry?.additional_details) && entry.additional_details.length
-                        ? entry.additional_details
-                        : [emptyTextRow()]).map((detail, detailIdx) => (
-                        <div key={`family-detail-${idx}-${detailIdx}`} className="flex items-center gap-2">
-                          <input
-                            className={inputClass}
-                            placeholder="Your dad quit smoking 5 years ago. He had smoked since he was a teen."
-                            value={String(detail?.text || "")}
-                            onChange={(e) => updateFamilyAdditionalDetail(idx, detailIdx, e.target.value)}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeFamilyAdditionalDetail(idx, detailIdx)}
-                            className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:border-red-400 hover:text-red-700"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-                </div>
-              ) : null}
-            </div>
+	                      >
+	                        Remove
+	                      </button>
+	                    </div>
+	                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+	                      <label className="block space-y-1">
+	                        <span className="text-sm text-gray-700">Family Member</span>
+	                        <select
+	                          className={`${inputClass} pr-8`}
+	                          value={String(entry?.family_member || "")}
+	                          onChange={(e) => updateFamilyHistoryRow(idx, "family_member", e.target.value)}
+	                        >
+	                          <option value="">Select family member</option>
+	                          {familyMemberOptions.map((option) => (
+	                            <option key={`family-member-option-${option}`} value={option}>
+	                              {option}
+	                            </option>
+	                          ))}
+	                        </select>
+	                      </label>
+	                      <label className="block space-y-1">
+	                        <span className="text-sm text-gray-700">Age</span>
+	                        <input
+	                          className={inputClass}
+	                          placeholder="e.g., 67, late 50s, unknown"
+	                          value={String(entry?.age_text || entry?.age || "")}
+	                          onChange={(e) => updateFamilyHistoryRow(idx, "age_text", e.target.value)}
+	                        />
+	                      </label>
+	                    </div>
+	                    <label className="block space-y-1">
+	                      <span className="text-sm text-gray-700">Health Details & Additional Details</span>
+	                      <textarea
+	                        rows={4}
+	                        className={textAreaClass}
+	                        placeholder="Conditions, relevant history, outcomes, and any other family context"
+	                        value={String(entry?.details || "")}
+	                        onChange={(e) => updateFamilyHistoryRow(idx, "details", e.target.value)}
+	                      />
+	                    </label>
+	                  </div>
+	                ))}
+	                <label className="block space-y-1">
+	                  <span className="text-sm text-gray-700">General Family Notes</span>
+	                  <textarea
+	                    rows={3}
+	                    className={textAreaClass}
+	                    value={getField(["med_hist", "family_general_notes"]) || ""}
+	                    onChange={(e) => setField(["med_hist", "family_general_notes"], e.target.value)}
+	                  />
+	                </label>
+	              </div>
+	                </div>
+	              ) : null}
+	            </div>
 
             <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
               <button
@@ -2157,20 +3010,32 @@ const RequestNew = () => {
                 <span className="text-base font-semibold text-gray-900">Social History</span>
                 <span className="text-base font-semibold text-gray-700">{isSocialHistoryOpen ? "(-)" : "(+)"}</span>
               </button>
-              {isSocialHistoryOpen ? (
-                <div className="space-y-4">
-              {[
-                ["personal_background", "Personal Background"],
-                ["nutrion_and_exercise", "Nutritional and Excercise History"],
-                ["community_and_employment", "Military, Community, Educational & Employment History"],
-                ["safety_measure", "Safety Measures"],
-                ["life_stressors", "Significant Life Stressors"],
-              ].map(([k, label]) => (
-                <label key={k} className="block space-y-1">
-                  <span className="text-sm text-gray-700">{label}</span>
-                  <textarea rows={3} className={textAreaClass} value={getField(["med_hist", "social_hist", k]) || ""} onChange={(e) => setField(["med_hist", "social_hist", k], e.target.value)} />
-                </label>
-              ))}
+	              {isSocialHistoryOpen ? (
+	                <div className="space-y-4">
+	              {[
+	                ["personal_background", "Personal Background"],
+	                ["nutrion_and_exercise", "Nutritional and Excercise History"],
+	                ["safety_measure", "Safety Measures"],
+	                ["life_stressors", "Significant Life Stressors"],
+	              ].map(([k, label]) => (
+	                <label key={k} className="block space-y-1">
+	                  <span className="text-sm text-gray-700">{label}</span>
+	                  <textarea rows={3} className={textAreaClass} value={getField(["med_hist", "social_hist", k]) || ""} onChange={(e) => setField(["med_hist", "social_hist", k], e.target.value)} />
+	                </label>
+	              ))}
+	              <div className="space-y-3">
+	                <div className="text-sm font-semibold text-gray-700">Military, Community, Education & Employment</div>
+	                {socialHistorySplitFields.map(([key, label]) => (
+	                  <label key={`social-split-${key}`} className="block space-y-1">
+	                    <span className="text-sm text-gray-700">{label}</span>
+	                    <input
+	                      className={inputClass}
+	                      value={getField(["med_hist", "social_hist", key]) || ""}
+	                      onChange={(e) => setField(["med_hist", "social_hist", key], e.target.value)}
+	                    />
+	                  </label>
+	                ))}
+	              </div>
 
               <div className="space-y-3">
                 <div className="text-sm font-semibold text-gray-700">Social Support</div>
@@ -2223,29 +3088,48 @@ const RequestNew = () => {
                 ))}
               </div>
 
-              <div className="space-y-3">
-                <div className="text-sm font-semibold text-gray-700">Sexual History</div>
-                {[
-                  ["current_partners", "Current Sexual Partners"],
-                  ["past_partners", "Lifetime Sexual Partners"],
-                  ["contraceptives", "Contraceptives"],
-                  ["hiv_risk_history", "HIV Risk History"],
-                  ["safety_in_relations", "Safety in Relationships"],
-                ].map(([k, label]) => (
-                  <label key={k} className="block space-y-1">
-                    <span className="text-sm text-gray-700">{label}</span>
-                    <textarea
-                      rows={2}
-                      className={textAreaClass}
-                      value={getField(["med_hist", "social_hist", "sex_history", k]) || ""}
-                      onChange={(e) => setField(["med_hist", "social_hist", "sex_history", k], e.target.value)}
-                    />
-                  </label>
-                ))}
-              </div>
-                </div>
-              ) : null}
-            </div>
+	              <div className="space-y-3">
+	                <div className="text-sm font-semibold text-gray-700">Sexual History</div>
+	                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+	                  <label className="block space-y-1">
+	                    <span className="text-sm text-gray-700">Current sexual partners</span>
+	                    <input
+	                      type="number"
+	                      min="0"
+	                      step="1"
+	                      className={inputClass}
+	                      value={getField(["med_hist", "social_hist", "sex_history", "current_partners"]) ?? ""}
+	                      onChange={(e) => setNumberField(["med_hist", "social_hist", "sex_history", "current_partners"], e.target.value)}
+	                    />
+	                  </label>
+	                  <label className="block space-y-1">
+	                    <span className="text-sm text-gray-700">Lifetime sexual partners</span>
+	                    <input
+	                      type="number"
+	                      min="0"
+	                      step="1"
+	                      className={inputClass}
+	                      value={getField(["med_hist", "social_hist", "sex_history", "lifetime_partners"]) ?? getField(["med_hist", "social_hist", "sex_history", "past_partners"]) ?? ""}
+	                      onChange={(e) => {
+	                        setNumberField(["med_hist", "social_hist", "sex_history", "lifetime_partners"], e.target.value);
+	                        setNumberField(["med_hist", "social_hist", "sex_history", "past_partners"], e.target.value);
+	                      }}
+	                    />
+	                  </label>
+	                </div>
+	                <label className="block space-y-1">
+	                  <span className="text-sm text-gray-700">All other details</span>
+	                  <textarea
+	                    rows={2}
+	                    className={textAreaClass}
+	                    value={getField(["med_hist", "social_hist", "sex_history", "other_details"]) || ""}
+	                    onChange={(e) => setField(["med_hist", "social_hist", "sex_history", "other_details"], e.target.value)}
+	                  />
+	                </label>
+	              </div>
+	                </div>
+	              ) : null}
+	            </div>
 
             <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
               <button
@@ -2464,9 +3348,13 @@ const RequestNew = () => {
               <div className="space-y-2">
 	                <div className="font-semibold text-gray-900">Administrative Details</div>
 	                <ul className="text-sm text-gray-700 space-y-1">
-	                  <li><span className="font-semibold">Diagnosis:</span> {renderInlineValue({ path: ["admin", "reson_for_visit"] })}</li>
+	                  <li><span className="font-semibold">Patient's Reason for the Visit:</span> {renderInlineValue({ path: ["admin", "reson_for_visit"] })}</li>
 	                  <li><span className="font-semibold">Chief Complaint:</span> {renderInlineValue({ path: ["admin", "chief_concern"] })}</li>
 	                  <li><span className="font-semibold">Diagnosis:</span> {renderInlineValue({ path: ["admin", "diagnosis"] })}</li>
+	                  <li><span className="font-semibold">Abbreviated Diagnosis for Script Name:</span> {renderInlineValue({ path: ["admin", "abbreviated_diagnosis"] })}</li>
+	                  <li><span className="font-semibold">ICD-10 Code:</span> {renderInlineValue({ path: ["admin", "icd10_code"] })}</li>
+	                  <li><span className="font-semibold">Case Setting:</span> {renderInlineValue({ path: ["admin", "case_setting"] })}</li>
+	                  <li><span className="font-semibold">Case Type:</span> {renderInlineValue({ path: ["admin", "case_type"] })}</li>
 	                  <li><span className="font-semibold">Case Letter:</span> {renderInlineValue({ path: ["admin", "case_letter"] })}</li>
 	                  <li><span className="font-semibold">Event Format:</span> {renderInlineValue({ path: ["admin", "medical_event"] })}</li>
 	                  <li>
@@ -2506,50 +3394,70 @@ const RequestNew = () => {
                     <p className="text-gray-800">List expectations for learners.</p>
                   )}
                 </div>
+                <div className="text-sm text-gray-700">
+                  <div className="font-semibold">Learning Objectives</div>
+                  {extractTextList(getField(["admin", "learning_objectives"])).length ? (
+                    <ul className="list-disc pl-5 text-gray-800 space-y-1">
+                      {extractTextList(getField(["admin", "learning_objectives"])).map((entry, idx) => (
+                        <li key={`preview-learning-objective-${idx}`}>{entry}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-800">List learning objectives for learners.</p>
+                  )}
+                </div>
               </div>
 
-	              <div className="space-y-2">
-	                <div className="font-semibold text-gray-900">Patient Snapshot</div>
-	                <ul className="text-sm text-gray-700 space-y-1">
-	                  <li><span className="font-semibold">Patient:</span> {renderInlineValue({ path: ["patient", "name"] })}</li>
-	                  <li><span className="font-semibold">Date of Birth:</span> {renderInlineValue({ path: ["patient", "date_of_birth"] })}</li>
-	                  <li><span className="font-semibold">Diagnosis:</span> {renderInlineValue({ path: ["patient", "visit_reason"] })}</li>
-	                  <li><span className="font-semibold">Context:</span> {renderInlineValue({ path: ["patient", "context"] })}</li>
-	                  <li><span className="font-semibold">Task:</span> {renderInlineValue({ path: ["patient", "task"] })}</li>
-	                  <li><span className="font-semibold">Patient Encounter Duration:</span> {renderInlineValue({ path: ["patient", "encounter_duration"] })}</li>
-	                </ul>
-	                <div className="text-sm text-gray-700">
-                  <div className="font-semibold">Vital Signs</div>
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li><span className="font-semibold">Heart Rate:</span> {renderInlineValue({ path: ["patient", "vitals", "heart_rate"], type: "number" })} beats/min</li>
-                    <li><span className="font-semibold">Respirations:</span> {renderInlineValue({ path: ["patient", "vitals", "respirations"], type: "number" })} breaths/min</li>
-                    <li>
-                      <span className="font-semibold">Systolic Pressure:</span>{" "}
-                      {renderInlineValue({ path: ["patient", "vitals", "pressure", "top"], type: "number" })} mmHg
-                    </li>
-                    <li>
-                      <span className="font-semibold">Diastolic Pressure:</span>{" "}
-                      {renderInlineValue({ path: ["patient", "vitals", "pressure", "bottom"], type: "number" })} mmHg
-                    </li>
-                    <li><span className="font-semibold">Blood Oxygen Saturation:</span> {renderInlineValue({ path: ["patient", "vitals", "blood_oxygen"], type: "number" })}%</li>
-                    <li>
-                        {renderInlineValue({ path: ["patient", "vitals", "temp", "reading"], type: "number" })}{" "}
-                        {renderInlineValue({
-                          path: ["patient", "vitals", "temp", "unit"],
-                          type: "select",
-                          displayValue:
-                            String(getField(["patient", "vitals", "temp", "unit"]) || "") === "1"
-                              ? "Fahrenheit"
-                              : "Celsius",
-                          selectOptions: [
-                            { value: "0", label: "Celsius" },
-                            { value: "1", label: "Fahrenheit" },
-                          ],
-                        })}
-                      </li>
-	                  </ul>
-	                </div>
-	              </div>
+		              <div className="space-y-2">
+		                <div className="font-semibold text-gray-900">Patient Snapshot</div>
+			                <ul className="text-sm text-gray-700 space-y-1">
+			                  <li><span className="font-semibold">Patient:</span> {renderInlineValue({ path: ["patient", "name"] })}</li>
+			                  <li><span className="font-semibold">Date of Birth:</span> {renderInlineValue({ path: ["patient", "date_of_birth"] })}</li>
+			                  <li><span className="font-semibold">Diagnosis:</span> {renderInlineValue({ path: ["admin", "diagnosis"] })}</li>
+			                  <li><span className="font-semibold">Context:</span> {renderInlineValue({ path: ["patient", "context"] })}</li>
+			                  <li><span className="font-semibold">Task:</span> {renderInlineValue({ path: ["patient", "task"] })}</li>
+		                  <li><span className="font-semibold">Patient Encounter Duration:</span> {renderInlineValue({ path: ["patient", "encounter_duration"] })}</li>
+		                  <li><span className="font-semibold">Vitals Included on Door Note:</span> {getField(["patient", "vitals_included_on_door_note"]) === false ? "No" : "Yes"}</li>
+		                </ul>
+		                {getField(["patient", "vitals_included_on_door_note"]) === false ? (
+		                  <div className="text-sm text-gray-700">
+	                    <div className="font-semibold">Vital Signs</div>
+	                    <p className="text-gray-800">Not included on door note.</p>
+	                  </div>
+		                ) : (
+		                  <div className="text-sm text-gray-700">
+	                    <div className="font-semibold">Vital Signs</div>
+	                    <ul className="list-disc pl-5 space-y-1">
+	                      <li><span className="font-semibold">Heart Rate:</span> {renderInlineValue({ path: ["patient", "vitals", "heart_rate"], type: "number" })} beats/min</li>
+	                      <li><span className="font-semibold">Respirations:</span> {renderInlineValue({ path: ["patient", "vitals", "respirations"], type: "number" })} breaths/min</li>
+	                      <li>
+	                        <span className="font-semibold">Systolic Pressure:</span>{" "}
+	                        {renderInlineValue({ path: ["patient", "vitals", "pressure", "top"], type: "number" })} mmHg
+	                      </li>
+	                      <li>
+	                        <span className="font-semibold">Diastolic Pressure:</span>{" "}
+	                        {renderInlineValue({ path: ["patient", "vitals", "pressure", "bottom"], type: "number" })} mmHg
+	                      </li>
+	                      <li><span className="font-semibold">Blood Oxygen Saturation:</span> {renderInlineValue({ path: ["patient", "vitals", "blood_oxygen"], type: "number" })}%</li>
+	                      <li>
+	                          {renderInlineValue({ path: ["patient", "vitals", "temp", "reading"], type: "number" })}{" "}
+	                          {renderInlineValue({
+	                            path: ["patient", "vitals", "temp", "unit"],
+	                            type: "select",
+	                            displayValue:
+	                              String(getField(["patient", "vitals", "temp", "unit"]) || "") === "1"
+	                                ? "Fahrenheit"
+	                                : "Celsius",
+	                            selectOptions: [
+	                              { value: "0", label: "Celsius" },
+	                              { value: "1", label: "Fahrenheit" },
+	                            ],
+	                          })}
+	                        </li>
+		                    </ul>
+		                  </div>
+		                )}
+		              </div>
 	            </div>
 
             <div className="grid md:grid-cols-2 gap-6">
@@ -2559,14 +3467,62 @@ const RequestNew = () => {
 		                  <div className="font-semibold">Opening Statement</div>
 		                  <p className="text-gray-800">{renderInlineValue({ path: ["sp", "opening_statement"] })}</p>
 		                </div>
-                <div className="text-sm text-gray-700">
-                  <div className="font-semibold">Physical Characteristics and Nonverbal Behavior</div>
-                  <p className="text-gray-800">{renderInlineValue({ path: ["sp", "physical_chars"] })}</p>
-                </div>
-                <div className="text-sm text-gray-700">
-                  <div className="font-semibold">Other SP Notes</div>
-                  <p className="text-gray-800">{renderInlineValue({ path: ["sp", "other_sp_notes"] })}</p>
-                </div>
+	                <div className="text-sm text-gray-700">
+	                  <div className="font-semibold">Disclosure Framework</div>
+	                  <ul className="list-disc pl-5 text-gray-800 space-y-1">
+	                    {disclosureFrameworkFields.map(([key, label]) => (
+	                      <li key={`preview-disclosure-${key}`}>
+	                        <span className="font-semibold">{label}:</span>{" "}
+	                        {String(getField(["sp", "disclosure_framework", key]) || "").trim() || "-"}
+	                      </li>
+	                    ))}
+	                  </ul>
+	                </div>
+	                <div className="text-sm text-gray-700">
+	                  <div className="font-semibold">Character Attributes</div>
+	                  <ul className="list-disc pl-5 text-gray-800 space-y-1">
+	                    {characterAttributeFields.map(([key, label]) => (
+	                      <li key={`preview-character-attribute-${key}`}>
+	                        <span className="font-semibold">{label}:</span>{" "}
+	                        {String(getField(["sp", "character_attributes", key]) || "").trim() || "-"}
+	                      </li>
+	                    ))}
+	                  </ul>
+	                </div>
+	                <div className="text-sm text-gray-700">
+	                  <div className="font-semibold">Presentation & Resulting Behaviors</div>
+	                  <ul className="list-disc pl-5 text-gray-800 space-y-1">
+	                    {presentationBehaviorFields.map(([key, label]) => (
+	                      <li key={`preview-presentation-${key}`}>
+	                        <span className="font-semibold">{label}:</span>{" "}
+	                        {String(getField(["sp", "presentation_behaviors", key]) || "").trim() || "-"}
+	                      </li>
+	                    ))}
+	                  </ul>
+	                </div>
+	                <div className="text-sm text-gray-700">
+	                  <div className="font-semibold">Gender Identity & Expression</div>
+	                  <a
+	                    href="https://thecenter.wsu.edu/resources/"
+	                    target="_blank"
+	                    rel="noreferrer"
+	                    className="text-xs font-semibold text-[#981e32] hover:underline"
+	                  >
+	                    https://thecenter.wsu.edu/resources/
+	                  </a>
+	                  <ul className="list-disc pl-5 text-gray-800 space-y-1 mt-1">
+	                    {genderIdentityFields.map(([key, label]) => (
+	                      <li key={`preview-gender-identity-${key}`}>
+	                        <span className="font-semibold">{label}:</span>{" "}
+	                        {String(getField(["sp", "gender_identity_expression", key]) || "").trim() || "-"}
+	                      </li>
+	                    ))}
+	                  </ul>
+	                </div>
+	                <div className="text-sm text-gray-700">
+	                  <div className="font-semibold">Other SP Notes</div>
+	                  <p className="text-gray-800">{renderInlineValue({ path: ["sp", "other_sp_notes"] })}</p>
+	                </div>
                 <div className="text-sm text-gray-700">
                   <div className="font-semibold">SP Feedback</div>
                   <p className="text-gray-800">
@@ -2581,18 +3537,7 @@ const RequestNew = () => {
                     </p>
                   </div>
                 ) : null}
-                <div className="text-sm text-gray-700">
-                  <div className="font-semibold">Character Attributes</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {["anxiety", "suprise", "confusion", "guilt", "sadness", "indecision", "assertiveness", "frustration", "fear", "anger"].map((k) => (
-                      <div key={k} className="flex items-center justify-between rounded border px-2 py-1">
-                        <span className="capitalize">{k}</span>
-                        <span className="text-sm font-semibold text-[#981e32]">{Number(getField(["sp", "attributes", k]) || 1)}/5</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+	              </div>
 
 	              <div className="space-y-2">
 	                <div className="font-semibold text-gray-900">History of Present Illness (HPI)</div>
@@ -2605,6 +3550,7 @@ const RequestNew = () => {
 	                  <li><span className="font-semibold">Alleviating Factors of Symptom(s):</span> {renderInlineValue({ path: ["sp", "current_ill_history", "alleviating_factors"] })}</li>
 	                  <li><span className="font-semibold">Aggravating Factors of Symptom(s):</span> {renderInlineValue({ path: ["sp", "current_ill_history", "aggravating_factors"] })}</li>
 	                  <li><span className="font-semibold">Severity (0-10):</span> {renderInlineValue({ path: ["sp", "current_ill_history", "pain"], type: "number", empty: "0" })}</li>
+	                  <li><span className="font-semibold">Pain Notes:</span> {renderInlineValue({ path: ["sp", "current_ill_history", "pain_notes"] })}</li>
 	                </ul>
 	              </div>
 	            </div>
@@ -2644,7 +3590,9 @@ const RequestNew = () => {
                 <ul className="text-sm text-gray-700 space-y-1">
                   <li><span className="font-semibold">Special Supplies & Props Needed:</span> {renderInlineValue({ path: ["admin", "special_supplies"] })}</li>
                   <li><span className="font-semibold">Case Factors (Social Determinants of Health):</span> {renderInlineValue({ path: ["admin", "case_factors"] })}</li>
-                  <li><span className="font-semibold">Patient Demographic:</span> {renderInlineValue({ path: ["admin", "patient_demographic"] })}</li>
+                  <li><span className="font-semibold">SP Demographics & Recruitment Guidelines:</span> {renderInlineValue({ path: ["admin", "patient_demographic"] })}</li>
+                  <li><span className="font-semibold">Special Instructions for Staff & Room Setup:</span> {renderInlineValue({ path: ["admin", "staff_room_setup_instructions"] })}</li>
+                  <li><span className="font-semibold">Content Warning:</span> {renderInlineValue({ path: ["admin", "content_warning"] })}</li>
                 </ul>
               </div>
 	            </div>
@@ -2669,9 +3617,42 @@ const RequestNew = () => {
 		                        )}
 		                      </div>
 		                    );
-	                  })}
-	                </div>
-	              </div>
+		                  })}
+		                  <div>
+		                    <div className="font-semibold text-gray-800">Obstetric / Gynecologic</div>
+		                    <ul className="list-disc pl-5">
+		                      {obstetricGynecologicTextFields.slice(0, 3).map(([key, label]) => (
+		                        <li key={`preview-obgyn-${key}`}>
+		                          <span className="font-semibold">{label}:</span>{" "}
+		                          {renderInlineValue({ path: ["med_hist", "past_med_his", "obstetric_gynecologic", key] })}
+		                        </li>
+		                      ))}
+		                      <li>
+		                        <span className="font-semibold">Pregnancies:</span>{" "}
+		                        {renderInlineValue({
+		                          path: ["med_hist", "past_med_his", "obstetric_gynecologic", "pregnancies"],
+		                          type: "number",
+		                          empty: "-",
+		                        })}
+		                      </li>
+		                      <li>
+		                        <span className="font-semibold">Births:</span>{" "}
+		                        {renderInlineValue({
+		                          path: ["med_hist", "past_med_his", "obstetric_gynecologic", "births"],
+		                          type: "number",
+		                          empty: "-",
+		                        })}
+		                      </li>
+		                      <li>
+		                        <span className="font-semibold">{obstetricGynecologicTextFields[3][1]}:</span>{" "}
+		                        {renderInlineValue({
+		                          path: ["med_hist", "past_med_his", "obstetric_gynecologic", "pregnancy_births_explanation"],
+		                        })}
+		                      </li>
+		                    </ul>
+		                  </div>
+		                </div>
+		              </div>
 		              <div className="space-y-2">
 		                <div className="font-semibold text-gray-900">Preventative Medicine</div>
 		                <div className="space-y-2 text-sm text-gray-700">
@@ -2696,35 +3677,49 @@ const RequestNew = () => {
 	              </div>
 	            </div>
 
-	            <div className="space-y-2">
-	              <div className="font-semibold text-gray-900">Family Medical History</div>
-	              <div className="rounded border bg-gray-50 px-3 py-2 text-sm text-gray-700">
-	                {familyHistoryLines.length ? (
+		            <div className="space-y-2">
+		              <div className="font-semibold text-gray-900">Family Medical History</div>
+		              <div className="rounded border bg-gray-50 px-3 py-2 text-sm text-gray-700">
+		                {familyHistoryLines.length ? (
 	                  <ul className="list-disc pl-5 space-y-1">
 	                    {familyHistoryLines.map((line, idx) => (
 	                      <li key={`preview-family-history-${idx}`}>{line}</li>
 	                    ))}
 	                  </ul>
-	                ) : (
-	                  <div>None</div>
-	                )}
-	              </div>
-	            </div>
+		                ) : (
+		                  <div>None</div>
+		                )}
+		              </div>
+		              <div className="text-sm text-gray-700">
+		                <span className="font-semibold">General Family Notes:</span>{" "}
+		                {renderInlineValue({ path: ["med_hist", "family_general_notes"] })}
+		              </div>
+		            </div>
 
 	            <div className="grid md:grid-cols-2 gap-6">
 		              <div className="space-y-2">
 		                <div className="font-semibold text-gray-900">Social History</div>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  <li><span className="font-semibold">Background:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "personal_background"] })}</li>
-                  <li><span className="font-semibold">Nutrition/Exercise:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "nutrion_and_exercise"] })}</li>
-                  <li><span className="font-semibold">Community/Employment:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "community_and_employment"] })}</li>
-                  <li><span className="font-semibold">Safety Measures:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "safety_measure"] })}</li>
-                  <li><span className="font-semibold">Life Stressors:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "life_stressors"] })}</li>
-                </ul>
-                <div className="text-sm text-gray-700">
-                  <div className="font-semibold">Social Support</div>
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li><span className="font-semibold">Family & Friends:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "social_support", "family_friends"] })}</li>
+	                <ul className="text-sm text-gray-700 space-y-1">
+	                  <li><span className="font-semibold">Background:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "personal_background"] })}</li>
+	                  <li><span className="font-semibold">Nutrition/Exercise:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "nutrion_and_exercise"] })}</li>
+	                  <li><span className="font-semibold">Safety Measures:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "safety_measure"] })}</li>
+	                  <li><span className="font-semibold">Life Stressors:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "life_stressors"] })}</li>
+	                </ul>
+	                <div className="text-sm text-gray-700">
+	                  <div className="font-semibold">Military, Community, Education & Employment</div>
+	                  <ul className="list-disc pl-5 space-y-1">
+	                    {socialHistorySplitFields.map(([key, label]) => (
+	                      <li key={`preview-social-split-${key}`}>
+	                        <span className="font-semibold">{label}:</span>{" "}
+	                        {renderInlineValue({ path: ["med_hist", "social_hist", key] })}
+	                      </li>
+	                    ))}
+	                  </ul>
+	                </div>
+	                <div className="text-sm text-gray-700">
+	                  <div className="font-semibold">Social Support</div>
+	                  <ul className="list-disc pl-5 space-y-1">
+	                    <li><span className="font-semibold">Family & Friends:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "social_support", "family_friends"] })}</li>
                     <li><span className="font-semibold">Financial:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "social_support", "financial"] })}</li>
                     <li><span className="font-semibold">Healthcare Access & Insurance:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "social_support", "healthcare_access_insurance"] })}</li>
                     <li><span className="font-semibold">Religious or Community Groups:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "social_support", "religious_or_community_groups"] })}</li>
@@ -2738,17 +3733,15 @@ const RequestNew = () => {
                       : <li>None</li>}
                   </ul>
                 </div>
-                <div className="text-sm text-gray-700">
-                  <div className="font-semibold">Sexual History</div>
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li><span className="font-semibold">Current Sexual Partners:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "current_partners"] })}</li>
-                    <li><span className="font-semibold">Lifetime Sexual Partners:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "past_partners"] })}</li>
-                    <li><span className="font-semibold">Contraceptives:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "contraceptives"] })}</li>
-                    <li><span className="font-semibold">HIV Risk History:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "hiv_risk_history"] })}</li>
-                    <li><span className="font-semibold">Safety in Relationships:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "safety_in_relations"] })}</li>
-                  </ul>
-                </div>
-              </div>
+	                <div className="text-sm text-gray-700">
+	                  <div className="font-semibold">Sexual History</div>
+	                  <ul className="list-disc pl-5 space-y-1">
+	                    <li><span className="font-semibold">Current sexual partners:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "current_partners"], type: "number", empty: "-" })}</li>
+	                    <li><span className="font-semibold">Lifetime sexual partners:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "lifetime_partners"], type: "number", empty: "-" })}</li>
+	                    <li><span className="font-semibold">All other details:</span> {renderInlineValue({ path: ["med_hist", "social_hist", "sex_history", "other_details"] })}</li>
+	                  </ul>
+	                </div>
+	              </div>
               <div className="space-y-2">
                 <div className="font-semibold text-gray-900">Review of Systems</div>
                 <div className="space-y-2 text-sm text-gray-700">

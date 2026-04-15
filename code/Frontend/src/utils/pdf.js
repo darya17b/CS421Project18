@@ -47,6 +47,7 @@ function buildScriptPdfDoc(item, versionObj) {
 
   const patientName = get(fields, ["patient", "name"], item.title || "Standardized Patient");
   const diagnosis = get(fields, ["admin", "diagnosis"], "Diagnosis TBD");
+  const enteredIcd10Code = String(get(fields, ["admin", "icd10_code"], "") || "").trim();
 
   const setText = (size = 11, weight = "normal", color = COLORS.body, family = "helvetica") => {
     doc.setFont(family, weight);
@@ -265,9 +266,14 @@ function buildScriptPdfDoc(item, versionObj) {
     if (typeof entry === "string") return entry.trim();
     if (!entry || typeof entry !== "object") return "";
     const familyMember = pad(entry.family_member);
+    const ageText = pad(entry.age_text || entry.age);
     const details = pad(entry.details);
-    if (familyMember || details) {
-      return [familyMember || "Family member", details].filter(Boolean).join(" - ").trim();
+    if (familyMember || ageText || details) {
+      return [
+        familyMember || "Family member",
+        ageText ? `Age: ${ageText}` : "",
+        details,
+      ].filter(Boolean).join(" - ").trim();
     }
     const relation = pad(entry.relation);
     const status = pad(entry.status);
@@ -309,6 +315,17 @@ function buildScriptPdfDoc(item, versionObj) {
       ["Anger", "anger"],
     ];
     const levels = ["None", "Mild", "Moderate", "Concerning", "Severe"];
+    const toLevelIndex = (value) => {
+      const text = String(value ?? "").trim();
+      if (!text) return -1;
+      const lowered = text.toLowerCase();
+      if (lowered === "none" || text === "1") return 0;
+      if (lowered === "mild" || text === "2") return 1;
+      if (lowered === "moderate" || text === "3") return 2;
+      if (lowered === "concerning" || text === "4") return 3;
+      if (lowered === "severe" || text === "5") return 4;
+      return -1;
+    };
     const rowH = 20;
     const headerH = rowH;
     const tableLeft = MARGIN.left;
@@ -328,31 +345,33 @@ function buildScriptPdfDoc(item, versionObj) {
     for (let i = 0; i < 5; i++) {
       const x = tableLeft + labelW + i * levelW;
       doc.rect(x, y, levelW, headerH);
-      const lines = doc.splitTextToSize(`${i + 1} ${levels[i]}`, levelW);
-      doc.text(lines, x + levelW, y + 12, { align: "right" });
+      const lines = doc.splitTextToSize(levels[i], levelW - 4);
+      doc.text(lines, x + levelW / 2, y + 12, { align: "center" });
     }
     y += headerH;
 
     attrs.forEach(([label, key]) => {
-      const raw = Number(get(fields, ["sp", "attributes", key], 1));
-      const selected = Math.max(1, Math.min(5, Number.isFinite(raw) ? raw : 1));
+      const selected = toLevelIndex(
+        get(fields, ["sp", "character_attributes", key], get(fields, ["sp", "attributes", key], ""))
+      );
 
       setText(10, "normal", COLORS.body);
       doc.rect(tableLeft, y, labelW, rowH);
-      doc.text(label, tableLeft + labelW, y + 13, { align: "right" });
+      doc.text(label, tableLeft + labelW / 2, y + 13, { align: "center" });
 
-      for (let i = 1; i <= 5; i++) {
-        const x = tableLeft + labelW + (i - 1) * levelW;
-        doc.setFillColor(i === selected ? 249 : 255, i === selected ? 200 : 255, i === selected ? 210 : 255);
-        doc.rect(x, y, levelW, rowH, "FD");
+      for (let i = 0; i < 5; i++) {
+        const x = tableLeft + labelW + i * levelW;
+        doc.rect(x, y, levelW, rowH);
         setText(10, "normal", COLORS.body);
-        doc.text(String(i), x + levelW, y + 13, { align: "right" });
+        if (i === selected) {
+          doc.text("X", x + levelW / 2, y + 13, { align: "center" });
+        }
       }
 
       y += rowH;
     });
 
-    y += 6;
+    y += 20;
   };
 
   const drawSeverity = () => {
@@ -552,7 +571,7 @@ function buildScriptPdfDoc(item, versionObj) {
     const logoW = pageWidth - MARGIN.left - 10;
     const logoH = (536 / 1503) * logoW;
     const titleY = logoY + logoH + 34;
-    const icd10Code = getIcd10Code(diagnosis);
+    const icd10Code = enteredIcd10Code || getIcd10Code(diagnosis);
     const normalizeWhitespace = (text = "") => String(text).trim().replace(/\s+/g, " ");
     const demographicLabel = normalizeWhitespace(get(fields, ["admin", "patient_demographic"], "")) || "Unknown";
     const formatCoverPatientName = (name = "") => {
@@ -646,9 +665,13 @@ function buildScriptPdfDoc(item, versionObj) {
   // Part 1
   defaultFieldValueSize = 12;
   startPart("Part 1 - Administrative Details", partPages);
-  drawField("Patient's Diagnosis", get(fields, ["admin", "reson_for_visit"], ""));
+  drawField("Patient's Reason for the Visit", get(fields, ["admin", "reson_for_visit"], ""));
   drawField("Chief Complaint", get(fields, ["admin", "chief_concern"], ""));
-  drawField("ICD-10 and Diagnosis", get(fields, ["admin", "diagnosis"], ""));
+  drawField("Diagnosis", get(fields, ["admin", "diagnosis"], ""));
+  drawField("Abbreviated Diagnosis for Script Name", get(fields, ["admin", "abbreviated_diagnosis"], ""));
+  drawField("ICD-10 Code", get(fields, ["admin", "icd10_code"], ""));
+  drawField("Case Setting", get(fields, ["admin", "case_setting"], get(fields, ["patient", "context"], "")));
+  drawField("Case Type", get(fields, ["admin", "case_type"], ""));
   drawField("Case Letter", get(fields, ["admin", "case_letter"], get(fields, ["admin", "class"], "")));
   drawField("Event Format", get(fields, ["admin", "medical_event"], get(fields, ["admin", "event_dates"], "")));
   drawField("Learner Level", get(fields, ["admin", "learner_level"], ""));
@@ -658,7 +681,12 @@ function buildScriptPdfDoc(item, versionObj) {
   drawListField("Student Expectations", normalizeTextEntries(get(fields, ["admin", "student_expectations"], "")), {
     bulletPrefix: "-",
   });
-  drawField("Demographics of patient/recruitment guidelines", get(fields, ["admin", "patient_demographic"], ""), { emptyText: "Unknown" });
+  drawListField("Learning Objectives", normalizeTextEntries(get(fields, ["admin", "learning_objectives"], "")), {
+    bulletPrefix: "-",
+  });
+  drawField("SP Demographics & Recruitment Guidelines", get(fields, ["admin", "patient_demographic"], ""), { emptyText: "Unknown" });
+  drawField("Special Instructions for Staff & Room Setup", get(fields, ["admin", "staff_room_setup_instructions"], ""));
+  drawField("Content Warning", get(fields, ["admin", "content_warning"], ""));
   drawField("Special Supplies & Props Needed", get(fields, ["admin", "special_supplies"], ""));
   drawField("Case Factors (Social Determinants of Health)", get(fields, ["admin", "case_factors"], ""));
   drawField("Additional Instructions", get(fields, ["special", "feed_back"], ""));
@@ -679,6 +707,14 @@ function buildScriptPdfDoc(item, versionObj) {
   const spo2 = Number(get(fields, ["patient", "vitals", "blood_oxygen"], 0));
   const tempReading = get(fields, ["patient", "vitals", "temp", "reading"], "");
   const tempUnit = get(fields, ["patient", "vitals", "temp", "unit"], "");
+  const includeDoorNoteVitalsRaw = get(fields, ["patient", "vitals_included_on_door_note"], true);
+  const includeDoorNoteVitals = (() => {
+    if (includeDoorNoteVitalsRaw === false) return false;
+    if (typeof includeDoorNoteVitalsRaw === "number") return includeDoorNoteVitalsRaw !== 0;
+    const lowered = String(includeDoorNoteVitalsRaw || "").trim().toLowerCase();
+    if (!lowered) return true;
+    return !["false", "0", "no", "off"].includes(lowered);
+  })();
 
   const vitalLines = [
     hr > 0 ? `Heart Rate: ${hr} Beats/min` : "",
@@ -688,12 +724,16 @@ function buildScriptPdfDoc(item, versionObj) {
     spo2 > 0 ? `Blood Oxygen Saturation: ${spo2} %` : "",
     formatTemperaturePair(tempReading, tempUnit),
   ].filter(Boolean);
-  drawListField("Vital Signs", vitalLines, {
-    ...learnerLabelStyle,
-    emptyText: "Not provided",
-    bulletPrefix: "-",
-  });
-  drawField("Diagnosis", get(fields, ["patient", "visit_reason"], get(fields, ["admin", "reson_for_visit"], "")), learnerLabelStyle);
+  if (includeDoorNoteVitals) {
+    drawListField("Vital Signs", vitalLines, {
+      ...learnerLabelStyle,
+      emptyText: "Not provided",
+      bulletPrefix: "-",
+    });
+  } else {
+    drawField("Vital Signs", "Not included on door note", learnerLabelStyle);
+  }
+  drawField("Diagnosis", get(fields, ["admin", "diagnosis"], get(fields, ["admin", "reson_for_visit"], get(fields, ["patient", "visit_reason"], ""))), learnerLabelStyle);
   drawField("Context", get(fields, ["patient", "context"], ""), learnerLabelStyle);
   drawField("Task", get(fields, ["patient", "task"], ""), learnerLabelStyle);
   drawField("Patient Encounter Duration", get(fields, ["patient", "encounter_duration"], ""), learnerLabelStyle);
@@ -709,14 +749,37 @@ function buildScriptPdfDoc(item, versionObj) {
     .replace(/\s*\r?\n\s*/g, " ")
     .trim();
   drawField("Opening Statement", openingStatement);
+  drawSectionHeading("Disclosure Framework:");
+  [
+    ["Information offered spontaneously", get(fields, ["sp", "disclosure_framework", "offered_spontaneously"], "")],
+    ["Information elicited when generally prompted", get(fields, ["sp", "disclosure_framework", "elicited_generally_prompted"], "")],
+    ["Information hidden until asked directly", get(fields, ["sp", "disclosure_framework", "hidden_until_directly_asked"], "")],
+    ["Information that MUST be relayed accurately", get(fields, ["sp", "disclosure_framework", "must_relay_accurately"], "")],
+  ].forEach(([label, value]) => drawParagraph(label, value));
   drawSectionHeading("Character Attributes:");
   drawCharacterAttributesTable();
-  ensureSpace(20);
-  y += 20;
-  const nonverbalBehavior = String(get(fields, ["sp", "physical_chars"], ""))
-    .replace(/\s*\r?\n\s*/g, " ")
-    .trim();
-  drawField("Nonverbal behavior and physical characteristics", nonverbalBehavior);
+  drawSectionHeading("Presentation & Resulting Behaviors");
+  drawParagraph("Affect", get(fields, ["sp", "presentation_behaviors", "affect"], ""));
+  drawParagraph(
+    "Body Language",
+    get(fields, ["sp", "presentation_behaviors", "body_language"], get(fields, ["sp", "physical_chars"], ""))
+  );
+  drawParagraph("Facial Expression", get(fields, ["sp", "presentation_behaviors", "facial_expression"], ""));
+  drawParagraph("Eye Contact", get(fields, ["sp", "presentation_behaviors", "eye_contact"], ""));
+  drawParagraph("Speech", get(fields, ["sp", "presentation_behaviors", "speech"], ""));
+  drawParagraph("Note", get(fields, ["sp", "presentation_behaviors", "note"], ""));
+  drawSectionHeading("Gender Identity & Expression:");
+  drawField("Resources", "https://thecenter.wsu.edu/resources/");
+  drawParagraph("Pronouns", get(fields, ["sp", "gender_identity_expression", "pronouns"], ""));
+  drawParagraph("Identifies as", get(fields, ["sp", "gender_identity_expression", "identifies_as"], ""));
+  drawParagraph(
+    "Sex assigned at birth",
+    get(fields, ["sp", "gender_identity_expression", "sex_assigned_at_birth"], "")
+  );
+  drawParagraph(
+    "Gender presentation",
+    get(fields, ["sp", "gender_identity_expression", "gender_presentation"], "")
+  );
   drawParagraph("Other SP Notes", get(fields, ["sp", "other_sp_notes"], ""));
   newBodyPage();
 
@@ -869,8 +932,7 @@ function buildScriptPdfDoc(item, versionObj) {
         return text ? { primary: text, additional: [] } : null;
       }
       const primary = formatFamilyHistoryEntry(entry);
-      const additional = normalizeTextEntries(entry.additional_details || entry.notes || entry.additonal_info || "");
-      return primary || additional.length ? { primary, additional } : null;
+      return primary ? { primary, additional: [] } : null;
     })
     .filter(Boolean);
   drawGroupedListField(
@@ -887,6 +949,14 @@ function buildScriptPdfDoc(item, versionObj) {
       valueSize: 12,
     }
   );
+  drawField("General Family Notes", get(fields, ["med_hist", "family_general_notes"], ""), {
+    labelColor: COLORS.crimsonDark,
+    labelWeight: "normal",
+    labelIndent: VALUE_INDENT,
+    valueIndent: VALUE_INDENT * 2,
+    labelSize: 12,
+    valueSize: 12,
+  });
   newBodyPage();
 
   drawSectionHeading("Social History:");
@@ -910,7 +980,14 @@ function buildScriptPdfDoc(item, versionObj) {
   };
   drawField("Personal Background", get(fields, ["med_hist", "social_hist", "personal_background"], ""), socialNbredFieldStyle);
   drawField("Nutritional and Excercise History", get(fields, ["med_hist", "social_hist", "nutrion_and_exercise"], ""), socialNbredFieldStyle);
-  drawField("Military, Community, Educational & Employment History", get(fields, ["med_hist", "social_hist", "community_and_employment"], ""), socialNbredFieldStyle);
+  drawField("Level of Education", get(fields, ["med_hist", "social_hist", "level_of_education"], ""), socialNbredFieldStyle);
+  drawField(
+    "Occupation",
+    get(fields, ["med_hist", "social_hist", "occupation"], get(fields, ["med_hist", "social_hist", "community_and_employment"], "")),
+    socialNbredFieldStyle
+  );
+  drawField("Health Literacy", get(fields, ["med_hist", "social_hist", "health_literacy"], ""), socialNbredFieldStyle);
+  drawField("Military Service", get(fields, ["med_hist", "social_hist", "military_service"], ""), socialNbredFieldStyle);
   drawField("Safety Measures", get(fields, ["med_hist", "social_hist", "safety_measure"], ""), socialNbredFieldStyle);
   drawField("Significant Life Stressors", get(fields, ["med_hist", "social_hist", "life_stressors"], ""), socialNbredFieldStyle);
   drawSectionHeading("Social Support:");
@@ -937,17 +1014,24 @@ function buildScriptPdfDoc(item, versionObj) {
   drawListField("Substance Abuse", normalizeTextEntries(get(fields, ["med_hist", "social_hist", "substance_use"], "")), socialNbredListStyle);
   const sexHist = get(fields, ["med_hist", "social_hist", "sex_history"], {});
   const explicitSexualHistoryEntries = normalizeTextEntries(get(fields, ["med_hist", "social_hist", "sexual_history_entries"], ""));
+  const currentSexualPartners = pad(sexHist.current_partners);
+  const lifetimeSexualPartners = pad(sexHist.lifetime_partners || sexHist.past_partners);
+  const otherSexualDetails = pad(sexHist.other_details)
+    || explicitSexualHistoryEntries.join("\n")
+    || [
+      pad(sexHist.contraceptives) ? `Contraceptives: ${pad(sexHist.contraceptives)}` : "",
+      pad(sexHist.hiv_risk_history) ? `HIV Risk History: ${pad(sexHist.hiv_risk_history)}` : "",
+      pad(sexHist.safety_in_relations) ? `Safety in Relationships: ${pad(sexHist.safety_in_relations)}` : "",
+    ].filter(Boolean).join("\n");
   const sexualHistoryEntries = explicitSexualHistoryEntries.length
     ? explicitSexualHistoryEntries
     : [
-      pad(sexHist.current_partners) ? `Current Sexual Partners: ${pad(sexHist.current_partners)}` : "",
-      pad(sexHist.lifetime_partners || sexHist.past_partners)
-        ? `Lifetime Sexual Partners: ${pad(sexHist.lifetime_partners || sexHist.past_partners)}`
+      currentSexualPartners ? `Current sexual partners: ${currentSexualPartners}` : "",
+      lifetimeSexualPartners
+        ? `Lifetime sexual partners: ${lifetimeSexualPartners}`
         : "",
-      pad(sexHist.contraceptives) ? `Contraceptives: ${pad(sexHist.contraceptives)}` : "",
-      pad(sexHist.hiv_risk_history) ? `HIV Risk History: ${pad(sexHist.hiv_risk_history)}` : "",
-      pad(sexHist.safety_in_relations)
-        ? `Safety in Relationships: ${pad(sexHist.safety_in_relations)}`
+      otherSexualDetails
+        ? `All other details: ${otherSexualDetails}`
         : "",
     ].filter(Boolean);
   drawListField("Sexual History", sexualHistoryEntries, socialNbredListStyle);
@@ -1468,13 +1552,25 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
     `Blood Oxygen Saturation: ${pad(get(fields, ["patient", "vitals", "blood_oxygen"], "")) || "None"} %`,
     doorTempPair || "None",
   ];
+  const includeDoorNoteVitalsRaw = get(fields, ["patient", "vitals_included_on_door_note"], true);
+  const includeDoorNoteVitals = (() => {
+    if (includeDoorNoteVitalsRaw === false) return false;
+    if (typeof includeDoorNoteVitalsRaw === "number") return includeDoorNoteVitalsRaw !== 0;
+    const lowered = String(includeDoorNoteVitalsRaw || "").trim().toLowerCase();
+    if (!lowered) return true;
+    return !["false", "0", "no", "off"].includes(lowered);
+  })();
 
   drawTitle("Door Note and Learner Instruction");
   drawSection("Instructions to Learners:");
   drawField("Patient Name", get(fields, ["patient", "name"], ""));
   drawField("Date of Birth", get(fields, ["patient", "date_of_birth"], get(fields, ["patient", "dob"], "")));
-  drawListField("Vital Signs", vitalLines);
-  drawField("Diagnosis", get(fields, ["patient", "visit_reason"], get(fields, ["admin", "reson_for_visit"], "")));
+  if (includeDoorNoteVitals) {
+    drawListField("Vital Signs", vitalLines);
+  } else {
+    drawField("Vital Signs", "Not included on door note");
+  }
+  drawField("Diagnosis", get(fields, ["admin", "diagnosis"], get(fields, ["admin", "reson_for_visit"], get(fields, ["patient", "visit_reason"], ""))));
   drawField("Context", get(fields, ["patient", "context"], ""));
   drawField("Task", get(fields, ["patient", "task"], ""));
   drawField("Patient Encounter Duration", get(fields, ["patient", "encounter_duration"], ""));

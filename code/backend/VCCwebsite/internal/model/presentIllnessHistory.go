@@ -15,5 +15,6 @@ type PresentIllnessHistory struct {
 	AlleviatingFactors  string          `json:"alleviating_factors"`
 	AggravatingFactors  string          `json:"aggravating_factors"`
 	Pain                uint8           `json:"pain"`
+	PainNotes           string          `json:"pain_notes,omitempty"`
 	SymptomDiagram      []SymptomMarker `json:"symptom_diagram"`
 }
