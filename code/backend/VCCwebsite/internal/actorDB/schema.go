@@ -24,4 +24,3 @@ func EnsureSchema(ctx context.Context, db *sql.DB, schemaPath string) error {
 	_, err = db.ExecContext(ctx, string(sqlBytes))
 	return err
 }
-
