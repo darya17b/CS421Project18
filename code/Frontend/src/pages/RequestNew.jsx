@@ -340,6 +340,8 @@ const firstNonEmptyString = (...values) => {
   return "";
 };
 
+const hasText = (value) => String(value ?? "").trim().length > 0;
+
 const firstDefinedBoolean = (...values) => {
   for (const value of values) {
     if (value === undefined || value === null || value === "") continue;
