@@ -9,6 +9,10 @@ import (
 	verifier "github.com/okta/okta-jwt-verifier-golang"
 )
 
+// we encountered errors trying to get okat to work so this is left over code
+// I suspect the way the application is set up on the IT side expects a webapp but this is a SPA
+// I tried to communicate that to the IT team but got exhausted and gave up.
+
 // OktaConfig holds the Okta configuration
 type OktaConfig struct {
 	Issuer   string // e.g., "https://dev-123456.okta.com/oauth2/default"
