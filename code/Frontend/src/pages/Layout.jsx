@@ -1,19 +1,31 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
-import { useStore } from "../store";
+import { isOktaConfigured, oktaAuth } from "../oktaConfig";
 
-const shieldIcon = "/images/wsu-icon.svg";
 const lockupImage = "/images/wsu-com-lockup.png";
 const FULL_NAME = "Washington State University Elson S. Floyd College of Medicine";
 
+// handles layout
 const Layout = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const store = useStore();
 
-  const handleLogout = () => {
+  // handles handle logout
+  const handleLogout = async () => {
+    localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("role");
+
+    if (isOktaConfigured && oktaAuth) {
+      try {
+        await oktaAuth.signOut({
+          postLogoutRedirectUri: `${window.location.origin}/login`,
+        });
+        return;
+      } catch {
+      }
+    }
+
     navigate("/login");
   };
 
@@ -29,12 +41,14 @@ const Layout = () => {
         <div className="bg-white border-b border-gray-200">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center">
-              <img
-                src={lockupImage}
-                alt="Washington State University Elson S. Floyd College of Medicine"
-                className="h-16 w-auto object-contain"
-                loading="lazy"
-              />
+              <Link to="/" aria-label="Go to home page" className="inline-flex">
+                <img
+                  src={lockupImage}
+                  alt="Washington State University Elson S. Floyd College of Medicine"
+                  className="h-16 w-auto object-contain cursor-pointer"
+                  loading="lazy"
+                />
+              </Link>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
@@ -44,25 +58,6 @@ const Layout = () => {
               {user ? (
                 <>
                   <button onClick={handleLogout} className="px-3 py-1 rounded-full border border-transparent hover:border-[#981e32]">Logout</button>
-                  <button
-                    onClick={() => {
-                      try { toast.clear(); } catch {}
-                      try { store.clearDrafts(); } catch {}
-                      try { store.clearProposedFlags(); } catch {}
-                    }}
-                    className="px-3 py-1 rounded-full border border-transparent hover:border-[#981e32]"
-                  >
-                    Clear Notices
-                  </button>
-                  <button
-                    onClick={() => {
-                      try { store.resetData(); } catch {}
-                      try { toast.show("Data reset to seed", { type: "success" }); } catch {}
-                    }}
-                    className="px-3 py-1 rounded-full border border-transparent hover:border-[#981e32]"
-                  >
-                    Reset Data
-                  </button>
                 </>
               ) : (
                 <Link to="/login" className="px-3 py-1 rounded-full border border-transparent hover:border-[#981e32]">Login</Link>

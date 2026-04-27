@@ -12,8 +12,10 @@
   "dependencies": {
     "@okta/okta-auth-js": "^7.14.1",
     "@okta/okta-react": "^6.10.0",
+    "date-fns": "^4.1.0",
     "jspdf": "^3.0.3",
     "react": "^19.1.1",
+    "react-day-picker": "^9.14.0",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.4"
   },

@@ -1,3 +1,4 @@
+// handles sp search
 const SpSearch = () => {
   return (
     <section className="w-full p-4 text-center">

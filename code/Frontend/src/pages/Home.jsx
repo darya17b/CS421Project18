@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 
+// handles landing sections
 export const LandingSections = () => {
   const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
   return (
@@ -20,7 +21,7 @@ export const LandingSections = () => {
             <h2>Script Request</h2>
             <p>Fill out a form to create a new script request.</p>
             <p>Requests will be reviewed by Virtual Clinical Center administration.</p>
-            <Link to="/request-new" className="landing-action text-[#981e32]">
+            <Link to="/create-script" className="landing-action text-[#981e32]">
               Submit Script Request &rsaquo;
             </Link>
           </div>
@@ -36,13 +37,21 @@ export const LandingSections = () => {
                 View Script Requests &rsaquo;
               </Link>
             </div>
+            <div className="landing-card">
+              <h2>Create Script</h2>
+              <p>Create a new script directly.</p>
+              <p>Script will automatically be added to the script library.</p>
+              <Link to="/request-new" className="landing-action text-[#981e32]">
+                Create Script &rsaquo;
+              </Link>
+            </div>
             <div className="landing-card landing-card--accent">
               <h2>Actor Database</h2>
               <p>View, search, and manage standardized patient actor records.</p>
               <p>Admins can add and delete actors from the actor profile page.</p>
-              <a href="/actor-database-link.html" className="landing-action text-[#981e32]">
+              <Link to="/actor-database" className="landing-action text-[#981e32]">
                 Open Actor Database &rsaquo;
-              </a>
+              </Link>
             </div>
           </>
         ) : null}
@@ -51,6 +60,7 @@ export const LandingSections = () => {
   );
 };
 
+// handles home
 const Home = () => <LandingSections />;
 
 export default Home;

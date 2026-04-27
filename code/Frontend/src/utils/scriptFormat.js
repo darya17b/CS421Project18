@@ -3,6 +3,16 @@
 
 const hasText = (value) => String(value || "").trim() !== "";
 
+// handles first non empty string
+const firstNonEmptyString = (...values) => {
+  for (const value of values) {
+    const text = String(value ?? "").trim();
+    if (text) return text;
+  }
+  return "";
+};
+
+// handles extract text entries
 const extractTextEntries = (value) => {
   if (Array.isArray(value)) {
     return value
@@ -22,103 +32,114 @@ const extractTextEntries = (value) => {
   return text ? [text] : [];
 };
 
+// handles normalize medication entries
 const normalizeMedicationEntries = (value) => {
-  if (Array.isArray(value)) {
-    return value
-      .map((entry) => {
-        if (typeof entry === "string") return { name: entry };
-        if (entry && typeof entry === "object") {
-          if (hasText(entry.text)) return { name: String(entry.text).trim() };
-          if (hasText(entry.brand_substance) || hasText(entry.amount) || hasText(entry.unit) || hasText(entry.frequency_reason)) {
-            const brand = String(entry.brand_substance || "").trim();
-            const amount = String(entry.amount || "").trim();
-            const unit = String(entry.unit || "").trim();
-            const frequencyReason = String(entry.frequency_reason || "").trim();
-            const amountWithUnit = amount && unit ? `${amount}${unit}` : amount || "";
-            return {
-              name: brand,
-              dose: amountWithUnit,
-              reason: frequencyReason,
-            };
-          }
-          return {
-            name: entry.name || "",
-            brand: entry.brand || "",
-            generic: entry.generic || "",
-            dose: entry.dose || "",
-            frequency: entry.frequency || "",
-            reason: entry.reason || "",
-            startDate: entry.startDate || "",
-            otherNotes: entry.otherNotes || "",
-          };
-        }
-        return null;
-      })
-      .filter((entry) => entry && Object.values(entry).some((field) => hasText(field)));
-  }
-
-  if (value && typeof value === "object") {
-    if (hasText(value.brand_substance) || hasText(value.amount) || hasText(value.unit) || hasText(value.frequency_reason)) {
-      const brand = String(value.brand_substance || "").trim();
-      const amount = String(value.amount || "").trim();
-      const unit = String(value.unit || "").trim();
-      const frequencyReason = String(value.frequency_reason || "").trim();
-      const amountWithUnit = amount && unit ? `${amount}${unit}` : amount || "";
-      const med = {
-        name: brand,
-        dose: amountWithUnit,
-        reason: frequencyReason,
+  // handles to medication
+  const toMedication = (entry) => {
+    if (typeof entry === "string") {
+      const text = String(entry || "").trim();
+      if (!text) return null;
+      return {
+        name: text,
+        brand: text,
+        generic: "",
+        dose: "",
+        route: "",
+        frequency: "",
+        reason: "",
+        startDate: "",
+        otherNotes: "",
       };
-      return Object.values(med).some((field) => hasText(field)) ? [med] : [];
     }
-    const med = {
-      name: value.name || "",
-      brand: value.brand || "",
-      generic: value.generic || "",
-      dose: value.dose || "",
-      frequency: value.frequency || "",
-      reason: value.reason || "",
-      startDate: value.startDate || "",
-      otherNotes: value.otherNotes || "",
+    if (!entry || typeof entry !== "object") return null;
+    if (hasText(entry.text)) {
+      const text = String(entry.text).trim();
+      return {
+        name: text,
+        brand: text,
+        generic: "",
+        dose: "",
+        route: "",
+        frequency: "",
+        reason: "",
+        startDate: "",
+        otherNotes: "",
+      };
+    }
+    const generic = String(entry.generic_name || entry.generic || "").trim();
+    const brand = String(entry.brand_name || entry.brand_substance || entry.brand || "").trim();
+    const name = String(entry.name || "").trim() || generic || brand;
+    const amount = String(entry.amount || "").trim();
+    const unit = String(entry.unit || "").trim();
+    const dose = (amount && unit ? `${amount}${unit}` : amount || String(entry.dose || "").trim());
+    const route = String(entry.route || "").trim();
+    const frequency = String(entry.frequency || "").trim();
+    const reason = String(entry.reason || entry.frequency_reason || "").trim();
+    const startDate = String(entry.startDate || "").trim();
+    const otherNotes = String(entry.otherNotes || "").trim();
+    const medication = {
+      name,
+      brand: brand || name,
+      generic,
+      dose,
+      route,
+      frequency,
+      reason,
+      startDate,
+      otherNotes,
     };
-    return Object.values(med).some((field) => hasText(field)) ? [med] : [];
-  }
+    return Object.values(medication).some((field) => hasText(field)) ? medication : null;
+  };
 
-  const text = String(value || "").trim();
-  return text ? [{ name: text }] : [];
+  const rawEntries = Array.isArray(value)
+    ? value
+    : value && typeof value === "object"
+      ? [value]
+      : String(value || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+  return rawEntries
+    .map((entry) => toMedication(entry))
+    .filter(Boolean);
 };
 
+// handles normalize non prescription entries
 const normalizeNonPrescriptionEntries = (value) => {
+  // handles format medication summary
+  const formatMedicationSummary = (entry) => {
+    const generic = String(entry.generic_name || entry.generic || "").trim();
+    const brand = String(entry.brand_name || entry.brand_substance || entry.brand || entry.name || "").trim();
+    const name = generic && brand ? `${generic} (${brand})` : generic || brand;
+    const amount = String(entry.amount || "").trim();
+    const unit = String(entry.unit || "").trim();
+    const dose = amount && unit ? `${amount}${unit}` : amount || String(entry.dose || "").trim();
+    const route = String(entry.route || "").trim();
+    const frequency = String(entry.frequency || "").trim();
+    const reason = String(entry.reason || entry.frequency_reason || "").trim();
+    const schedule = [frequency ? `frequency: ${frequency}` : "", reason ? `reason: ${reason}` : ""]
+      .filter(Boolean)
+      .join(", ");
+    return [[name, dose].filter(Boolean).join(" "), route ? `route: ${route}` : "", schedule]
+      .filter(Boolean)
+      .join(" - ")
+      .trim();
+  };
+
   if (Array.isArray(value)) {
     return value
       .map((entry) => {
         if (typeof entry === "string") return String(entry || "").trim();
         if (!entry || typeof entry !== "object") return "";
         if (hasText(entry.text)) return String(entry.text).trim();
-        const brand = String(entry.brand_substance || entry.brand || "").trim();
-        const amount = String(entry.amount || "").trim();
-        const unit = String(entry.unit || "").trim();
-        const frequencyReason = String(entry.frequency_reason || entry.reason || "").trim();
-        const amountWithUnit = amount && unit ? `${amount}${unit}` : amount || "";
-        return [[brand, amountWithUnit].filter(Boolean).join(" "), frequencyReason]
-          .filter(Boolean)
-          .join(" - ")
-          .trim();
+        return formatMedicationSummary(entry);
       })
       .filter((entry) => hasText(entry));
   }
 
   if (value && typeof value === "object") {
     if (hasText(value.text)) return [String(value.text).trim()];
-    const brand = String(value.brand_substance || value.brand || "").trim();
-    const amount = String(value.amount || "").trim();
-    const unit = String(value.unit || "").trim();
-    const frequencyReason = String(value.frequency_reason || value.reason || "").trim();
-    const amountWithUnit = amount && unit ? `${amount}${unit}` : amount || "";
-    const merged = [[brand, amountWithUnit].filter(Boolean).join(" "), frequencyReason]
-      .filter(Boolean)
-      .join(" - ")
-      .trim();
+    const merged = formatMedicationSummary(value);
     return hasText(merged) ? [merged] : [];
   }
 
@@ -126,88 +147,151 @@ const normalizeNonPrescriptionEntries = (value) => {
   return text ? [text] : [];
 };
 
+// handles normalize allergy entries
+const normalizeAllergyEntries = (value) => {
+  const rawEntries = Array.isArray(value)
+    ? value
+    : value && typeof value === "object"
+      ? [value]
+      : String(value || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+  return rawEntries
+    .map((entry) => {
+      if (typeof entry === "string") {
+        const text = entry.trim();
+        if (!text) return null;
+        return {
+          allergen: text,
+          reaction: "",
+          severity: "",
+          notes: "",
+        };
+      }
+      if (!entry || typeof entry !== "object") return null;
+      const allergy = {
+        allergen: String(entry.allergen || entry.text || "").trim(),
+        reaction: String(entry.reaction || "").trim(),
+        severity: String(entry.severity || "").trim(),
+        notes: String(entry.notes || "").trim(),
+      };
+      return Object.values(allergy).some((field) => hasText(field)) ? allergy : null;
+    })
+    .filter(Boolean);
+};
+
+// handles build allergy summary
+const buildAllergySummary = (entry) => [
+  String(entry?.allergen || "").trim(),
+  hasText(entry?.reaction) ? `reaction: ${String(entry.reaction).trim()}` : "",
+  hasText(entry?.severity) ? `severity: ${String(entry.severity).trim()}` : "",
+  hasText(entry?.notes) ? `notes: ${String(entry.notes).trim()}` : "",
+]
+  .filter(Boolean)
+  .join(" | ")
+  .trim();
+
+// handles to number or zero
+const toNumberOrZero = (value) => {
+  if (value === 0 || value === "0") return 0;
+  if (value === undefined || value === null || value === "") return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+// handles normalize character attribute level
+const normalizeCharacterAttributeLevel = (value) => {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  const lowered = text.toLowerCase();
+  if (lowered === "none" || text === "1") return "None";
+  if (lowered === "mild" || text === "2") return "Mild";
+  if (lowered === "moderate" || text === "3") return "Moderate";
+  if (lowered === "concerning" || text === "4") return "Concerning";
+  if (lowered === "severe" || text === "5") return "Severe";
+  return "";
+};
+
+// handles normalize family history entries
 const normalizeFamilyHistoryEntries = (value) => {
+  // handles to family entry
+  const toFamilyEntry = (entry) => {
+    if (!entry || typeof entry !== "object") return null;
+    const familyMember = String(entry.family_member || entry.relation || "").trim();
+    const ageText = String(entry.age_text || entry.age || "").trim();
+    const detailsCore = String(
+      entry.details || entry.conditions || entry.health_status || entry.notes || entry.additonal_info || ""
+    ).trim();
+    const additionalDetails = extractTextEntries(entry.additional_details);
+    const details = [detailsCore, ...additionalDetails]
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .join("\n");
+    const numericAge = /^\d+$/.test(ageText) ? Number(ageText) : 0;
+    const normalized = {
+      family_member: familyMember,
+      age_text: ageText,
+      details,
+      relation: familyMember,
+      conditions: details,
+      notes: details,
+      health_status: [familyMember, details].filter(Boolean).join(" - "),
+      additonal_info: details,
+      age: numericAge,
+      cause_of_death: entry.cause_of_death || "",
+    };
+    return Object.values(normalized).some((field) => (typeof field === "number" ? field !== 0 : hasText(field)))
+      ? normalized
+      : null;
+  };
+
   if (Array.isArray(value)) {
     return value
       .map((entry) => {
-        if (!entry || typeof entry !== "object") return null;
-        const familyMember = String(entry.family_member || "").trim();
-        const details = String(entry.details || "").trim();
-        const additionalDetails = extractTextEntries(entry.additional_details);
-        if (familyMember || details || additionalDetails.length) {
-          const primary = [familyMember, details].filter(Boolean).join(" - ");
+        if (typeof entry === "string") {
+          const text = String(entry || "").trim();
+          if (!text) return null;
           return {
-            family_member: familyMember,
-            details,
-            additional_details: additionalDetails,
-            // backward-compatible keys consumed by other views
-            relation: familyMember,
-            conditions: details,
-            notes: additionalDetails.join("\n"),
-            health_status: primary,
-            additonal_info: additionalDetails.join("\n"),
-            age: Number(entry.age || 0),
-            cause_of_death: entry.cause_of_death || "",
+            family_member: "",
+            age_text: "",
+            details: text,
+            relation: "",
+            conditions: text,
+            notes: text,
+            health_status: text,
+            additonal_info: text,
+            age: 0,
+            cause_of_death: "",
           };
         }
-        const relation = entry.relation || "";
-        const status = entry.status || "";
-        const conditions = entry.conditions || "";
-        const notes = entry.notes || entry.additonal_info || "";
-        const causeOfDeath = entry.cause_of_death || "";
-        return {
-          relation,
-          status,
-          conditions,
-          notes,
-          cause_of_death: causeOfDeath,
-          // backward-compatible keys consumed by other views
-          health_status: entry.health_status || [relation, status].filter(Boolean).join(" - "),
-          additonal_info: notes,
-          age: Number(entry.age || 0),
-        };
+        return toFamilyEntry(entry);
       })
-      .filter((entry) => entry && Object.values(entry).some((field) => (typeof field === "number" ? field !== 0 : hasText(field))));
+      .filter(Boolean);
   }
 
   if (value && typeof value === "object") {
-    const familyMember = String(value.family_member || "").trim();
-    const details = String(value.details || "").trim();
-    const additionalDetails = extractTextEntries(value.additional_details);
-    if (familyMember || details || additionalDetails.length) {
-      const primary = [familyMember, details].filter(Boolean).join(" - ");
-      const modern = {
-        family_member: familyMember,
-        details,
-        additional_details: additionalDetails,
-        relation: familyMember,
-        conditions: details,
-        notes: additionalDetails.join("\n"),
-        health_status: primary,
-        additonal_info: additionalDetails.join("\n"),
-        age: Number(value.age || 0),
-        cause_of_death: value.cause_of_death || "",
-      };
-      return Object.values(modern).some((field) => (typeof field === "number" ? field !== 0 : (Array.isArray(field) ? field.length : hasText(field))))
-        ? [modern]
-        : [];
-    }
-    const legacy = {
-      health_status: value.health_status || "",
-      age: Number(value.age || 0),
-      cause_of_death: value.cause_of_death || "",
-      additonal_info: value.additonal_info || "",
-      relation: value.relation || "",
-      status: value.status || "",
-      conditions: value.conditions || "",
-      notes: value.notes || value.additonal_info || "",
-    };
-    return Object.values(legacy).some((field) => (typeof field === "number" ? field !== 0 : hasText(field))) ? [legacy] : [];
+    const one = toFamilyEntry(value);
+    return one ? [one] : [];
   }
 
-  return [];
+  const text = String(value || "").trim();
+  if (!text) return [];
+  return [{
+    family_member: "",
+    age_text: "",
+    details: text,
+    relation: "",
+    conditions: text,
+    notes: text,
+    health_status: text,
+    additonal_info: text,
+    age: 0,
+    cause_of_death: "",
+  }];
 };
 
+// handles normalize diagram markers
 const normalizeDiagramMarkers = (value) => {
   const raw = Array.isArray(value) ? value : [value];
   return raw
@@ -224,6 +308,7 @@ const normalizeDiagramMarkers = (value) => {
     .filter(Boolean);
 };
 
+// handles build script from form
 export function buildScriptFromForm(f = {}) {
   //  temperature unit to numeric
   const unitRaw = f.patient?.vitals?.temp?.unit;
@@ -233,17 +318,124 @@ export function buildScriptFromForm(f = {}) {
 
   const medicationsArr = normalizeMedicationEntries(f.med_hist?.medications);
   const nonPrescriptionMeds = normalizeNonPrescriptionEntries(f.med_hist?.non_prescription_medications);
-  const allergiesList = extractTextEntries(f.med_hist?.allergies);
+  // handles allergy details
+  const allergyDetails = (() => {
+    const direct = normalizeAllergyEntries(f.med_hist?.allergies);
+    if (direct.length) return direct;
+    return normalizeAllergyEntries(f.med_hist?.allergies_list);
+  })();
+  const allergiesList = allergyDetails
+    .map((entry) => buildAllergySummary(entry))
+    .filter((entry) => hasText(entry));
+  const obstetricSource = f.med_hist?.past_med_his?.obstetric_gynecologic || {};
+  const legacyObstetricHistory = extractTextEntries(f.med_hist?.past_med_his?.obe_and_gye).join('\n');
+  const obstetricGynecologic = {
+    menstrual_history: String(obstetricSource.menstrual_history || "").trim(),
+    lmp: String(obstetricSource.lmp || "").trim(),
+    lmp_details: String(obstetricSource.lmp_details || "").trim(),
+    pregnancies: toNumberOrZero(obstetricSource.pregnancies),
+    births: toNumberOrZero(obstetricSource.births),
+    pregnancy_births_explanation: String(obstetricSource.pregnancy_births_explanation || "").trim(),
+  };
+  if (!obstetricGynecologic.menstrual_history && hasText(legacyObstetricHistory)) {
+    obstetricGynecologic.menstrual_history = legacyObstetricHistory;
+  }
+  const obstetricSummaryLines = [
+    obstetricGynecologic.menstrual_history ? `Menstrual History: ${obstetricGynecologic.menstrual_history}` : "",
+    obstetricGynecologic.lmp ? `LMP: ${obstetricGynecologic.lmp}` : "",
+    obstetricGynecologic.lmp_details ? `LMP Details: ${obstetricGynecologic.lmp_details}` : "",
+    (obstetricGynecologic.pregnancies || obstetricGynecologic.pregnancies === 0) ? `Pregnancies: ${obstetricGynecologic.pregnancies}` : "",
+    (obstetricGynecologic.births || obstetricGynecologic.births === 0) ? `Births: ${obstetricGynecologic.births}` : "",
+    obstetricGynecologic.pregnancy_births_explanation
+      ? `If pregnancies \u2260 births, explain: ${obstetricGynecologic.pregnancy_births_explanation}`
+      : "",
+  ].filter(Boolean);
+  const obstetricSummary = obstetricSummaryLines.join('\n');
   const familyArr = normalizeFamilyHistoryEntries(f.med_hist?.family_hist);
   const studentExpectations = extractTextEntries(f.admin?.student_expectations);
-  const substanceUseEntries = extractTextEntries(f.med_hist?.social_hist?.substance_use);
-  const sexualHistoryEntries = extractTextEntries(f.med_hist?.social_hist?.sexual_history_entries);
+  const learningObjectives = extractTextEntries(f.admin?.learning_objectives);
+  const caseTypeRaw = String(f.admin?.case_type || '').trim().toLowerCase();
+  const normalizedCaseType = caseTypeRaw.includes('simulated')
+    ? 'Simulated'
+    : caseTypeRaw.includes('standardized')
+      ? 'Standardized'
+      : '';
+  const rawDoorNoteVitalsToggle = f.patient?.vitals_included_on_door_note;
+  // handles door note vitals included
+  const doorNoteVitalsIncluded = (() => {
+    if (rawDoorNoteVitalsToggle === undefined || rawDoorNoteVitalsToggle === null || rawDoorNoteVitalsToggle === "") {
+      return true;
+    }
+    if (typeof rawDoorNoteVitalsToggle === "boolean") return rawDoorNoteVitalsToggle;
+    if (typeof rawDoorNoteVitalsToggle === "number") return rawDoorNoteVitalsToggle !== 0;
+    const lowered = String(rawDoorNoteVitalsToggle).trim().toLowerCase();
+    if (["false", "0", "no", "off"].includes(lowered)) return false;
+    return true;
+  })();
+  const socialHistory = f.med_hist?.social_hist || {};
+  const substanceUseEntries = extractTextEntries(socialHistory.substance_use);
+  const levelOfEducation = String(socialHistory.level_of_education || "").trim();
+  const communityAndEmploymentLegacy = String(socialHistory.community_and_employment || "").trim();
+  const occupation = String(socialHistory.occupation || "").trim()
+    || (!levelOfEducation && !String(socialHistory.health_literacy || "").trim() && !String(socialHistory.military_service || "").trim()
+      ? communityAndEmploymentLegacy
+      : "");
+  const healthLiteracy = String(socialHistory.health_literacy || "").trim();
+  const militaryService = String(socialHistory.military_service || "").trim();
+  const communityAndEmploymentSummary = communityAndEmploymentLegacy || [
+    levelOfEducation ? `Level of Education: ${levelOfEducation}` : "",
+    occupation ? `Occupation: ${occupation}` : "",
+    healthLiteracy ? `Health Literacy: ${healthLiteracy}` : "",
+    militaryService ? `Military Service: ${militaryService}` : "",
+  ].filter(Boolean).join('\n');
+  const sexualHistoryEntries = extractTextEntries(socialHistory.sexual_history_entries);
+  const sexHistory = socialHistory.sex_history || {};
+  // handles normalize partner count
+  const normalizePartnerCount = (value) => {
+    if (value === 0 || value === "0") return "0";
+    if (value === undefined || value === null || value === "") return "";
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return String(Math.trunc(parsed));
+    return String(value || "").trim();
+  };
+  const currentSexualPartners = normalizePartnerCount(sexHistory.current_partners);
+  const lifetimeSexualPartners = normalizePartnerCount(
+    sexHistory.lifetime_partners || sexHistory.past_partners
+  );
+  const contraceptives = String(sexHistory.contraceptives || "").trim();
+  const hivRiskHistory = String(sexHistory.hiv_risk_history || "").trim();
+  const safetyInRelationships = String(sexHistory.safety_in_relations || "").trim();
+  const legacySexualDetails = [
+    contraceptives ? `Contraceptives: ${contraceptives}` : "",
+    hivRiskHistory ? `HIV Risk History: ${hivRiskHistory}` : "",
+    safetyInRelationships ? `Safety in Relationships: ${safetyInRelationships}` : "",
+  ].filter(Boolean).join('\n');
+  const otherSexualDetails = firstNonEmptyString(
+    sexHistory.other_details,
+    sexualHistoryEntries.join('\n'),
+    legacySexualDetails
+  );
+  const normalizedSexualHistoryEntries = [
+    currentSexualPartners ? `Current Sexual Partners: ${currentSexualPartners}` : "",
+    lifetimeSexualPartners ? `Lifetime Sexual Partners: ${lifetimeSexualPartners}` : "",
+    otherSexualDetails ? `All other details: ${otherSexualDetails}` : "",
+  ].filter(Boolean);
+  // handles to character attribute narrative
+  const toCharacterAttributeNarrative = (key) => {
+    const direct = normalizeCharacterAttributeLevel(f.sp?.character_attributes?.[key]);
+    if (direct) return direct;
+    return normalizeCharacterAttributeLevel(f.sp?.attributes?.[key]);
+  };
 
   return {
     admin: {
       reson_for_visit: f.admin?.reson_for_visit || '',
       chief_concern: f.admin?.chief_concern || '',
       diagnosis: f.admin?.diagnosis || '',
+      abbreviated_diagnosis: f.admin?.abbreviated_diagnosis || '',
+      icd10_code: f.admin?.icd10_code || '',
+      case_setting: f.admin?.case_setting || f.patient?.context || '',
+      case_type: normalizedCaseType,
       case_letter: f.admin?.case_letter || f.admin?.class || 'General',
       class: f.admin?.case_letter || f.admin?.class || 'General',
       medical_event: f.admin?.medical_event || '',
@@ -254,9 +446,14 @@ export function buildScriptFromForm(f = {}) {
       author: f.admin?.case_authors || f.admin?.author || '',
       summory_of_story: f.admin?.summory_of_story || '',
       student_expectations: studentExpectations.length ? studentExpectations.map((entry) => `- ${entry}`).join('\n') : '',
+      learning_objectives: learningObjectives.length ? learningObjectives.map((entry) => `- ${entry}`).join('\n') : '',
       patient_demographic: f.admin?.patient_demographic || '',
+      staff_room_setup_instructions: f.admin?.staff_room_setup_instructions || '',
+      content_warning: f.admin?.content_warning || '',
       special_supplies: f.admin?.special_supplies || '',
       case_factors: f.admin?.case_factors || '',
+      physical_examination: f.admin?.physical_examination || '',
+      final_page_notes: f.admin?.final_page_notes || '',
     },
     patient: {
       name: f.patient?.name || 'Unknown',
@@ -274,8 +471,9 @@ export function buildScriptFromForm(f = {}) {
           unit: tempUnit,
         },
       },
-      visit_reason: f.patient?.visit_reason || f.admin?.reson_for_visit || '',
-      context: f.patient?.context || '',
+      visit_reason: f.admin?.reson_for_visit || f.patient?.visit_reason || '',
+      vitals_included_on_door_note: doorNoteVitalsIncluded,
+      context: f.patient?.context || f.admin?.case_setting || '',
       task: f.patient?.task || '',
       encounter_duration: f.patient?.encounter_duration || '',
     },
@@ -293,33 +491,71 @@ export function buildScriptFromForm(f = {}) {
         fear: Number(f.sp?.attributes?.fear || 1),
         anger: Number(f.sp?.attributes?.anger || 1),
       },
-      physical_chars: f.sp?.physical_chars || '',
+      physical_chars: f.sp?.presentation_behaviors?.body_language || f.sp?.physical_chars || '',
+      disclosure_framework: {
+        offered_spontaneously: f.sp?.disclosure_framework?.offered_spontaneously || '',
+        elicited_generally_prompted: f.sp?.disclosure_framework?.elicited_generally_prompted || '',
+        hidden_until_directly_asked: f.sp?.disclosure_framework?.hidden_until_directly_asked || '',
+        must_relay_accurately: f.sp?.disclosure_framework?.must_relay_accurately || '',
+      },
+      character_attributes: {
+        anxiety: toCharacterAttributeNarrative("anxiety"),
+        suprise: toCharacterAttributeNarrative("suprise"),
+        confusion: toCharacterAttributeNarrative("confusion"),
+        guilt: toCharacterAttributeNarrative("guilt"),
+        sadness: toCharacterAttributeNarrative("sadness"),
+        indecision: toCharacterAttributeNarrative("indecision"),
+        assertiveness: toCharacterAttributeNarrative("assertiveness"),
+        frustration: toCharacterAttributeNarrative("frustration"),
+        fear: toCharacterAttributeNarrative("fear"),
+        anger: toCharacterAttributeNarrative("anger"),
+      },
+      presentation_behaviors: {
+        affect: f.sp?.presentation_behaviors?.affect || '',
+        body_language: f.sp?.presentation_behaviors?.body_language || f.sp?.physical_chars || '',
+        facial_expression: f.sp?.presentation_behaviors?.facial_expression || '',
+        eye_contact: f.sp?.presentation_behaviors?.eye_contact || '',
+        speech: f.sp?.presentation_behaviors?.speech || '',
+        note: f.sp?.presentation_behaviors?.note || '',
+      },
+      gender_identity_expression: {
+        pronouns: f.sp?.gender_identity_expression?.pronouns || '',
+        identifies_as: f.sp?.gender_identity_expression?.identifies_as || '',
+        sex_assigned_at_birth: f.sp?.gender_identity_expression?.sex_assigned_at_birth || '',
+        gender_presentation: f.sp?.gender_identity_expression?.gender_presentation || '',
+      },
+      other_sp_notes: f.sp?.other_sp_notes || '',
+      sp_feedback_enabled: Boolean(f.sp?.sp_feedback_enabled),
+      custom_feedback_notes: f.sp?.custom_feedback_notes || '',
       current_ill_history: {
         body_location: f.sp?.current_ill_history?.body_location || '',
-        symptom_settings: f.sp?.current_ill_history?.symptom_settings || '',
-        symptom_timing: f.sp?.current_ill_history?.symptom_timing || '',
-        associated_symptoms: f.sp?.current_ill_history?.associated_symptoms || '',
-        radiation_of_symptoms: f.sp?.current_ill_history?.radiation_of_symptoms || '',
+        symptom_settings: extractTextEntries(f.sp?.current_ill_history?.symptom_settings).join('\n'),
+        symptom_timing: extractTextEntries(f.sp?.current_ill_history?.symptom_timing).join('\n'),
+        associated_symptoms: extractTextEntries(f.sp?.current_ill_history?.associated_symptoms).join('\n'),
+        radiation_of_symptoms: extractTextEntries(f.sp?.current_ill_history?.radiation_of_symptoms).join('\n'),
         symptom_quality: f.sp?.current_ill_history?.symptom_quality || '',
         alleviating_factors: f.sp?.current_ill_history?.alleviating_factors || '',
         aggravating_factors: f.sp?.current_ill_history?.aggravating_factors || '',
         pain: Number(f.sp?.current_ill_history?.pain || 0),
+        pain_notes: f.sp?.current_ill_history?.pain_notes || '',
         symptom_diagram: normalizeDiagramMarkers(f.sp?.current_ill_history?.symptom_diagram),
       },
     },
     med_hist: {
       medications: medicationsArr,
       non_prescription_medications: nonPrescriptionMeds,
+      allergy_details: allergyDetails,
       allergies_list: allergiesList,
       allergies: allergiesList.join('\n'),
       past_med_his: {
         child_hood_illness: extractTextEntries(f.med_hist?.past_med_his?.child_hood_illness).join('\n'),
+        trauma: extractTextEntries(f.med_hist?.past_med_his?.trauma).join('\n'),
         illness_and_hospital: extractTextEntries(f.med_hist?.past_med_his?.illness_and_hospital).join('\n'),
         surgeries: extractTextEntries(f.med_hist?.past_med_his?.surgeries).join('\n'),
-        obe_and_gye: extractTextEntries(f.med_hist?.past_med_his?.obe_and_gye).join('\n'),
+        obstetric_gynecologic: obstetricGynecologic,
+        obe_and_gye: obstetricSummary || legacyObstetricHistory,
         transfusion: extractTextEntries(f.med_hist?.past_med_his?.transfusion).join('\n'),
         psychiatric: extractTextEntries(f.med_hist?.past_med_his?.psychiatric).join('\n'),
-        trauma: extractTextEntries(f.med_hist?.past_med_his?.trauma).join('\n'),
       },
       preventative_measure: {
         immunization: extractTextEntries(f.med_hist?.preventative_measure?.immunization).join('\n'),
@@ -328,21 +564,36 @@ export function buildScriptFromForm(f = {}) {
         screening_tests: extractTextEntries(f.med_hist?.preventative_measure?.screening_tests).join('\n'),
       },
       family_hist: familyArr,
+      family_general_notes: f.med_hist?.family_general_notes || '',
       social_hist: {
-        personal_background: f.med_hist?.social_hist?.personal_background || '',
-        nutrion_and_exercise: f.med_hist?.social_hist?.nutrion_and_exercise || '',
-        community_and_employment: f.med_hist?.social_hist?.community_and_employment || '',
-        safety_measure: f.med_hist?.social_hist?.safety_measure || '',
-        life_stressors: f.med_hist?.social_hist?.life_stressors || '',
+        personal_background: socialHistory.personal_background || '',
+        nutrion_and_exercise: socialHistory.nutrion_and_exercise || '',
+        level_of_education: levelOfEducation,
+        occupation,
+        health_literacy: healthLiteracy,
+        military_service: militaryService,
+        community_and_employment: communityAndEmploymentSummary,
+        safety_measure: socialHistory.safety_measure || '',
+        life_stressors: socialHistory.life_stressors || '',
+        social_support: {
+          family_friends: socialHistory.social_support?.family_friends || '',
+          financial: socialHistory.social_support?.financial || '',
+          healthcare_access_insurance:
+            socialHistory.social_support?.healthcare_access_insurance || '',
+          religious_or_community_groups:
+            socialHistory.social_support?.religious_or_community_groups || '',
+        },
         substance_use: substanceUseEntries.join('\n'),
         sex_history: {
-          current_partners: Number(f.med_hist?.social_hist?.sex_history?.current_partners || 0),
-          past_partners: Number(f.med_hist?.social_hist?.sex_history?.past_partners || 0),
-          contraceptives: f.med_hist?.social_hist?.sex_history?.contraceptives || '',
-          hiv_risk_history: f.med_hist?.social_hist?.sex_history?.hiv_risk_history || '',
-          safety_in_relations: f.med_hist?.social_hist?.sex_history?.safety_in_relations || sexualHistoryEntries.join('\n') || '',
+          current_partners: currentSexualPartners,
+          past_partners: lifetimeSexualPartners,
+          lifetime_partners: lifetimeSexualPartners,
+          other_details: otherSexualDetails,
+          contraceptives,
+          hiv_risk_history: hivRiskHistory,
+          safety_in_relations: safetyInRelationships,
         },
-        sexual_history_entries: sexualHistoryEntries,
+        sexual_history_entries: normalizedSexualHistoryEntries,
       },
       sympton_review: {
         general: extractTextEntries(f.med_hist?.sympton_review?.general).join('\n'),
@@ -371,6 +622,7 @@ export function buildScriptFromForm(f = {}) {
   };
 }
 
+// handles download script json
 export function downloadScriptJson(script, filename = 'script.json') {
   const blob = new Blob([JSON.stringify(script, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

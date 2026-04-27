@@ -2,10 +2,12 @@ import { createContext, useContext, useMemo, useState } from "react";
 
 const ToastContext = createContext(null);
 
+// handles toast provider
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
 
   const api = useMemo(() => ({
+    // handles show
     show: (message, opts = {}) => {
       const id = Math.random().toString(36).slice(2);
       const toast = { id, message, type: opts.type || "info" };
@@ -18,7 +20,9 @@ export const ToastProvider = ({ children }) => {
       }
       return id;
     },
+    // handles hide
     hide: (id) => setToasts((t) => t.filter((x) => x.id !== id)),
+    // handles clear
     clear: () => setToasts([]),
   }), []);
 
@@ -43,6 +47,7 @@ export const ToastProvider = ({ children }) => {
   );
 };
 
+// handles use toast
 export const useToast = () => {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error("useToast must be used within ToastProvider");

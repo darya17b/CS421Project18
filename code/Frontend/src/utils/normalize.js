@@ -17,6 +17,7 @@ const emptyFamilyHistory = {
   additonal_info: '',
 };
 
+// handles normalize single entry
 function normalizeSingleEntry(value, fallbackShape) {
   if (Array.isArray(value)) {
     const [first] = value;
@@ -29,6 +30,7 @@ function normalizeSingleEntry(value, fallbackShape) {
 }
 
 
+// handles normalize script
 export function normalizeScript(doc = {}) {
   const medHist = doc?.med_hist || {};
   return {
@@ -41,6 +43,7 @@ export function normalizeScript(doc = {}) {
   };
 }
 
+// handles map version history
 export function mapVersionHistory(history = []) {
   if (!Array.isArray(history)) return [];
   return history.map((entry) => {
