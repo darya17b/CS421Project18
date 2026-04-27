@@ -42,6 +42,7 @@ type ScriptRequest struct {
 	Note                       string                      `json:"note"`
 	ApprovedScriptID           string                      `json:"approved_script_id"`
 	PublishedScriptID          string                      `json:"published_script_id,omitempty"`
+	PublishedFromVersion       string                      `json:"published_from_version,omitempty"`
 	CreatedAt                  string                      `json:"created_at"`
 	UpdatedAt                  string                      `json:"updated_at"`
 	DraftScript                *StandardizedScript         `json:"draft_script,omitempty"`

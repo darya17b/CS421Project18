@@ -63,6 +63,7 @@ function mapRequestToItem(req) {
     status: req.status || 'Pending',
     note: req.note || '',
     approvedScriptId: req.approved_script_id || '',
+    publishedFromVersion: req.published_from_version || '',
     raw: req,
   };
 }

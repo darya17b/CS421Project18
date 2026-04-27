@@ -296,6 +296,11 @@ func convertToScriptRequestWithID(rawDoc bson.M) ScriptRequestWithID {
 			req.PublishedScriptID = publishedID
 		}
 	}
+	if rawPublishedFromVersion, ok := rawDoc["published_from_version"]; ok {
+		if publishedFromVersion := asString(rawPublishedFromVersion); publishedFromVersion != "" {
+			req.PublishedFromVersion = publishedFromVersion
+		}
+	}
 	if rawCreatedAt, ok := rawDoc["created_at"]; ok {
 		if createdAt := asString(rawCreatedAt); createdAt != "" {
 			req.CreatedAt = createdAt

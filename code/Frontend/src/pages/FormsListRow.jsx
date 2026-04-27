@@ -1,30 +1,73 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { downloadScriptPdf, getScriptPdfUrl } from "../utils/pdf";
+import { formatTitleWithDobAge } from "../utils/patientAge";
+
+const pickFirstText = (...values) => {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
+};
+
+const getCurrentVersionEntry = (item) => {
+  const versions = Array.isArray(item?.versions) ? item.versions : [];
+  if (!versions.length) return null;
+  return (
+    versions.find((entry) => String(entry?.version || "").trim().toLowerCase() === "current")
+    || versions[0]
+    || null
+  );
+};
 
 const FormsListRow = ({ item, onArtifacts, onPropose, onDelete, onSendBackToRequests }) => {
   const location = useLocation();
   const [manageOpen, setManageOpen] = useState(false);
   const manageMenuRef = useRef(null);
   const from = `${location.pathname}${location.search}${location.hash}`;
-  const title = item?.title || item?.admin?.reson_for_visit || item?.admin?.reason_for_visit || "Untitled";
-  const patient = typeof item?.patient === "string"
-    ? item.patient
-    : (item?.patient?.name || item?.patient_name || "Unknown");
-  const department = item?.department || item?.admin?.class || "General";
-  const createdAt = item?.createdAt || item?.admin?.event_dates || "";
+  const currentVersion = getCurrentVersionEntry(item);
+  const currentFields =
+    currentVersion?.fields && typeof currentVersion.fields === "object"
+      ? currentVersion.fields
+      : item;
+  const title = pickFirstText(
+    currentFields?.admin?.reson_for_visit,
+    currentFields?.admin?.reason_for_visit,
+    item?.title,
+    item?.admin?.reson_for_visit,
+    item?.admin?.reason_for_visit
+  ) || "Untitled";
+  const dob =
+    currentFields?.patient?.date_of_birth
+    || currentFields?.patient?.dob
+    || item?.patient?.date_of_birth
+    || item?.patient?.dob
+    || "";
+  const displayTitle = formatTitleWithDobAge(title, dob) || "Untitled";
+  const patient = pickFirstText(
+    currentFields?.patient?.name,
+    typeof item?.patient === "string" ? item.patient : item?.patient?.name,
+    item?.patient_name
+  ) || "Unknown";
+  const department = pickFirstText(
+    currentFields?.admin?.class,
+    item?.department,
+    item?.admin?.class
+  ) || "General";
+  const createdAt = pickFirstText(currentVersion?.createdAt, item?.createdAt, item?.admin?.event_dates);
   const meta = [patient, department, createdAt].filter(Boolean).join(" | ");
 
   const handleDownload = () => {
     try {
-      downloadScriptPdf(item, item?.versions?.[0]);
+      downloadScriptPdf(item, currentVersion || undefined);
     } catch {
      
     }
   };
   const handlePreview = () => {
     try {
-      const url = getScriptPdfUrl(item, item?.versions?.[0]);
+      const url = getScriptPdfUrl(item, currentVersion || undefined);
       window.open(url, "_blank", "noopener");
     } catch {
     
@@ -47,7 +90,7 @@ const FormsListRow = ({ item, onArtifacts, onPropose, onDelete, onSendBackToRequ
         <div className="flex items-start gap-3 flex-1">
           <span className="list-row__accent" aria-hidden="true" />
           <div>
-            <div className="font-semibold text-lg text-gray-900">{title}</div>
+            <div className="font-semibold text-lg text-gray-900">{displayTitle}</div>
             {meta ? <div className="text-sm text-gray-500">{meta}</div> : null}
           </div>
         </div>

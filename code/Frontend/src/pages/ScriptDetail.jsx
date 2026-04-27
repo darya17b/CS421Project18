@@ -3,8 +3,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
-import { downloadScriptPdf, downloadResourcePdf, downloadMedicationCardPdf, getScriptPdfUrl } from "../utils/pdf";
-import { getArtifactBadge, getArtifactName, getArtifactUrl, isMedicationCardName } from "../utils/artifacts";
+import { downloadScriptPdf, downloadResourcePdf, downloadMedicationCardPdf, downloadLabDataCardPdf, getScriptPdfUrl } from "../utils/pdf";
+import {
+  collapseDoorNoteArtifacts,
+  getArtifactBadge,
+  getArtifactName,
+  getArtifactUrl,
+  isMedicationCardName,
+  isLabDataCardName,
+} from "../utils/artifacts";
 import { buildScriptFromForm } from "../utils/scriptFormat";
 import { normalizeScript, mapVersionHistory } from "../utils/normalize";
 
@@ -845,9 +852,17 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
       void downloadMedicationCardPdf(activeItem, current, artifact?.name || "Medication Card");
       return;
     }
+    if (artifact?.__generatedLabDataCard) {
+      void downloadLabDataCardPdf(activeItem, current, artifact?.name || "Lab Data Card");
+      return;
+    }
     const artifactName = getArtifactName(artifact);
     if (isMedicationCardName(artifactName)) {
       void downloadMedicationCardPdf(activeItem, current, artifactName);
+      return;
+    }
+    if (isLabDataCardName(artifactName)) {
+      void downloadLabDataCardPdf(activeItem, current, artifactName);
       return;
     }
     const url = getArtifactUrl(artifact);
@@ -1580,7 +1595,8 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
 
   const resourceItems = [
     { __generatedMedicationCard: true, name: "Medication Card" },
-    ...(Array.isArray(activeItem?.artifacts) ? activeItem.artifacts : []),
+    { __generatedLabDataCard: true, name: "Lab Data Card" },
+    ...collapseDoorNoteArtifacts(Array.isArray(activeItem?.artifacts) ? activeItem.artifacts : []),
   ];
 
   if (isAdmin) {
@@ -1600,9 +1616,13 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
                 <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
                   <div className="flex items-center gap-2">
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">
-                      {a?.__generatedMedicationCard ? "PDF" : getArtifactBadge(a)}
+                      {(a?.__generatedMedicationCard || a?.__generatedLabDataCard) ? "PDF" : getArtifactBadge(a)}
                     </span>
-                    <span>{a?.__generatedMedicationCard ? "Medication Card" : getArtifactName(a)}</span>
+                    <span>
+                      {a?.__generatedMedicationCard
+                        ? "Medication Card"
+                        : (a?.__generatedLabDataCard ? "Lab Data Card" : getArtifactName(a))}
+                    </span>
                   </div>
                   <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Download resource" onClick={() => openArtifact(a)}>
                     Download
@@ -1630,9 +1650,13 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
               <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
                 <div className="flex items-center gap-2">
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">
-                    {a?.__generatedMedicationCard ? "PDF" : getArtifactBadge(a)}
+                    {(a?.__generatedMedicationCard || a?.__generatedLabDataCard) ? "PDF" : getArtifactBadge(a)}
                   </span>
-                  <span>{a?.__generatedMedicationCard ? "Medication Card" : getArtifactName(a)}</span>
+                  <span>
+                    {a?.__generatedMedicationCard
+                      ? "Medication Card"
+                      : (a?.__generatedLabDataCard ? "Lab Data Card" : getArtifactName(a))}
+                  </span>
                 </div>
                 <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Download resource" onClick={() => openArtifact(a)}>
                   Download

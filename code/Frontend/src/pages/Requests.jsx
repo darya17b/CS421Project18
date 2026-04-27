@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useStore } from "../store";
 import { useToast } from "../components/Toast";
+import { formatTitleWithDobAge } from "../utils/patientAge";
+import { collapseDoorNoteArtifacts, dedupeArtifacts } from "../utils/artifacts";
 
 const STORAGE_KEY = "mock-request-statuses";
 const ACTION_STATUS_OPTIONS = ["In Review", "Rejected"];
@@ -36,28 +38,103 @@ const saveStatus = (data) => {
 const cloneValue = (value) => JSON.parse(JSON.stringify(value));
 
 const uniqueArtifacts = (artifacts = []) => {
-  const seen = new Set();
-  const deduped = [];
-  artifacts.forEach((artifact) => {
-    if (!artifact || typeof artifact !== "object") return;
-    const key =
-      artifact.id ||
-      artifact._id ||
-      artifact.url ||
-      artifact.path ||
-      artifact.name ||
-      JSON.stringify(artifact);
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    deduped.push(artifact);
-  });
-  return deduped;
+  return collapseDoorNoteArtifacts(dedupeArtifacts(artifacts));
 };
 
-const buildScriptFromRequest = (request) => {
+const pickFirstText = (...values) => {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
+};
+
+const resolveRequestDob = (raw, fields = null) =>
+  pickFirstText(
+    fields?.patient?.date_of_birth,
+    fields?.patient?.dob,
+    raw?.draft_script?.patient?.date_of_birth,
+    raw?.draft_script?.patient?.dob,
+    raw?.patient?.date_of_birth,
+    raw?.patient?.dob,
+    raw?.patient_date_of_birth,
+    raw?.date_of_birth,
+    raw?.dob
+  );
+
+const resolveVersionFields = (request, versionKey = "request-draft") => {
   const raw = request?.raw || request || {};
-  if (raw.draft_script && typeof raw.draft_script === "object") {
-    const draft = cloneValue(raw.draft_script);
+  if (String(versionKey || "") === "request-draft") {
+    if (raw.draft_script && typeof raw.draft_script === "object") return raw.draft_script;
+    if (raw.patient && raw.admin && typeof raw === "object") return raw;
+    return null;
+  }
+  const savedVersionId = String(versionKey || "").startsWith("saved:")
+    ? String(versionKey).slice("saved:".length)
+    : "";
+  if (!savedVersionId) return null;
+  const normalizedSavedVersionId = savedVersionId.toLowerCase();
+  const draftVersions = Array.isArray(raw.draft_versions)
+    ? raw.draft_versions
+    : (
+      raw.draft_versions && typeof raw.draft_versions === "object"
+        ? Object.values(raw.draft_versions)
+        : []
+    );
+  const selected = draftVersions.find(
+    (entry) => String(entry?.version || "").trim().toLowerCase() === normalizedSavedVersionId
+  );
+  const fields =
+    selected?.fields
+    || selected?.document
+    || selected?.draft_script
+    || selected?.payload
+    || selected?.data
+    || (
+      selected?.patient && selected?.admin
+        ? selected
+        : null
+    );
+  return fields && typeof fields === "object" ? fields : null;
+};
+
+const resolveVersionReasonForVisit = (request, versionKey = "request-draft") => {
+  const raw = request?.raw || request || {};
+  const selectedFields = resolveVersionFields(request, versionKey);
+  return pickFirstText(
+    selectedFields?.admin?.reson_for_visit,
+    selectedFields?.admin?.reason_for_visit,
+    selectedFields?.patient?.visit_reason,
+    raw?.draft_script?.admin?.reson_for_visit,
+    raw?.draft_script?.admin?.reason_for_visit,
+    raw?.draft_script?.patient?.visit_reason,
+    raw?.reason_for_visit,
+    raw?.reson_for_visit,
+    raw?.chief_concern
+  );
+};
+
+const resolveDisplayTitleForVersion = (request, versionKey = "request-draft") => {
+  const raw = request?.raw || request || {};
+  const selectedFields = resolveVersionFields(request, versionKey);
+  const reasonForVisit = resolveVersionReasonForVisit(request, versionKey);
+  const dob = resolveRequestDob(raw, selectedFields);
+  return formatTitleWithDobAge(reasonForVisit || request?.title || "Untitled", dob) || "Untitled";
+};
+
+const buildScriptFromRequest = (request, versionKey = "request-draft") => {
+  const raw = request?.raw || request || {};
+  const selectedFields = resolveVersionFields(request, versionKey);
+  const fallbackDob = resolveRequestDob(raw, selectedFields);
+  if (selectedFields) {
+    const draft = cloneValue(selectedFields);
+    const patient = draft?.patient && typeof draft.patient === "object" ? draft.patient : {};
+    if (!pickFirstText(patient?.date_of_birth, patient?.dob) && fallbackDob) {
+      draft.patient = {
+        ...patient,
+        date_of_birth: fallbackDob,
+      };
+    }
     draft.artifacts = uniqueArtifacts([
       ...(Array.isArray(draft.artifacts) ? draft.artifacts : []),
       ...(Array.isArray(raw.artifacts) ? raw.artifacts : []),
@@ -88,6 +165,7 @@ const buildScriptFromRequest = (request) => {
     },
     patient: {
       name: raw.patient_name || raw.patient_demog || "",
+      date_of_birth: fallbackDob || "",
       visit_reason: reasonForVisit,
       context: raw.case_setting || "",
     },
@@ -111,11 +189,12 @@ const buildScriptFromRequest = (request) => {
 const Requests = () => {
   const location = useLocation();
   const from = `${location.pathname}${location.search}${location.hash}`;
-  const { requests, refreshRequests, updateRequest, deleteRequest, addItem, updateItem, fetchById } = useStore();
+  const { requests, refreshRequests, updateRequest, deleteRequest, addItem } = useStore();
   const toast = useToast();
   const [statusMap, setStatusMap] = useState(() => loadStatus());
   const [publishingId, setPublishingId] = useState("");
   const [deletingId, setDeletingId] = useState("");
+  const [publishVersionMap, setPublishVersionMap] = useState({});
   const isAdmin = (() => {
     if (typeof window === "undefined") return true;
     const role = localStorage.getItem("role");
@@ -163,15 +242,48 @@ const Requests = () => {
   const list = useMemo(() => {
     return (requests || []).map((it) => {
       const meta = statusMap[it.id] || {};
+      const raw = it.raw || {};
+      const draftVersions = Array.isArray(raw.draft_versions) ? raw.draft_versions : [];
+      const linkedScriptId =
+        it.approvedScriptId ||
+        raw.approved_script_id ||
+        raw.published_script_id ||
+        "";
+      const publishVersionOptions = [
+        { key: "request-draft", label: "Request Draft" },
+        ...draftVersions
+          .map((entry) => String(entry?.version || "").trim())
+          .filter(Boolean)
+          .map((versionId) => ({ key: `saved:${versionId}`, label: `Saved ${versionId}` })),
+      ];
       return {
         ...it,
+        displayTitle: resolveDisplayTitleForVersion(it, "request-draft"),
         status: normalizeStatus(meta.status || it.status || "Pending"),
         note: meta.note ?? it.note ?? "",
         updatedAt: meta.updatedAt,
-        approvedScriptId: it.approvedScriptId || it.raw?.approved_script_id || it.raw?.published_script_id || "",
+        approvedScriptId: linkedScriptId,
+        publishedFromVersion: String(raw.published_from_version || "").trim(),
+        publishVersionOptions,
       };
-    }).filter((it) => normalizeStatus(it.status) !== "Published");
+    });
   }, [requests, statusMap]);
+
+  useEffect(() => {
+    setPublishVersionMap((prev) => {
+      const next = { ...prev };
+      const activeIds = new Set(list.map((req) => req.id));
+      list.forEach((req) => {
+        const current = String(next[req.id] || "").trim();
+        const allowed = req.publishVersionOptions?.map((entry) => entry.key) || ["request-draft"];
+        next[req.id] = allowed.includes(current) ? current : "request-draft";
+      });
+      Object.keys(next).forEach((id) => {
+        if (!activeIds.has(id)) delete next[id];
+      });
+      return next;
+    });
+  }, [list]);
 
   const persistRequestMeta = async (req, overrides = {}) => {
     if (typeof updateRequest !== "function") return req?.raw || null;
@@ -211,43 +323,49 @@ const Requests = () => {
     }
   };
 
-  const publishToLibrary = async (req) => {
+  const publishToLibrary = async (req, versionKey = "request-draft") => {
     if (publishingId) return;
     const prevStatus = statusMap[req.id]?.status || req.status || "Pending";
+    const raw = req.raw || {};
+    const selectedVersionKey = String(versionKey || "request-draft");
+    const selectedVersionLabel =
+      req.publishVersionOptions?.find((entry) => entry.key === selectedVersionKey)?.label || "Request Draft";
+    const selectedVersionTitle = resolveDisplayTitleForVersion(req, selectedVersionKey);
+    const publishedFromVersion =
+      selectedVersionKey === "request-draft"
+        ? "request-draft"
+        : String(selectedVersionKey).replace(/^saved:/, "");
+    let publishedScriptId = "";
+    const confirmMessage =
+      `Publish "${selectedVersionLabel}" for "${selectedVersionTitle || req.displayTitle || req.title || req.id}"?`;
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(confirmMessage);
+      if (!confirmed) return;
+    }
+
     setPublishingId(req.id);
     try {
-      const raw = req.raw || {};
-      const scriptPayload = buildScriptFromRequest(req);
-      const changeNote = `Published from request ${req.id}`;
-      let publishedScriptId =
-        raw.published_script_id ||
-        raw.approved_script_id ||
-        req.approvedScriptId ||
-        "";
-
-      if (publishedScriptId) {
-        if (typeof updateItem === "function") {
-          await updateItem(publishedScriptId, scriptPayload, changeNote);
-        } else {
-          const { api } = await import("../api/client");
-          const createdBy = (typeof window !== "undefined" && localStorage.getItem("user")) || "admin";
-          await api.updateDocument(publishedScriptId, scriptPayload, {
-            change_note: changeNote,
-            created_by: createdBy,
-          });
-          if (typeof fetchById === "function") {
-            await fetchById(publishedScriptId);
-          }
+      const scriptPayload = buildScriptFromRequest(req, selectedVersionKey);
+      const resolvedDob = resolveRequestDob(raw, scriptPayload);
+      if (resolvedDob) {
+        const patient =
+          scriptPayload?.patient && typeof scriptPayload.patient === "object"
+            ? scriptPayload.patient
+            : {};
+        if (!pickFirstText(patient?.date_of_birth, patient?.dob)) {
+          scriptPayload.patient = {
+            ...patient,
+            date_of_birth: resolvedDob,
+          };
         }
-      } else {
-        if (typeof addItem !== "function") {
-          throw new Error("Script publishing is not configured.");
-        }
-        const created = await addItem(scriptPayload);
-        publishedScriptId = created?.id || created?._id || "";
-        if (!publishedScriptId) {
-          throw new Error("Script publish did not return a script id.");
-        }
+      }
+      if (typeof addItem !== "function") {
+        throw new Error("Script publishing is not configured.");
+      }
+      const created = await addItem(scriptPayload);
+      publishedScriptId = created?.id || created?._id || "";
+      if (!publishedScriptId) {
+        throw new Error("Script publish did not return a script id.");
       }
 
       setStatusMap((prev) => ({
@@ -263,13 +381,13 @@ const Requests = () => {
         status: "Published",
         approved_script_id: publishedScriptId,
         published_script_id: publishedScriptId,
-        draft_script: scriptPayload,
+        published_from_version: publishedFromVersion,
         artifacts: scriptPayload.artifacts || raw.artifacts || [],
       });
       if (typeof refreshRequests === "function") {
         await refreshRequests();
       }
-      toast.show("Published to Script Library", { type: "success" });
+      toast.show(`Published ${selectedVersionLabel}`, { type: "success" });
     } catch (err) {
       console.warn("Failed to publish request", err);
       setStatusMap((prev) => ({
@@ -367,11 +485,14 @@ const Requests = () => {
         {list.length === 0 ? (
           <div className="p-6 text-gray-600 text-center">No requests found.</div>
         ) : (
-          list.map((req) => (
+          list.map((req) => {
+            const selectedVersionKey = publishVersionMap[req.id] || "request-draft";
+            const rowDisplayTitle = resolveDisplayTitleForVersion(req, selectedVersionKey);
+            return (
             <div key={req.id} className="p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-gray-900 truncate">{req.title || "Untitled"}</span>
+                  <span className="text-sm font-semibold text-gray-900 truncate">{rowDisplayTitle || req.displayTitle || req.title || "Untitled"}</span>
                   <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">{req.department || "General"}</span>
                   <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">{req.patient || "Unknown"}</span>
                 </div>
@@ -379,23 +500,45 @@ const Requests = () => {
                 {req.note ? <div className="text-xs text-gray-500 mt-1">Note: {req.note}</div> : null}
               </div>
               <div className="flex flex-wrap gap-2 md:justify-end">
-                {ACTION_STATUS_OPTIONS.map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => { void updateStatus(req, status); }}
-                    className={`rounded border px-3 py-1 text-sm font-semibold ${req.status === status ? "border-[#981e32] text-[#981e32]" : "border-gray-300 text-gray-700"} hover:border-[#981e32] hover:text-[#981e32]`}
-                  >
-                    {status}
-                  </button>
-                ))}
+                {req.status !== "Published"
+                  ? ACTION_STATUS_OPTIONS.map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => { void updateStatus(req, status); }}
+                      className={`rounded border px-3 py-1 text-sm font-semibold ${req.status === status ? "border-[#981e32] text-[#981e32]" : "border-gray-300 text-gray-700"} hover:border-[#981e32] hover:text-[#981e32]`}
+                    >
+                      {status}
+                    </button>
+                  ))
+                  : null}
                 <button
                   onClick={() => { void addNote(req); }}
                   className="rounded border border-gray-300 px-3 py-1 text-sm font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
                 >
                   Add note
                 </button>
+                <select
+                  value={publishVersionMap[req.id] || "request-draft"}
+                  onChange={(event) =>
+                    setPublishVersionMap((prev) => ({ ...prev, [req.id]: event.target.value }))
+                  }
+                  disabled={publishingId === req.id}
+                  className="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  title="Select version to publish"
+                >
+                  {(req.publishVersionOptions || [{ key: "request-draft", label: "Request Draft" }]).map((entry) => (
+                    <option key={entry.key} value={entry.key}>
+                      {entry.label}
+                    </option>
+                  ))}
+                </select>
                 <button
-                  onClick={() => { void publishToLibrary(req); }}
+                  onClick={() => {
+                    void publishToLibrary(
+                      req,
+                      publishVersionMap[req.id] || "request-draft"
+                    );
+                  }}
                   disabled={publishingId === req.id}
                   className="rounded border border-emerald-600 px-3 py-1 text-sm font-semibold text-emerald-700 hover:bg-emerald-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
                 >
@@ -417,7 +560,8 @@ const Requests = () => {
                 </button>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
       <div className="flex justify-end">

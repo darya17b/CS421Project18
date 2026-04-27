@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@okta/okta-auth-js": "^7.14.1",
+    "@okta/okta-react": "^6.10.0",
     "date-fns": "^4.1.0",
     "jspdf": "^3.0.3",
     "react": "^19.1.1",

@@ -5,6 +5,7 @@ import { useToast } from "../components/Toast";
 import Modal from "../components/Modal";
 import DOBDatePicker from "../components/DOBDatePicker";
 import { buildScriptFromForm } from "../utils/scriptFormat";
+import { collapseDoorNoteArtifacts, dedupeArtifacts } from "../utils/artifacts";
 import hpiDiagram from "../assets/hpi-diagram.png";
 
 const emptyTextRow = () => ({ text: "" });
@@ -598,22 +599,7 @@ const normalizeSocialHistoryForForm = (value) => {
 };
 
 const uniqueArtifacts = (artifacts = []) => {
-  const seen = new Set();
-  const deduped = [];
-  artifacts.forEach((artifact) => {
-    if (!artifact || typeof artifact !== "object") return;
-    const key =
-      artifact.id ||
-      artifact._id ||
-      artifact.url ||
-      artifact.path ||
-      artifact.name ||
-      JSON.stringify(artifact);
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    deduped.push(artifact);
-  });
-  return deduped;
+  return collapseDoorNoteArtifacts(dedupeArtifacts(artifacts));
 };
 
 const getRequestArtifacts = (requestItem) => {
@@ -621,6 +607,16 @@ const getRequestArtifacts = (requestItem) => {
   const fromRequest = Array.isArray(raw.artifacts) ? raw.artifacts : [];
   const fromDraft = Array.isArray(raw.draft_script?.artifacts) ? raw.draft_script.artifacts : [];
   return uniqueArtifacts([...fromRequest, ...fromDraft]);
+};
+
+const getRequestDraftVersions = (requestItem) => {
+  const raw = requestItem?.raw || requestItem || {};
+  const direct = raw?.draft_versions;
+  if (Array.isArray(direct)) return direct;
+  if (direct && typeof direct === "object") {
+    return Object.values(direct).filter((entry) => entry && typeof entry === "object");
+  }
+  return [];
 };
 
 const buildPrefillFormFromRequest = (initialForm, requestItem) => {
@@ -1054,11 +1050,16 @@ const RequestNew = () => {
   const initialSnapshotRef = useRef(JSON.stringify(initialForm));
   const prefillRequestRef = useRef(null);
   const appliedPrefillRequestIdRef = useRef("");
+  const stateRequest = useMemo(() => {
+    const candidate = location.state?.request;
+    return candidate && typeof candidate === "object" ? candidate : null;
+  }, [location.state]);
   const requestId = useMemo(() => {
-    const id = new URLSearchParams(location.search).get("requestId");
-    return String(id || "").trim();
-  }, [location.search]);
-  const isPrefillMode = Boolean(requestId);
+    const idFromQuery = new URLSearchParams(location.search).get("requestId");
+    const idFromState = stateRequest?.id || location.state?.requestId;
+    return String(idFromQuery || idFromState || "").trim();
+  }, [location.search, location.state, stateRequest]);
+  const isPrefillMode = Boolean(requestId || stateRequest);
   const [prefillRequest, setPrefillRequest] = useState(null);
   const [prefillLoading, setPrefillLoading] = useState(false);
   const [formVersionOptions, setFormVersionOptions] = useState([]);
@@ -1067,6 +1068,8 @@ const RequestNew = () => {
   const [saveVersionModalOpen, setSaveVersionModalOpen] = useState(false);
   const [saveVersionMode, setSaveVersionMode] = useState("new");
   const [overwriteVersionTarget, setOverwriteVersionTarget] = useState("");
+  const [deleteVersionTarget, setDeleteVersionTarget] = useState("");
+  const [deletingVersionId, setDeletingVersionId] = useState("");
   const [inlineEdit, setInlineEdit] = useState(null);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
 
@@ -1090,6 +1093,8 @@ const RequestNew = () => {
       setSaveVersionModalOpen(false);
       setSaveVersionMode("new");
       setOverwriteVersionTarget("");
+      setDeleteVersionTarget("");
+      setDeletingVersionId("");
       return undefined;
     }
 
@@ -1102,8 +1107,19 @@ const RequestNew = () => {
     const loadRequest = async () => {
       setPrefillLoading(true);
       try {
-        let found = typeof getRequestById === "function" ? getRequestById(requestId) : null;
-        if (!found && typeof refreshRequests === "function") {
+        let found = stateRequest;
+        if (
+          found
+          && requestId
+          && String(found?.id || "").trim()
+          && String(found?.id || "").trim() !== requestId
+        ) {
+          found = null;
+        }
+        if (!found && requestId && typeof getRequestById === "function") {
+          found = getRequestById(requestId);
+        }
+        if (!found && requestId && typeof refreshRequests === "function") {
           const refreshed = await refreshRequests();
           found = Array.isArray(refreshed)
             ? refreshed.find((entry) => String(entry?.id || "") === requestId) || null
@@ -1112,7 +1128,7 @@ const RequestNew = () => {
         if (cancelled) return;
         prefillRequestRef.current = found || null;
         setPrefillRequest(found || null);
-        if (!found) {
+        if (!found && requestId) {
           toast.show(`Request ${requestId} was not found.`, { type: "error" });
         }
       } catch (err) {
@@ -1132,17 +1148,18 @@ const RequestNew = () => {
     return () => {
       cancelled = true;
     };
-  }, [isPrefillMode, requestId]);
+  }, [getRequestById, isPrefillMode, refreshRequests, requestId, stateRequest, toast]);
 
   useEffect(() => {
-    if (!isPrefillMode || !requestId || !prefillRequest) return;
-    if (appliedPrefillRequestIdRef.current === requestId) return;
+    if (!isPrefillMode || !prefillRequest) return;
+    const activePrefillId = String(requestId || prefillRequest?.id || "").trim();
+    if (activePrefillId && appliedPrefillRequestIdRef.current === activePrefillId) return;
     const prefilled = buildPrefillFormFromRequest(initialForm, prefillRequest);
     setForm(prefilled);
     setAttachments([]);
     initialSnapshotRef.current = JSON.stringify(prefilled);
     prefillRequestRef.current = prefillRequest;
-    appliedPrefillRequestIdRef.current = requestId;
+    appliedPrefillRequestIdRef.current = activePrefillId || "prefill-loaded";
   }, [isPrefillMode, prefillRequest, requestId]);
 
   useEffect(() => {
@@ -1176,7 +1193,7 @@ const RequestNew = () => {
       };
 
       const raw = prefillRequest.raw || prefillRequest || {};
-      const requestDraftVersions = Array.isArray(raw.draft_versions) ? raw.draft_versions : [];
+      const requestDraftVersions = getRequestDraftVersions(raw);
       requestDraftVersions.forEach((entry, idx) => {
         const versionId = String(entry?.version || `rv${requestDraftVersions.length - idx}`);
         const fields = entry?.fields || entry?.document || entry?.draft_script || null;
@@ -1197,7 +1214,7 @@ const RequestNew = () => {
 
   const requestSavedVersions = useMemo(() => {
     const raw = prefillRequest?.raw || prefillRequest || {};
-    const versions = Array.isArray(raw.draft_versions) ? raw.draft_versions : [];
+    const versions = getRequestDraftVersions(raw);
     return versions
       .map((entry) => ({
         ...entry,
@@ -1205,6 +1222,29 @@ const RequestNew = () => {
       }))
       .filter((entry) => entry.version);
   }, [prefillRequest]);
+
+  useEffect(() => {
+    setDeleteVersionTarget((prev) => {
+      const trimmedPrev = String(prev || "").trim();
+      if (
+        trimmedPrev
+        && requestSavedVersions.some((entry) => String(entry.version || "").trim() === trimmedPrev)
+      ) {
+        return trimmedPrev;
+      }
+      return requestSavedVersions[0]?.version || "";
+    });
+    setOverwriteVersionTarget((prev) => {
+      const trimmedPrev = String(prev || "").trim();
+      if (
+        trimmedPrev
+        && requestSavedVersions.some((entry) => String(entry.version || "").trim() === trimmedPrev)
+      ) {
+        return trimmedPrev;
+      }
+      return requestSavedVersions[0]?.version || "";
+    });
+  }, [requestSavedVersions]);
 
   const nextRequestVersionLabel = useMemo(() => {
     const maxVersionNumber = requestSavedVersions.reduce((max, entry) => {
@@ -1586,9 +1626,7 @@ const RequestNew = () => {
     }
     const requestedMode = String(options?.mode || "new").trim().toLowerCase();
     const requestedTargetVersion = String(options?.targetVersion || "").trim();
-    const existingDraftVersions = Array.isArray(rawRequest.draft_versions)
-      ? rawRequest.draft_versions
-      : [];
+    const existingDraftVersions = getRequestDraftVersions(rawRequest);
     const now = new Date().toISOString();
 
     let savedVersionId = "";
@@ -1734,6 +1772,115 @@ const RequestNew = () => {
     await executePrefillSaveVersion(mode, overwriteVersionTarget);
   };
 
+  const deletePrefillVersion = async (versionId) => {
+    const targetVersionId = String(versionId || "").trim();
+    if (!targetVersionId) {
+      toast.show("Choose a saved version to delete.", { type: "error" });
+      return;
+    }
+    if (deletingVersionId || submitting) return;
+    const requestItem = prefillRequestRef.current;
+    if (!requestItem) {
+      toast.show("Request data is not loaded yet.", { type: "error" });
+      return;
+    }
+    const rawRequest = requestItem.raw || requestItem || {};
+    const existingDraftVersions = getRequestDraftVersions(rawRequest);
+    if (
+      !existingDraftVersions.some(
+        (entry) => String(entry?.version || "").trim() === targetVersionId
+      )
+    ) {
+      toast.show(`Saved version ${targetVersionId} was not found.`, { type: "error" });
+      return;
+    }
+    const deletingSelectedVersion = selectedFormVersionKey === `request-${targetVersionId}`;
+    if (deletingSelectedVersion && shouldWarnOnLeave) {
+      const ok = window.confirm(
+        "You have unsaved changes. Deleting this version will switch back to Request Draft. Continue?"
+      );
+      if (!ok) return;
+    }
+    const confirmed = window.confirm(
+      `Delete saved version ${targetVersionId}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingVersionId(targetVersionId);
+    try {
+      if (typeof updateRequest !== "function") {
+        throw new Error("Request update is not configured.");
+      }
+      const now = new Date().toISOString();
+      const nextDraftVersions = existingDraftVersions.filter(
+        (entry) => String(entry?.version || "").trim() !== targetVersionId
+      );
+      const nextRequestPayload = {
+        ...rawRequest,
+        status: rawRequest.status || requestItem.status || "Pending",
+        draft_versions: nextDraftVersions,
+        updated_at: now,
+      };
+      const updated = await updateRequest(requestItem.id || requestId, nextRequestPayload);
+      const updatedRaw = updated?.raw || updated || {};
+      const mergedRaw = {
+        ...rawRequest,
+        ...updatedRaw,
+        draft_versions: nextDraftVersions,
+      };
+      const normalizedUpdated = {
+        ...(requestItem || {}),
+        ...(updated || {}),
+        raw: mergedRaw,
+      };
+      prefillRequestRef.current = normalizedUpdated;
+      setPrefillRequest(normalizedUpdated);
+      setFormVersionOptions((prev) => {
+        const requestDraftOption = {
+          key: "request-draft",
+          label: "Request Draft",
+          form: buildPrefillFormFromRequest(initialForm, normalizedUpdated),
+        };
+        const requestVersionOptions = nextDraftVersions
+          .map((entry) => {
+            const version = String(entry?.version || "").trim();
+            if (!version) return null;
+            const fields = entry?.fields || entry?.document || entry?.draft_script || null;
+            if (!fields || typeof fields !== "object") return null;
+            return {
+              key: `request-${version}`,
+              label: `Saved ${version}`,
+              form: buildFormFromScriptFields(initialForm, fields),
+            };
+          })
+          .filter(Boolean);
+        const libraryOptions = prev.filter(
+          (entry) => entry.key !== "request-draft" && !String(entry.key || "").startsWith("request-")
+        );
+        return [requestDraftOption, ...requestVersionOptions, ...libraryOptions];
+      });
+      if (deletingSelectedVersion) {
+        const draftForm = buildPrefillFormFromRequest(initialForm, normalizedUpdated);
+        setForm(draftForm);
+        setAttachments([]);
+        initialSnapshotRef.current = JSON.stringify(draftForm);
+        setSelectedFormVersionKey("request-draft");
+      }
+      setSaveVersionMode((prev) => (
+        prev === "overwrite" && !nextDraftVersions.length ? "new" : prev
+      ));
+      toast.show(`Deleted version ${targetVersionId}`, { type: "success" });
+      if (typeof refreshRequests === "function") {
+        await refreshRequests();
+      }
+    } catch (err) {
+      const detail = String(err?.message || "").trim();
+      toast.show(detail ? `Delete version failed: ${detail}` : "Delete version failed", { type: "error" });
+    } finally {
+      setDeletingVersionId("");
+    }
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
     if (document.activeElement instanceof HTMLElement) {
@@ -1840,7 +1987,7 @@ const RequestNew = () => {
           </div>
         ) : null}
 
-        {isPrefillMode && prefillRequest ? (
+        {isPrefillMode ? (
           <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
             <div className="space-y-2">
               <div className="text-sm font-semibold text-gray-800">Form Version</div>
@@ -1873,6 +2020,41 @@ const RequestNew = () => {
               {formVersionsLoading
                 ? "Loading available versions..."
                 : "Switching versions replaces current unsaved form values."}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-gray-600">Delete saved version:</span>
+              <select
+                value={deleteVersionTarget}
+                onChange={(event) => setDeleteVersionTarget(String(event.target.value || "").trim())}
+                disabled={submitting || formVersionsLoading || deletingVersionId !== "" || !requestSavedVersions.length}
+                className="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {requestSavedVersions.length ? (
+                  requestSavedVersions.map((entry) => (
+                    <option key={entry.version} value={entry.version}>
+                      {entry.version}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">No saved versions</option>
+                )}
+              </select>
+              <button
+                type="button"
+                onClick={() => {
+                  void deletePrefillVersion(deleteVersionTarget);
+                }}
+                disabled={
+                  submitting
+                  || formVersionsLoading
+                  || deletingVersionId !== ""
+                  || !requestSavedVersions.length
+                  || !deleteVersionTarget
+                }
+                className="rounded border border-red-600 px-3 py-1 text-sm font-semibold text-red-700 hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deletingVersionId ? "Deleting..." : "Delete"}
+              </button>
             </div>
           </div>
         ) : null}

@@ -1,11 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import FormsListRow from "./FormsListRow";
 import Modal from "../components/Modal";
 import { useStore } from "../store";
 import { useToast } from "../components/Toast";
-import { downloadResourcePdf, downloadMedicationCardPdf } from "../utils/pdf";
-import { getArtifactBadge, getArtifactName, getArtifactUrl, isMedicationCardName } from "../utils/artifacts";
+import { downloadResourcePdf, downloadMedicationCardPdf, downloadLabDataCardPdf } from "../utils/pdf";
+import {
+  collapseDoorNoteArtifacts,
+  dedupeArtifacts,
+  getArtifactBadge,
+  getArtifactName,
+  getArtifactUrl,
+  isMedicationCardName,
+  isLabDataCardName,
+} from "../utils/artifacts";
 import { buildScriptFromForm } from "../utils/scriptFormat";
 
 const reviewOfSystemsFields = [
@@ -59,22 +67,17 @@ const toBulletedText = (value) => {
 const toMultilineText = (value) => extractTextList(value).join("\n");
 
 const uniqueArtifacts = (artifacts = []) => {
-  const seen = new Set();
-  const deduped = [];
-  artifacts.forEach((artifact) => {
-    if (!artifact || typeof artifact !== "object") return;
-    const key =
-      artifact.id ||
-      artifact._id ||
-      artifact.url ||
-      artifact.path ||
-      artifact.name ||
-      JSON.stringify(artifact);
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    deduped.push(artifact);
-  });
-  return deduped;
+  return collapseDoorNoteArtifacts(dedupeArtifacts(artifacts));
+};
+
+const getCurrentVersionEntry = (item) => {
+  const versions = Array.isArray(item?.versions) ? item.versions : [];
+  if (!versions.length) return null;
+  return (
+    versions.find((entry) => String(entry?.version || "").trim().toLowerCase() === "current")
+    || versions[0]
+    || null
+  );
 };
 
 const buildSymptomReviewPayload = (symptomReview = {}) =>
@@ -130,7 +133,7 @@ const buildRequestPayloadFromLibraryItem = (item, scriptFields) => {
 };
 
 const FormsSearch = () => {
-  const { items, refreshDocuments, deleteItem, createRequest } = useStore();
+  const { items, requests, refreshDocuments, deleteItem, createRequest } = useStore();
   const toast = useToast();
   const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
   const [artifactsOpen, setArtifactsOpen] = useState(false);
@@ -141,13 +144,22 @@ const FormsSearch = () => {
   const [q, setQ] = useState({ title: "", author: "", diagnosis: "", learner_level: "", patient_name: "", search: "" });
   const [showFilters, setShowFilters] = useState(false);
   const openArtifact = (artifact) => {
+    const currentVersion = getCurrentVersionEntry(current);
     if (artifact?.__generatedMedicationCard) {
-      void downloadMedicationCardPdf(current, current?.versions?.[0], artifact?.name || "Medication Card");
+      void downloadMedicationCardPdf(current, currentVersion || undefined, artifact?.name || "Medication Card");
+      return;
+    }
+    if (artifact?.__generatedLabDataCard) {
+      void downloadLabDataCardPdf(current, currentVersion || undefined, artifact?.name || "Lab Data Card");
       return;
     }
     const artifactName = getArtifactName(artifact);
     if (isMedicationCardName(artifactName)) {
-      void downloadMedicationCardPdf(current, current?.versions?.[0], artifactName);
+      void downloadMedicationCardPdf(current, currentVersion || undefined, artifactName);
+      return;
+    }
+    if (isLabDataCardName(artifactName)) {
+      void downloadLabDataCardPdf(current, currentVersion || undefined, artifactName);
       return;
     }
     const url = getArtifactUrl(artifact);
@@ -172,7 +184,8 @@ const FormsSearch = () => {
   };
   const resourceItems = [
     { __generatedMedicationCard: true, name: "Medication Card" },
-    ...(Array.isArray(current?.artifacts) ? current.artifacts : []),
+    { __generatedLabDataCard: true, name: "Lab Data Card" },
+    ...collapseDoorNoteArtifacts(Array.isArray(current?.artifacts) ? current.artifacts : []),
   ];
 
   const onPropose = async (item) => {
@@ -217,10 +230,10 @@ const FormsSearch = () => {
     if (!confirm(`Send ${item.title || item.id} back to requests?`)) return;
     try {
       const { api } = await import("../api/client");
-      let sourceScript = item?.versions?.[0]?.fields || null;
+      let sourceScript = getCurrentVersionEntry(item)?.fields || null;
       if (!sourceScript) {
         const doc = await api.getDocument(item.id);
-        sourceScript = doc?.versions?.[0]?.fields || doc || null;
+        sourceScript = getCurrentVersionEntry(doc)?.fields || doc || null;
       }
       if (!sourceScript || typeof sourceScript !== "object") {
         throw new Error("Script payload could not be loaded.");
@@ -284,7 +297,54 @@ const FormsSearch = () => {
     }
   };
 
+  const publishedByScriptId = useMemo(() => {
+    const map = {};
+    (requests || []).forEach((entry) => {
+      const raw = entry?.raw || entry || {};
+      const scriptId = String(
+        raw.published_script_id || raw.approved_script_id || entry?.approvedScriptId || ""
+      ).trim();
+      if (!scriptId) return;
+      const publishedFromVersion = String(raw.published_from_version || "").trim();
+      if (!publishedFromVersion) return;
+      const updatedAt = String(raw.updated_at || entry?.updatedAt || entry?.createdAt || "").trim();
+      const prev = map[scriptId];
+      if (!prev) {
+        map[scriptId] = {
+          version: publishedFromVersion,
+          requestId: String(entry?.id || "").trim(),
+          updatedAt,
+        };
+        return;
+      }
+      const prevTime = Date.parse(prev.updatedAt || "");
+      const nextTime = Date.parse(updatedAt || "");
+      if (Number.isFinite(nextTime) && (!Number.isFinite(prevTime) || nextTime >= prevTime)) {
+        map[scriptId] = {
+          version: publishedFromVersion,
+          requestId: String(entry?.id || "").trim(),
+          updatedAt,
+        };
+      }
+    });
+    return map;
+  }, [requests]);
+
   const visible = (results || items).filter((it) => !it.draftOf);
+  const visibleWithPublishMeta = useMemo(
+    () =>
+      visible.map((it) => {
+        const scriptId = String(it?.id || it?._id || "").trim();
+        const publishedMeta = scriptId ? publishedByScriptId[scriptId] : null;
+        if (!publishedMeta) return it;
+        return {
+          ...it,
+          publishedFromVersion: publishedMeta.version,
+          publishedFromRequestId: publishedMeta.requestId,
+        };
+      }),
+    [publishedByScriptId, visible]
+  );
 
   return (
     <section className="w-full space-y-5">
@@ -339,13 +399,13 @@ const FormsSearch = () => {
 
       {err ? <div className="text-sm text-red-600 font-semibold">{err}</div> : null}
 
-      {visible.length === 0 ? (
+      {visibleWithPublishMeta.length === 0 ? (
         <div className="text-gray-600 border border-dashed border-gray-400 rounded-2xl p-8 text-center bg-white">
           No scripts found. Try adjusting filters or create a new script request.
         </div>
       ) : (
         <div className="space-y-2">
-          {visible.slice(0, 10).map((it) => (
+          {visibleWithPublishMeta.slice(0, 10).map((it) => (
             <FormsListRow
               key={it.id}
               item={it}
@@ -377,9 +437,13 @@ const FormsSearch = () => {
                 <div key={idx} className="flex items-center justify-between border rounded px-3 py-2">
                   <div className="flex items-center gap-2">
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-[#981e32]">
-                      {a?.__generatedMedicationCard ? "PDF" : getArtifactBadge(a)}
+                      {(a?.__generatedMedicationCard || a?.__generatedLabDataCard) ? "PDF" : getArtifactBadge(a)}
                     </span>
-                    <span>{a?.__generatedMedicationCard ? "Medication Card" : getArtifactName(a)}</span>
+                    <span>
+                      {a?.__generatedMedicationCard
+                        ? "Medication Card"
+                        : (a?.__generatedLabDataCard ? "Lab Data Card" : getArtifactName(a))}
+                    </span>
                   </div>
                   <button className="rounded border px-2 py-1 hover:bg-gray-50" title="Download resource" onClick={() => openArtifact(a)}>
                     Download

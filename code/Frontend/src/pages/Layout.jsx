@@ -1,7 +1,7 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
+import { isOktaConfigured, oktaAuth } from "../oktaConfig";
 
-const shieldIcon = "/images/wsu-icon.svg";
 const lockupImage = "/images/wsu-com-lockup.png";
 const FULL_NAME = "Washington State University Elson S. Floyd College of Medicine";
 
@@ -9,9 +9,21 @@ const Layout = () => {
   const navigate = useNavigate();
   const toast = useToast();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("role");
+
+    if (isOktaConfigured && oktaAuth) {
+      try {
+        await oktaAuth.signOut({
+          postLogoutRedirectUri: `${window.location.origin}/login`,
+        });
+        return;
+      } catch {
+      }
+    }
+
     navigate("/login");
   };
 
