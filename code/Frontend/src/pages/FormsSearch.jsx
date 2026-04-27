@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import FormsListRow from "./FormsListRow";
 import Modal from "../components/Modal";
 import { useStore } from "../store";
@@ -33,8 +33,10 @@ const reviewOfSystemsFields = [
   "endocine",
 ];
 
+// handles clone value
 const cloneValue = (value) => JSON.parse(JSON.stringify(value));
 
+// handles extract text list
 const extractTextList = (value) => {
   if (Array.isArray(value)) {
     return value
@@ -59,17 +61,21 @@ const extractTextList = (value) => {
   return text ? [text] : [];
 };
 
+// handles to bulleted text
 const toBulletedText = (value) => {
   const entries = extractTextList(value);
   return entries.length ? entries.map((entry) => `- ${entry}`).join("\n") : "";
 };
 
+// handles to multiline text
 const toMultilineText = (value) => extractTextList(value).join("\n");
 
+// handles unique artifacts
 const uniqueArtifacts = (artifacts = []) => {
   return collapseDoorNoteArtifacts(dedupeArtifacts(artifacts));
 };
 
+// handles get current version entry
 const getCurrentVersionEntry = (item) => {
   const versions = Array.isArray(item?.versions) ? item.versions : [];
   if (!versions.length) return null;
@@ -80,12 +86,14 @@ const getCurrentVersionEntry = (item) => {
   );
 };
 
+// handles build symptom review payload
 const buildSymptomReviewPayload = (symptomReview = {}) =>
   reviewOfSystemsFields.reduce((acc, key) => {
     acc[key] = toMultilineText(symptomReview?.[key]);
     return acc;
   }, {});
 
+// handles build request payload from library item
 const buildRequestPayloadFromLibraryItem = (item, scriptFields) => {
   const normalizedScript = buildScriptFromForm(
     scriptFields && typeof scriptFields === "object" ? cloneValue(scriptFields) : {}
@@ -132,8 +140,20 @@ const buildRequestPayloadFromLibraryItem = (item, scriptFields) => {
   };
 };
 
+// handles forms search
 const FormsSearch = () => {
-  const { items, requests, refreshDocuments, deleteItem, createRequest } = useStore();
+  const {
+    items,
+    requests,
+    refreshDocuments,
+    refreshRequests,
+    deleteItem,
+    createRequest,
+    updateRequest,
+    deleteRequest,
+  } = useStore();
+  const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
   const [artifactsOpen, setArtifactsOpen] = useState(false);
@@ -143,6 +163,7 @@ const FormsSearch = () => {
   const [err, setErr] = useState("");
   const [q, setQ] = useState({ title: "", author: "", diagnosis: "", learner_level: "", patient_name: "", search: "" });
   const [showFilters, setShowFilters] = useState(false);
+  // handles open artifact
   const openArtifact = (artifact) => {
     const currentVersion = getCurrentVersionEntry(current);
     if (artifact?.__generatedMedicationCard) {
@@ -178,9 +199,26 @@ const FormsSearch = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // handles on artifacts
   const onArtifacts = (item) => {
     setCurrent(item);
     setArtifactsOpen(true);
+  };
+  // handles on clone
+  const onClone = (item) => {
+    const currentVersion = getCurrentVersionEntry(item);
+    const versionKey = String(currentVersion?.version || "current").trim() || "current";
+    const from = `${location.pathname}${location.search}${location.hash}`;
+    navigate(
+      `/clone-new?clone_source=document&source_id=${encodeURIComponent(item.id)}&version=${encodeURIComponent(versionKey)}`,
+      {
+        state: {
+          document: item,
+          versionKey,
+          from,
+        },
+      }
+    );
   };
   const resourceItems = [
     { __generatedMedicationCard: true, name: "Medication Card" },
@@ -188,6 +226,7 @@ const FormsSearch = () => {
     ...collapseDoorNoteArtifacts(Array.isArray(current?.artifacts) ? current.artifacts : []),
   ];
 
+  // handles on propose
   const onPropose = async (item) => {
     try {
       const { api } = await import("../api/client");
@@ -200,20 +239,31 @@ const FormsSearch = () => {
     }
   };
 
+  // handles on delete
   const onDelete = async (item) => {
     if (!confirm(`Delete ${item.title || item.id}?`)) return;
     try {
+      const { api } = await import("../api/client");
+      const linkedRequest = resolveLinkedPublishedRequest(item);
       if (typeof deleteItem === "function") {
         await deleteItem(item.id);
       } else {
-        const { api } = await import("../api/client");
         await api.deleteDocument(item.id);
       }
+      if (linkedRequest?.id) {
+        if (typeof deleteRequest === "function") {
+          await deleteRequest(linkedRequest.id);
+        } else {
+          await api.deleteScriptRequest(linkedRequest.id);
+        }
+      }
       toast.show("Deleted", { type: "success" });
+      if (typeof refreshRequests === "function") {
+        await refreshRequests();
+      }
       if (typeof refreshDocuments === "function") {
         await refreshDocuments();
       }
-      const { api } = await import("../api/client");
       if (results) {
         const fresh = await api.searchDocuments(q);
         setResults(Array.isArray(fresh) ? fresh : []);
@@ -226,10 +276,12 @@ const FormsSearch = () => {
     }
   };
 
+  // handles on send back to requests
   const onSendBackToRequests = async (item) => {
     if (!confirm(`Send ${item.title || item.id} back to requests?`)) return;
     try {
       const { api } = await import("../api/client");
+      const linkedRequest = resolveLinkedPublishedRequest(item);
       let sourceScript = getCurrentVersionEntry(item)?.fields || null;
       if (!sourceScript) {
         const doc = await api.getDocument(item.id);
@@ -239,15 +291,38 @@ const FormsSearch = () => {
         throw new Error("Script payload could not be loaded.");
       }
       const payload = buildRequestPayloadFromLibraryItem(item, sourceScript);
-      if (typeof createRequest === "function") {
-        await createRequest(payload);
+      const now = new Date().toISOString();
+      if (linkedRequest?.id) {
+        const updatedPayload = {
+          ...(linkedRequest.raw || {}),
+          ...payload,
+          status: "Pending",
+          note: `Sent back from library script ${item.id}`,
+          approved_script_id: "",
+          published_script_id: "",
+          published_from_version: "",
+          created_at: linkedRequest.raw?.created_at || payload.created_at || now,
+          updated_at: now,
+        };
+        if (typeof updateRequest === "function") {
+          await updateRequest(linkedRequest.id, updatedPayload);
+        } else {
+          await api.updateScriptRequest(linkedRequest.id, updatedPayload);
+        }
       } else {
-        await api.createScriptRequest(payload);
+        if (typeof createRequest === "function") {
+          await createRequest(payload);
+        } else {
+          await api.createScriptRequest(payload);
+        }
       }
       if (typeof deleteItem === "function") {
         await deleteItem(item.id);
       } else {
         await api.deleteDocument(item.id);
+      }
+      if (typeof refreshRequests === "function") {
+        await refreshRequests();
       }
       if (typeof refreshDocuments === "function") {
         await refreshDocuments();
@@ -258,6 +333,7 @@ const FormsSearch = () => {
     }
   };
 
+  // handles run search
   const runSearch = async (e) => {
     e?.preventDefault?.();
     setLoading(true);
@@ -267,6 +343,7 @@ const FormsSearch = () => {
       const { title, ...serverParams } = q;
       const serverRes = await api.searchDocuments(serverParams);
       const arr = Array.isArray(serverRes) ? serverRes : [];
+      // handles needle
       const needle = (s) => String(s || "").toLowerCase();
       const filtered = title
         ? arr.filter((doc) => {
@@ -283,6 +360,7 @@ const FormsSearch = () => {
     }
   };
 
+  // handles clear search
   const clearSearch = async () => {
     setQ({ title: "", author: "", diagnosis: "", learner_level: "", patient_name: "", search: "" });
     try {
@@ -329,6 +407,38 @@ const FormsSearch = () => {
     });
     return map;
   }, [requests]);
+
+  // handles resolve linked published request
+  const resolveLinkedPublishedRequest = (item) => {
+    const directId = String(item?.publishedFromRequestId || "").trim();
+    if (directId) {
+      const directMatch = (requests || []).find((entry) => String(entry?.id || "").trim() === directId);
+      if (directMatch) return directMatch;
+    }
+
+    const scriptId = String(item?.id || item?._id || "").trim();
+    if (!scriptId) return null;
+
+    let bestMatch = null;
+    let bestTime = Number.NEGATIVE_INFINITY;
+    (requests || []).forEach((entry) => {
+      const raw = entry?.raw || entry || {};
+      const linkedScriptId = String(
+        raw.published_script_id || raw.approved_script_id || entry?.approvedScriptId || ""
+      ).trim();
+      if (linkedScriptId !== scriptId) return;
+
+      const updatedAt = String(raw.updated_at || entry?.updatedAt || entry?.createdAt || "").trim();
+      const parsedTime = Date.parse(updatedAt);
+      const score = Number.isFinite(parsedTime) ? parsedTime : Number.NEGATIVE_INFINITY;
+      if (!bestMatch || score >= bestTime) {
+        bestMatch = entry;
+        bestTime = score;
+      }
+    });
+
+    return bestMatch;
+  };
 
   const visible = (results || items).filter((it) => !it.draftOf);
   const visibleWithPublishMeta = useMemo(
@@ -411,8 +521,9 @@ const FormsSearch = () => {
               item={it}
               onArtifacts={onArtifacts}
               onPropose={onPropose}
-              onDelete={onDelete}
-              onSendBackToRequests={onSendBackToRequests}
+              onDelete={isAdmin ? onDelete : null}
+              onSendBackToRequests={isAdmin ? onSendBackToRequests : null}
+              onClone={isAdmin ? onClone : null}
             />
           ))}
         </div>

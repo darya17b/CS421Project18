@@ -3,6 +3,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { useToast } from "../components/Toast";
 
+// handles empty text row
 const emptyTextRow = () => ({ text: "" });
 
 const reviewOfSystemsFields = [
@@ -22,6 +23,7 @@ const reviewOfSystemsFields = [
   ["endocine", "Hematologic/Endocrine"],
 ];
 
+// handles extract text list
 const extractTextList = (value) => {
   if (Array.isArray(value)) {
     return value
@@ -33,17 +35,20 @@ const extractTextList = (value) => {
   return text ? [text] : [];
 };
 
+// handles to bulleted text
 const toBulletedText = (value) => {
   const entries = extractTextList(value);
   return entries.length ? entries.map((entry) => `- ${entry}`).join("\n") : "";
 };
 
+// handles build symptom review payload
 const buildSymptomReviewPayload = (symptomReview = {}) =>
   reviewOfSystemsFields.reduce((acc, [key]) => {
     acc[key] = extractTextList(symptomReview?.[key]).join("\n");
     return acc;
   }, {});
 
+// handles build draft script
 const buildDraftScript = (form = {}) => ({
   admin: {
     reson_for_visit: form.admin?.reson_for_visit || "",
@@ -82,6 +87,7 @@ const buildDraftScript = (form = {}) => ({
   },
 });
 
+// handles build script request payload
 const buildScriptRequestPayload = (form = {}, draftScript = null) => {
   const now = new Date().toISOString();
   return {
@@ -113,6 +119,7 @@ const buildScriptRequestPayload = (form = {}, draftScript = null) => {
   };
 };
 
+// handles create script
 const CreateScript = () => {
   const navigate = useNavigate();
   const { createRequest } = useStore();
@@ -182,6 +189,7 @@ const CreateScript = () => {
     )
   );
 
+  // handles set deep
   const setDeep = (obj, path, value) => {
     const copy = JSON.parse(JSON.stringify(obj));
     let cur = copy;
@@ -194,26 +202,32 @@ const CreateScript = () => {
     return copy;
   };
 
+  // handles set field
   const setField = (path, value) => setForm((prev) => setDeep(prev, path, value));
+  // handles get field
   const getField = (path) => path.reduce((acc, key) => (acc ? acc[key] : undefined), form);
 
+  // handles get list
   const getList = (path, fallbackFactory) => {
     const current = getField(path);
     if (Array.isArray(current) && current.length) return current;
     return [fallbackFactory()];
   };
 
+  // handles add list row
   const addListRow = (path, newRowFactory) => {
     const current = getList(path, newRowFactory);
     setField(path, [...current, newRowFactory()]);
   };
 
+  // handles remove list row
   const removeListRow = (path, index, fallbackFactory) => {
     const current = getList(path, fallbackFactory);
     const next = current.filter((_, idx) => idx !== index);
     setField(path, next.length ? next : [fallbackFactory()]);
   };
 
+  // handles update list row text
   const updateListRowText = (path, index, value, fallbackFactory) => {
     const current = getList(path, fallbackFactory);
     const next = current.map((entry, idx) =>
@@ -222,12 +236,14 @@ const CreateScript = () => {
     setField(path, next);
   };
 
+  // handles on form key down
   const onFormKeyDown = (event) => {
     if (event.key === "Enter" && event.target.tagName !== "TEXTAREA") {
       event.preventDefault();
     }
   };
 
+  // handles handle backtrack
   const handleBacktrack = () => {
     if (shouldWarnOnLeave) {
       const ok = window.confirm("You have unsaved changes. Leave this page?");
@@ -236,6 +252,7 @@ const CreateScript = () => {
     navigate("/dashboard");
   };
 
+  // handles on submit
   const onSubmit = async (event) => {
     event.preventDefault();
     bypassNavigationRef.current = false;

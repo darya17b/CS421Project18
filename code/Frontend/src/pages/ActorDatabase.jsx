@@ -21,6 +21,7 @@ const INITIAL_FORM = {
 const REQUIRED_FIELDS = ["name", "email", "phone_number", "employee_id", "workday_name", "time_code"];
 const OPTIONAL_FIELDS = ["notes", "age_range", "pronouns", "lead_time_code", "specialized_time_code"];
 
+// handles normalize actor
 const normalizeActor = (raw) => ({
   id: Number(raw?.id || 0),
   name: raw?.name || "",
@@ -36,6 +37,7 @@ const normalizeActor = (raw) => ({
   specializedTimeCode: raw?.specialized_time_code || "",
 });
 
+// handles parse api error
 const parseApiError = (text, status) => {
   if (!text) return `HTTP ${status}`;
   try {
@@ -47,6 +49,7 @@ const parseApiError = (text, status) => {
   return text;
 };
 
+// handles initials for
 const initialsFor = (name) => {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "--";
@@ -54,12 +57,14 @@ const initialsFor = (name) => {
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 };
 
+// handles preview words
 const previewWords = (text, count = 25) => {
   const words = String(text || "").trim().split(/\s+/).filter(Boolean);
   if (words.length <= count) return text;
   return `${words.slice(0, count).join(" ")}...`;
 };
 
+// handles actor database
 const ActorDatabase = () => {
   const [actors, setActors] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -156,6 +161,7 @@ const ActorDatabase = () => {
     [filteredActors, selectedId, visibleActors]
   );
 
+  // handles handle create actor
   const handleCreateActor = async (e) => {
     e.preventDefault();
     if (!isAdmin) return;
@@ -208,6 +214,7 @@ const ActorDatabase = () => {
     }
   };
 
+  // handles handle delete actor
   const handleDeleteActor = async () => {
     if (!isAdmin || !selectedActor) return;
     const name = selectedActor?.name || `ID ${selectedActor.id}`;

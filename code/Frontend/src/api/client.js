@@ -1,8 +1,7 @@
-// Use environment variable or default to relative path
-// For development with separate frontend server: VITE_API_URL=http://localhost:8080/api
-// For production build served by Go: VITE_API_URL=/api (or leave empty)
+// Shared frontend api utility file, backend requests kept here, calls helper methods instead of raw fetches, handles request setup automatically
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
+// handles get token
 const getToken = () => {
   try {
     return localStorage.getItem('token');
@@ -51,6 +50,7 @@ export const api = {
   // Document APIs
   listDocuments: () => request('/document'),
   
+  // handles search documents
   searchDocuments: (params = {}) => {
     const qs = Object.entries(params)
       .filter(([, v]) => v != null && String(v).trim() !== '')
@@ -60,14 +60,17 @@ export const api = {
     return request(path);
   },
   
+  // handles get document
   getDocument: async (id) => {
     const res = await request(`/document?id=${encodeURIComponent(id)}`);
     return Array.isArray(res) ? res[0] : res;
   },
   
+  // handles create document
   createDocument: (payload) =>
     request('/document', { method: 'POST', body: payload }),
   
+  // handles update document
   updateDocument: (id, payload, params = {}) => {
     const searchParams = new URLSearchParams();
     searchParams.set('id', id);
@@ -85,6 +88,7 @@ export const api = {
     });
   },
   
+  // handles delete document
   deleteDocument: (id) =>
     request(`/document?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
@@ -100,6 +104,7 @@ export const api = {
     });
   },
 
+  // handles delete artifact
   deleteArtifact: (id) =>
     request(`/artifact?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch((err) => {
       if (err?.status === 404) {
@@ -112,9 +117,11 @@ export const api = {
   listDocumentVersions: (id) =>
     request(`/document/versions?id=${encodeURIComponent(id)}`),
   
+  // handles get document version
   getDocumentVersion: (id, versionNumber) =>
     request(`/document/version?id=${encodeURIComponent(id)}&version=${encodeURIComponent(versionNumber)}`),
   
+  // handles restore document version
   restoreDocumentVersion: (id, versionNumber) =>
     request(`/document/restore?id=${encodeURIComponent(id)}&version=${encodeURIComponent(versionNumber)}`, { 
       method: 'POST' 
@@ -124,6 +131,7 @@ export const api = {
   getDocumentMedications: (id) =>
     request(`/document/medications?id=${encodeURIComponent(id)}`),
   
+  // handles get document vitals
   getDocumentVitals: (id) =>
     request(`/document/vitals?id=${encodeURIComponent(id)}`),
 
@@ -137,20 +145,24 @@ export const api = {
     return request(path);
   },
   
+  // handles get script request
   getScriptRequest: async (id) => {
     const res = await request(`/script-request?id=${encodeURIComponent(id)}`);
     return Array.isArray(res) ? res[0] : res;
   },
   
+  // handles create script request
   createScriptRequest: (payload) =>
     request('/script-request', { method: 'POST', body: payload }),
   
+  // handles update script request
   updateScriptRequest: (id, payload) =>
     request(`/script-request?id=${encodeURIComponent(id)}`, { 
       method: 'PUT', 
       body: payload 
     }),
   
+  // handles delete script request
   deleteScriptRequest: (id) =>
     request(`/script-request?id=${encodeURIComponent(id)}`, { 
       method: 'DELETE' 

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 
+// handles landing sections
 export const LandingSections = () => {
   const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
   return (
@@ -59,6 +60,7 @@ export const LandingSections = () => {
   );
 };
 
+// handles home
 const Home = () => <LandingSections />;
 
 export default Home;

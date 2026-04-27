@@ -8,6 +8,7 @@ import { collapseDoorNoteArtifacts, dedupeArtifacts } from "../utils/artifacts";
 const STORAGE_KEY = "mock-request-statuses";
 const ACTION_STATUS_OPTIONS = ["In Review", "Rejected"];
 
+// handles normalize status
 const normalizeStatus = (value) => {
   const raw = String(value || "").trim().toLowerCase();
   if (!raw) return "";
@@ -18,6 +19,7 @@ const normalizeStatus = (value) => {
   return value;
 };
 
+// handles load status
 const loadStatus = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -27,6 +29,7 @@ const loadStatus = () => {
   }
 };
 
+// handles save status
 const saveStatus = (data) => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -35,12 +38,15 @@ const saveStatus = (data) => {
   }
 };
 
+// handles clone value
 const cloneValue = (value) => JSON.parse(JSON.stringify(value));
 
+// handles unique artifacts
 const uniqueArtifacts = (artifacts = []) => {
   return collapseDoorNoteArtifacts(dedupeArtifacts(artifacts));
 };
 
+// handles pick first text
 const pickFirstText = (...values) => {
   for (const value of values) {
     const text = String(value || "").trim();
@@ -49,6 +55,7 @@ const pickFirstText = (...values) => {
   return "";
 };
 
+// handles resolve request dob
 const resolveRequestDob = (raw, fields = null) =>
   pickFirstText(
     fields?.patient?.date_of_birth,
@@ -62,6 +69,7 @@ const resolveRequestDob = (raw, fields = null) =>
     raw?.dob
   );
 
+// handles resolve version fields
 const resolveVersionFields = (request, versionKey = "request-draft") => {
   const raw = request?.raw || request || {};
   if (String(versionKey || "") === "request-draft") {
@@ -98,6 +106,7 @@ const resolveVersionFields = (request, versionKey = "request-draft") => {
   return fields && typeof fields === "object" ? fields : null;
 };
 
+// handles resolve version reason for visit
 const resolveVersionReasonForVisit = (request, versionKey = "request-draft") => {
   const raw = request?.raw || request || {};
   const selectedFields = resolveVersionFields(request, versionKey);
@@ -114,6 +123,7 @@ const resolveVersionReasonForVisit = (request, versionKey = "request-draft") => 
   );
 };
 
+// handles resolve display title for version
 const resolveDisplayTitleForVersion = (request, versionKey = "request-draft") => {
   const raw = request?.raw || request || {};
   const selectedFields = resolveVersionFields(request, versionKey);
@@ -122,6 +132,7 @@ const resolveDisplayTitleForVersion = (request, versionKey = "request-draft") =>
   return formatTitleWithDobAge(reasonForVisit || request?.title || "Untitled", dob) || "Untitled";
 };
 
+// handles build script from request
 const buildScriptFromRequest = (request, versionKey = "request-draft") => {
   const raw = request?.raw || request || {};
   const selectedFields = resolveVersionFields(request, versionKey);
@@ -186,6 +197,7 @@ const buildScriptFromRequest = (request, versionKey = "request-draft") => {
   };
 };
 
+// handles requests
 const Requests = () => {
   const location = useLocation();
   const from = `${location.pathname}${location.search}${location.hash}`;
@@ -195,6 +207,7 @@ const Requests = () => {
   const [publishingId, setPublishingId] = useState("");
   const [deletingId, setDeletingId] = useState("");
   const [publishVersionMap, setPublishVersionMap] = useState({});
+  // handles is admin
   const isAdmin = (() => {
     if (typeof window === "undefined") return true;
     const role = localStorage.getItem("role");
@@ -222,12 +235,7 @@ const Requests = () => {
         const backendNote = it.raw?.note || it.note || "";
         const backendUpdatedAt = it.raw?.updated_at || it.updatedAt;
         const previousStatus = normalizeStatus(next[it.id]?.status || "");
-        const resolvedStatus =
-          backendStatus === "Published"
-            ? "Published"
-            : (previousStatus && backendStatus === "Pending")
-                ? previousStatus
-                : (backendStatus || previousStatus || "Pending");
+        const resolvedStatus = backendStatus || previousStatus || "Pending";
 
         next[it.id] = {
           status: resolvedStatus,
@@ -240,7 +248,7 @@ const Requests = () => {
   }, [requests]);
 
   const list = useMemo(() => {
-    return (requests || []).map((it) => {
+    const mapped = (requests || []).map((it) => {
       const meta = statusMap[it.id] || {};
       const raw = it.raw || {};
       const draftVersions = Array.isArray(raw.draft_versions) ? raw.draft_versions : [];
@@ -267,6 +275,7 @@ const Requests = () => {
         publishVersionOptions,
       };
     });
+    return mapped.filter((it) => it.status !== "Published");
   }, [requests, statusMap]);
 
   useEffect(() => {
@@ -285,6 +294,7 @@ const Requests = () => {
     });
   }, [list]);
 
+  // handles persist request meta
   const persistRequestMeta = async (req, overrides = {}) => {
     if (typeof updateRequest !== "function") return req?.raw || null;
 
@@ -301,6 +311,7 @@ const Requests = () => {
     return updated?.raw || updated || payload;
   };
 
+  // handles update status
   const updateStatus = async (req, status) => {
     const normalizedStatus = normalizeStatus(status) || "Pending";
     const prevStatus = statusMap[req.id]?.status || req.status || "Pending";
@@ -323,6 +334,7 @@ const Requests = () => {
     }
   };
 
+  // handles publish to library
   const publishToLibrary = async (req, versionKey = "request-draft") => {
     if (publishingId) return;
     const prevStatus = statusMap[req.id]?.status || req.status || "Pending";
@@ -404,6 +416,7 @@ const Requests = () => {
     }
   };
 
+  // handles add note
   const addNote = async (req) => {
     const existing = statusMap[req.id]?.note || req.note || "";
     const note = prompt("Add a note for this request", existing);
@@ -426,6 +439,7 @@ const Requests = () => {
     }
   };
 
+  // handles delete from requests
   const deleteFromRequests = async (req) => {
     if (deletingId) return;
     const label = req.title || req.id || "this request";
@@ -544,6 +558,13 @@ const Requests = () => {
                 >
                   {publishingId === req.id ? "Publishing..." : "Publish to Library"}
                 </button>
+                <Link
+                  to={`/clone-new?clone_source=request&source_id=${encodeURIComponent(req.id)}&version=${encodeURIComponent(selectedVersionKey)}`}
+                  state={{ request: req, versionKey: selectedVersionKey, from }}
+                  className="rounded border border-gray-300 px-3 py-1 text-sm font-semibold text-gray-700 hover:border-[#981e32] hover:text-[#981e32]"
+                >
+                  Clone
+                </Link>
                 <Link
                   to={`/request-new?requestId=${encodeURIComponent(req.id)}`}
                   state={{ request: req, from }}

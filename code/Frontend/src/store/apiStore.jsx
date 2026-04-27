@@ -5,6 +5,7 @@ import { normalizeScript } from '../utils/normalize';
 
 const ApiStoreContext = createContext(null);
 
+// handles map doc to item
 function mapDocToItem(doc) {
   if (!doc || typeof doc !== 'object') return null;
   const normalized = normalizeScript(doc);
@@ -41,6 +42,7 @@ function mapDocToItem(doc) {
   };
 }
 
+// handles map request to item
 function mapRequestToItem(req) {
   if (!req || typeof req !== 'object') return null;
   const id = req.id || req._id || `REQ-${Math.random().toString(36).slice(2, 8)}`;
@@ -68,6 +70,7 @@ function mapRequestToItem(req) {
   };
 }
 
+// handles api store provider
 export const ApiStoreProvider = ({ children }) => {
   const [items, setItems] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -142,14 +145,17 @@ export const ApiStoreProvider = ({ children }) => {
   const apiValue = useMemo(() => ({
     items,
     requests,
+    // handles get request by id
     getRequestById: (id) => requests.find((r) => r.id === id),
     requestsLoaded,
+    // handles refresh documents
     refreshDocuments: async () => {
       const docs = await api.listDocuments();
       const mapped = (Array.isArray(docs) ? docs : []).map(mapDocToItem).filter(Boolean);
       setItems(mapped);
       return mapped;
     },
+    // handles add item
     addItem: async (payload) => {
       try {
         const created = await api.createDocument(payload);
@@ -167,6 +173,7 @@ export const ApiStoreProvider = ({ children }) => {
         throw err;
       }
     },
+    // handles get by id
     getById: (id) => items.find((it) => it.id === id),
     //in case call from pages later
     fetchById: async (id) => {
@@ -190,10 +197,13 @@ export const ApiStoreProvider = ({ children }) => {
     deleteRequest,
     deleteItem,
     
+    // handles toggle proposed
     toggleProposed: () => { console.warn('toggleProposed disabled: backend propose endpoint required'); },
+    // handles clear drafts
     clearDrafts: () => {
       setItems((prev) => prev.filter((it) => !it.draftOf));
     },
+    // handles clear proposed flags
     clearProposedFlags: () => {
       setItems((prev) => prev.map((it) => {
         if (it && Object.prototype.hasOwnProperty.call(it, 'proposed')) {
@@ -203,6 +213,7 @@ export const ApiStoreProvider = ({ children }) => {
         return it;
       }));
     },
+    // handles reset data
     resetData: () => {
       setItems([]);
       setRequests([]);
@@ -214,6 +225,7 @@ export const ApiStoreProvider = ({ children }) => {
   );
 };
 
+// handles use api store
 export const useApiStore = () => {
   const ctx = useContext(ApiStoreContext);
   if (!ctx) throw new Error('useApiStore must be used within ApiStoreProvider');

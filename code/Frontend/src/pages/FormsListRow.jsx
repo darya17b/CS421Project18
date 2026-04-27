@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { downloadScriptPdf, getScriptPdfUrl } from "../utils/pdf";
 import { formatTitleWithDobAge } from "../utils/patientAge";
 
+// handles pick first text
 const pickFirstText = (...values) => {
   for (const value of values) {
     const text = String(value || "").trim();
@@ -11,6 +12,7 @@ const pickFirstText = (...values) => {
   return "";
 };
 
+// handles get current version entry
 const getCurrentVersionEntry = (item) => {
   const versions = Array.isArray(item?.versions) ? item.versions : [];
   if (!versions.length) return null;
@@ -21,7 +23,8 @@ const getCurrentVersionEntry = (item) => {
   );
 };
 
-const FormsListRow = ({ item, onArtifacts, onPropose, onDelete, onSendBackToRequests }) => {
+// handles forms list row
+const FormsListRow = ({ item, onArtifacts, onPropose, onDelete, onSendBackToRequests, onClone }) => {
   const location = useLocation();
   const [manageOpen, setManageOpen] = useState(false);
   const manageMenuRef = useRef(null);
@@ -58,6 +61,7 @@ const FormsListRow = ({ item, onArtifacts, onPropose, onDelete, onSendBackToRequ
   const createdAt = pickFirstText(currentVersion?.createdAt, item?.createdAt, item?.admin?.event_dates);
   const meta = [patient, department, createdAt].filter(Boolean).join(" | ");
 
+  // handles handle download
   const handleDownload = () => {
     try {
       downloadScriptPdf(item, currentVersion || undefined);
@@ -65,6 +69,7 @@ const FormsListRow = ({ item, onArtifacts, onPropose, onDelete, onSendBackToRequ
      
     }
   };
+  // handles handle preview
   const handlePreview = () => {
     try {
       const url = getScriptPdfUrl(item, currentVersion || undefined);
@@ -76,6 +81,7 @@ const FormsListRow = ({ item, onArtifacts, onPropose, onDelete, onSendBackToRequ
 
   useEffect(() => {
     if (!manageOpen) return undefined;
+    // handles on document click
     const onDocumentClick = (event) => {
       if (manageMenuRef.current?.contains(event.target)) return;
       setManageOpen(false);
@@ -98,6 +104,7 @@ const FormsListRow = ({ item, onArtifacts, onPropose, onDelete, onSendBackToRequ
           <Link to={`/forms/${encodeURIComponent(item.id)}`} state={{ from }}>View</Link>
           <button onClick={handlePreview}>Preview</button>
           <button onClick={handleDownload}>Download</button>
+          {onClone ? <button onClick={() => onClone(item)}>Clone</button> : null}
           {onDelete || onSendBackToRequests ? (
             <div className="relative" ref={manageMenuRef}>
               <button

@@ -3,11 +3,13 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useOktaAuth } from "@okta/okta-react";
 import { syncLocalSessionFromClaims } from "../oktaConfig";
 
+// handles get stored role
 const getStoredRole = () => {
   if (typeof window === "undefined") return "";
   return (localStorage.getItem("role") || "").trim().toLowerCase();
 };
 
+// handles has legacy session
 const hasLegacySession = () => {
   if (typeof window === "undefined") return false;
   const token = localStorage.getItem("token");
@@ -15,6 +17,7 @@ const hasLegacySession = () => {
   return Boolean(token || user);
 };
 
+// handles role guard
 const RoleGuard = ({ children, requiredRole, redirectTo = "/dashboard", location }) => {
   if (!requiredRole) return children;
 
@@ -26,6 +29,7 @@ const RoleGuard = ({ children, requiredRole, redirectTo = "/dashboard", location
   return children;
 };
 
+// handles require auth legacy
 const RequireAuthLegacy = ({ children, requiredRole = null, redirectTo = "/dashboard" }) => {
   const location = useLocation();
 
@@ -40,6 +44,7 @@ const RequireAuthLegacy = ({ children, requiredRole = null, redirectTo = "/dashb
   );
 };
 
+// handles require auth okta
 const RequireAuthOkta = ({ children, requiredRole = null, redirectTo = "/dashboard" }) => {
   const location = useLocation();
   const { authState } = useOktaAuth();
@@ -69,6 +74,7 @@ const RequireAuthOkta = ({ children, requiredRole = null, redirectTo = "/dashboa
   );
 };
 
+// handles require auth
 const RequireAuth = ({ children, requiredRole = null, redirectTo = "/dashboard", oktaEnabled = false }) => {
   if (oktaEnabled) {
     return (

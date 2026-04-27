@@ -3,6 +3,7 @@
 
 const hasText = (value) => String(value || "").trim() !== "";
 
+// handles first non empty string
 const firstNonEmptyString = (...values) => {
   for (const value of values) {
     const text = String(value ?? "").trim();
@@ -11,6 +12,7 @@ const firstNonEmptyString = (...values) => {
   return "";
 };
 
+// handles extract text entries
 const extractTextEntries = (value) => {
   if (Array.isArray(value)) {
     return value
@@ -30,7 +32,9 @@ const extractTextEntries = (value) => {
   return text ? [text] : [];
 };
 
+// handles normalize medication entries
 const normalizeMedicationEntries = (value) => {
+  // handles to medication
   const toMedication = (entry) => {
     if (typeof entry === "string") {
       const text = String(entry || "").trim();
@@ -100,7 +104,9 @@ const normalizeMedicationEntries = (value) => {
     .filter(Boolean);
 };
 
+// handles normalize non prescription entries
 const normalizeNonPrescriptionEntries = (value) => {
+  // handles format medication summary
   const formatMedicationSummary = (entry) => {
     const generic = String(entry.generic_name || entry.generic || "").trim();
     const brand = String(entry.brand_name || entry.brand_substance || entry.brand || entry.name || "").trim();
@@ -141,6 +147,7 @@ const normalizeNonPrescriptionEntries = (value) => {
   return text ? [text] : [];
 };
 
+// handles normalize allergy entries
 const normalizeAllergyEntries = (value) => {
   const rawEntries = Array.isArray(value)
     ? value
@@ -174,6 +181,7 @@ const normalizeAllergyEntries = (value) => {
     .filter(Boolean);
 };
 
+// handles build allergy summary
 const buildAllergySummary = (entry) => [
   String(entry?.allergen || "").trim(),
   hasText(entry?.reaction) ? `reaction: ${String(entry.reaction).trim()}` : "",
@@ -184,6 +192,7 @@ const buildAllergySummary = (entry) => [
   .join(" | ")
   .trim();
 
+// handles to number or zero
 const toNumberOrZero = (value) => {
   if (value === 0 || value === "0") return 0;
   if (value === undefined || value === null || value === "") return 0;
@@ -191,6 +200,7 @@ const toNumberOrZero = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+// handles normalize character attribute level
 const normalizeCharacterAttributeLevel = (value) => {
   const text = String(value ?? "").trim();
   if (!text) return "";
@@ -203,7 +213,9 @@ const normalizeCharacterAttributeLevel = (value) => {
   return "";
 };
 
+// handles normalize family history entries
 const normalizeFamilyHistoryEntries = (value) => {
+  // handles to family entry
   const toFamilyEntry = (entry) => {
     if (!entry || typeof entry !== "object") return null;
     const familyMember = String(entry.family_member || entry.relation || "").trim();
@@ -279,6 +291,7 @@ const normalizeFamilyHistoryEntries = (value) => {
   }];
 };
 
+// handles normalize diagram markers
 const normalizeDiagramMarkers = (value) => {
   const raw = Array.isArray(value) ? value : [value];
   return raw
@@ -295,6 +308,7 @@ const normalizeDiagramMarkers = (value) => {
     .filter(Boolean);
 };
 
+// handles build script from form
 export function buildScriptFromForm(f = {}) {
   //  temperature unit to numeric
   const unitRaw = f.patient?.vitals?.temp?.unit;
@@ -304,6 +318,7 @@ export function buildScriptFromForm(f = {}) {
 
   const medicationsArr = normalizeMedicationEntries(f.med_hist?.medications);
   const nonPrescriptionMeds = normalizeNonPrescriptionEntries(f.med_hist?.non_prescription_medications);
+  // handles allergy details
   const allergyDetails = (() => {
     const direct = normalizeAllergyEntries(f.med_hist?.allergies);
     if (direct.length) return direct;
@@ -346,6 +361,7 @@ export function buildScriptFromForm(f = {}) {
       ? 'Standardized'
       : '';
   const rawDoorNoteVitalsToggle = f.patient?.vitals_included_on_door_note;
+  // handles door note vitals included
   const doorNoteVitalsIncluded = (() => {
     if (rawDoorNoteVitalsToggle === undefined || rawDoorNoteVitalsToggle === null || rawDoorNoteVitalsToggle === "") {
       return true;
@@ -374,6 +390,7 @@ export function buildScriptFromForm(f = {}) {
   ].filter(Boolean).join('\n');
   const sexualHistoryEntries = extractTextEntries(socialHistory.sexual_history_entries);
   const sexHistory = socialHistory.sex_history || {};
+  // handles normalize partner count
   const normalizePartnerCount = (value) => {
     if (value === 0 || value === "0") return "0";
     if (value === undefined || value === null || value === "") return "";
@@ -403,6 +420,7 @@ export function buildScriptFromForm(f = {}) {
     lifetimeSexualPartners ? `Lifetime Sexual Partners: ${lifetimeSexualPartners}` : "",
     otherSexualDetails ? `All other details: ${otherSexualDetails}` : "",
   ].filter(Boolean);
+  // handles to character attribute narrative
   const toCharacterAttributeNarrative = (key) => {
     const direct = normalizeCharacterAttributeLevel(f.sp?.character_attributes?.[key]);
     if (direct) return direct;
@@ -604,6 +622,7 @@ export function buildScriptFromForm(f = {}) {
   };
 }
 
+// handles download script json
 export function downloadScriptJson(script, filename = 'script.json') {
   const blob = new Blob([JSON.stringify(script, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

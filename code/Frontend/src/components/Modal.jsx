@@ -1,3 +1,4 @@
+// handles modal
 const Modal = ({ open, title, children, onClose }) => {
   if (!open) return null;
   return (

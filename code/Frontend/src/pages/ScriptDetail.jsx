@@ -161,8 +161,10 @@ const initialForm = {
   },
 };
 
+// handles path key
 const pathKey = (path) => path.join(".");
 
+// handles set deep
 function setDeep(obj, path, value) {
   const copy = structuredClone(obj);
   let cur = copy;
@@ -175,10 +177,12 @@ function setDeep(obj, path, value) {
   return copy;
 }
 
+// handles get deep
 function getDeep(obj, path) {
   return path.reduce((acc, k) => (acc ? acc[k] : undefined), obj);
 }
 
+// handles merge deep
 function mergeDeep(base, incoming) {
   if (incoming === undefined || incoming === null) return base;
   if (typeof base !== "object" || typeof incoming !== "object") return incoming;
@@ -189,6 +193,7 @@ function mergeDeep(base, incoming) {
   return result;
 }
 
+// handles request to script
 function requestToScript(req = {}) {
   const draft = req?.draft_script && typeof req.draft_script === "object"
     ? normalizeScript(req.draft_script)
@@ -461,6 +466,7 @@ const fieldSections = [
   },
 ];
 
+// handles label map
 const labelMap = (() => {
   const map = {};
   fieldSections.forEach((group) => {
@@ -471,6 +477,7 @@ const labelMap = (() => {
   return map;
 })();
 
+// handles field config map
 const fieldConfigMap = (() => {
   const map = {};
   fieldSections.forEach((group) => {
@@ -481,6 +488,7 @@ const fieldConfigMap = (() => {
   return map;
 })();
 
+// handles script detail
 const ScriptDetail = ({ requestInlineOnly = false }) => {
   const { id } = useParams();
   const store = useStore();
@@ -488,6 +496,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
   const requestFromState = location.state?.request;
   const { getById, getRequestById, requestsLoaded, updateRequest, refreshRequests } = store;
   const toast = useToast();
+  // handles is admin
   const isAdmin = (() => {
     if (typeof window === "undefined") return false;
     const role = (localStorage.getItem("role") || "").trim().toLowerCase();
@@ -535,6 +544,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
   const canRequestInlineEdit = isAdmin && requestInlineOnly && isRequestView;
   // Keep inline editing limited to request-review flow only.
   const canInlineEdit = canRequestInlineEdit;
+  // handles next version label
   const nextVersionLabel = () => {
     const nums = (versions || [])
       .map((v) => {
@@ -658,10 +668,12 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
       ? fromPath
       : (requestInlineOnly ? "/requests" : (isAdmin ? "/dashboard" : "/forms-search"));
 
+  // handles set field
   const setField = (path, value) => {
     setForm((prev) => setDeep(prev, path, value));
   };
 
+  // handles scroll to field
   const scrollToField = (path) => {
     const key = pathKey(path);
     const el = fieldRefs.current[key];
@@ -672,6 +684,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     }
   };
 
+  // handles save edits
   const saveEdits = async (nextForm = form, overrideNote = null) => {
     setSavingLine(true);
     try {
@@ -747,6 +760,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     }
   };
 
+  // handles begin line edit
   const beginLineEdit = (path) => {
     if (!canInlineEdit) {
       if (isAdmin && requestInlineOnly) {
@@ -760,12 +774,14 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     setEditingValue(currentValue === undefined || currentValue === null ? "" : String(currentValue));
   };
 
+  // handles cancel line edit
   const cancelLineEdit = () => {
     if (savingLine) return;
     setEditingPath(null);
     setEditingValue("");
   };
 
+  // handles coerce line value
   const coerceLineValue = (path, rawValue) => {
     const cfg = fieldConfigMap[pathKey(path)];
     if (!cfg) return rawValue;
@@ -777,6 +793,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     return rawValue;
   };
 
+  // handles save line edit
   const saveLineEdit = async (path, label) => {
     const nextValue = coerceLineValue(path, editingValue);
     const nextForm = setDeep(form, path, nextValue);
@@ -823,6 +840,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     }
   };
 
+  // handles print script pdf
   const printScriptPdf = () => {
     const pdfUrl = getScriptPdfUrl(activeItem, current);
     const printWindow = window.open(pdfUrl, "_blank");
@@ -831,6 +849,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
       return;
     }
 
+    // handles trigger print
     const triggerPrint = () => {
       try {
         printWindow.focus();
@@ -847,6 +866,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     }
   };
 
+  // handles open artifact
   const openArtifact = (artifact) => {
     if (artifact?.__generatedMedicationCard) {
       void downloadMedicationCardPdf(activeItem, current, artifact?.name || "Medication Card");
@@ -873,6 +893,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     }
   };
 
+  // handles render editable value
   const renderEditableValue = ({ path, label, displayValue }) => {
     const key = pathKey(path);
     const valueForDisplay = displayValue ?? getDeep(form, path);
@@ -977,6 +998,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     );
   };
 
+  // handles render input
   const renderInput = (field) => {
     const key = pathKey(field.path);
     const value = getDeep(form, field.path) ?? "";
@@ -994,6 +1016,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     }));
     const common = {
       className: `rounded border px-3 py-2 text-sm ${highlightPath === key ? "ring-2 ring-[#1b76d2]" : ""}`,
+      // handles ref
       ref: (el) => { if (el) fieldRefs.current[key] = el; },
     };
 
@@ -1042,12 +1065,14 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     );
   };
 
+  // handles render display input
   const renderDisplayInput = (field) => {
     const key = pathKey(field.path);
     const value = getDeep(form, field.path) ?? "";
     const ringClass = highlightPath === key ? "ring-2 ring-[#1b76d2]" : "";
     const shared = {
       className: `w-full rounded-full border border-gray-300 bg-white px-4 py-2 text-sm shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] ${ringClass}`,
+      // handles ref
       ref: (el) => { if (el) fieldRefs.current[key] = el; },
       readOnly: true,
       disabled: true,
@@ -1077,8 +1102,10 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     );
   };
 
+  // handles build json lines
   const buildJsonLines = (val) => {
     const lines = [];
+    // handles walk
     const walk = (node, indent, path, isLast) => {
       if (node && typeof node === "object" && !Array.isArray(node)) {
         const keys = Object.keys(node);
@@ -1105,18 +1132,21 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     return lines;
   };
 
+  // handles pad val
   const padVal = (s) => {
     if (s === 0) return "0";
     if (s === undefined || s === null || s === "") return "—";
     return String(s);
   };
 
+  // handles rating label
   const ratingLabel = (n) => {
     const v = Number(n);
     if (Number.isNaN(v)) return "None";
     return ["None", "Mild", "Moderate", "Concerning", "Severe", "Extreme"][v] || "None";
   };
 
+  // handles to text list
   const toTextList = (value) => {
     if (Array.isArray(value)) {
       return value
@@ -1159,6 +1189,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
       .filter(Boolean);
   };
 
+  // handles format medication line
   const formatMedicationLine = (entry = {}) => {
     if (typeof entry === "string") return entry.trim();
     if (!entry || typeof entry !== "object") return "";
@@ -1182,6 +1213,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     ].filter(Boolean).join(" | ");
   };
 
+  // handles format non prescription line
   const formatNonPrescriptionLine = (entry = {}) => {
     if (typeof entry === "string") return entry.trim();
     if (!entry || typeof entry !== "object") return "";
@@ -1196,6 +1228,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
       .trim();
   };
 
+  // handles format family history line
   const formatFamilyHistoryLine = (entry = {}) => {
     if (typeof entry === "string") return entry.trim();
     if (!entry || typeof entry !== "object") return "";
@@ -1223,6 +1256,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     ].filter(Boolean).join(" | ");
   };
 
+  // handles script html view
   const ScriptHtmlView = () => {
     const data = form || initialForm;
     const medVal = data?.med_hist?.medications;
@@ -1244,6 +1278,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     const substanceUseLines = toTextList(data?.med_hist?.social_hist?.substance_use);
     const sexualHistoryLines = toTextList(data?.med_hist?.social_hist?.sexual_history_entries);
     const symptomDiagramLines = toTextList(data?.sp?.current_ill_history?.symptom_diagram);
+    // handles render line list
     const renderLineList = (lines, keyPrefix, fallback = "None") => (
       lines.length ? (
         <ul className="list-disc pl-5 space-y-1">
@@ -1556,8 +1591,13 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
   const header = (
     <div className="flex items-center justify-between flex-wrap gap-2">
       <div className="flex items-center gap-3">
+        <Link
+          to={backTarget}
+          className="rounded-full bg-[#981e32] px-3 py-1 text-xs font-semibold text-white hover:bg-[#7f1829]"
+        >
+          &larr; Back
+        </Link>
         <h2 className="text-2xl font-semibold">{activeItem.title}</h2>
-        <Link to={backTarget} className="text-[#981e32] font-semibold hover:underline">Back</Link>
       </div>
       <div className="flex items-center gap-3 w-full lg:w-auto">
         <div className="flex-1 overflow-x-auto">

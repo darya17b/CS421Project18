@@ -2,12 +2,16 @@ import { jsPDF } from "jspdf";
 import hpiDiagramDataUrl from "../assets/hpi-diagram.png?inline";
 import { formatDobWithAge } from "./patientAge";
 
+// handles get
 const get = (obj, path, fallback = "") => path.reduce((acc, k) => (acc ? acc[k] : undefined), obj) ?? fallback;
+// handles pad
 const pad = (s) => (s === 0 ? "0" : s ? String(s) : "");
+// handles title case
 const titleCase = (s = "") =>
   String(s)
     .replace(/_/g, " ")
     .replace(/\b\w/g, (m) => m.toUpperCase());
+// handles get icd10 code
 const getIcd10Code = (text = "") => {
   const match = String(text).toUpperCase().match(/\b[A-TV-Z][0-9][0-9AB](?:\.[0-9A-TV-Z]{1,4})?\b/);
   return match ? match[0] : "";
@@ -33,6 +37,7 @@ const MARGIN = {
 };
 const VALUE_INDENT = 16.55;
 
+// handles build script pdf doc
 function buildScriptPdfDoc(item, versionObj) {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -50,26 +55,31 @@ function buildScriptPdfDoc(item, versionObj) {
   const diagnosis = get(fields, ["admin", "diagnosis"], "Diagnosis TBD");
   const enteredIcd10Code = String(get(fields, ["admin", "icd10_code"], "") || "").trim();
 
+  // handles set text
   const setText = (size = 11, weight = "normal", color = COLORS.body, family = "helvetica") => {
     doc.setFont(family, weight);
     doc.setFontSize(size);
     doc.setTextColor(color);
   };
 
+  // handles add page chrome
   const addPageChrome = () => {};
 
+  // handles new body page
   const newBodyPage = () => {
     doc.addPage();
     addPageChrome();
     y = bodyTop;
   };
 
+  // handles ensure space
   const ensureSpace = (space = 18) => {
     if (y + space > bodyBottom) {
       newBodyPage();
     }
   };
 
+  // handles draw part heading
   const drawPartHeading = (title) => {
     ensureSpace(32);
     setText(16, "bold", COLORS.crimson);
@@ -77,6 +87,7 @@ function buildScriptPdfDoc(item, versionObj) {
     y += 21;
   };
 
+  // handles draw section heading
   const drawSectionHeading = (title) => {
     ensureSpace(22);
     setText(12, "bold", COLORS.body);
@@ -84,6 +95,7 @@ function buildScriptPdfDoc(item, versionObj) {
     y += 16;
   };
 
+  // handles draw field
   const drawField = (label, value, options = {}) => {
     const {
       emptyText = "None",
@@ -123,16 +135,19 @@ function buildScriptPdfDoc(item, versionObj) {
     y += valueHeight + valueBottomGap;
   };
 
+  // handles draw paragraph
   const drawParagraph = (label, value) => {
     drawField(label, value);
   };
 
+  // handles draw object
   const drawObject = (obj) => {
     Object.entries(obj || {}).forEach(([key, value]) => {
       drawField(titleCase(key), value);
     });
   };
 
+  // handles normalize text entries
   const normalizeTextEntries = (value) => {
     if (Array.isArray(value)) {
       return value
@@ -152,10 +167,11 @@ function buildScriptPdfDoc(item, versionObj) {
     }
     return String(value || "")
       .split(/\r?\n/)
-      .map((line) => line.replace(/^\s*(?:[-*•]|â€¢)\s*/, "").trim())
+      .map((line) => line.replace(/^\s*(?:[-*ï¿½]|â€¢)\s*/, "").trim())
       .filter(Boolean);
   };
 
+  // handles draw list field
   const drawListField = (label, entries, options = {}) => {
     const {
       emptyText = "None",
@@ -195,6 +211,7 @@ function buildScriptPdfDoc(item, versionObj) {
     y += valueHeight + 6;
   };
 
+  // handles draw grouped list field
   const drawGroupedListField = (label, groups, options = {}) => {
     const {
       emptyText = "None",
@@ -253,6 +270,7 @@ function buildScriptPdfDoc(item, versionObj) {
     y += valueHeight + 6;
   };
 
+  // handles format medication entry
   const formatMedicationEntry = (entry) => {
     if (typeof entry === "string") return entry.trim();
     if (!entry || typeof entry !== "object") return "";
@@ -263,6 +281,7 @@ function buildScriptPdfDoc(item, versionObj) {
     return merged.trim();
   };
 
+  // handles format family history entry
   const formatFamilyHistoryEntry = (entry) => {
     if (typeof entry === "string") return entry.trim();
     if (!entry || typeof entry !== "object") return "";
@@ -292,16 +311,19 @@ function buildScriptPdfDoc(item, versionObj) {
     return text.trim();
   };
 
+  // handles format temperature pair
   const formatTemperaturePair = (reading, unitRaw) => {
     const n = Number(reading);
     if (!Number.isFinite(n) || n <= 0) return "";
     const unit = Number(unitRaw);
     const c = unit === 1 ? (n - 32) * (5 / 9) : n;
     const f = unit === 1 ? n : (n * (9 / 5) + 32);
+    // handles to one
     const toOne = (value) => Number(value.toFixed(1)).toString();
     return `${toOne(c)} C / ${toOne(f)} F`;
   };
 
+  // handles draw character attributes table
   const drawCharacterAttributesTable = () => {
     const attrs = [
       ["Anxiety", "anxiety"],
@@ -316,6 +338,7 @@ function buildScriptPdfDoc(item, versionObj) {
       ["Anger", "anger"],
     ];
     const levels = ["None", "Mild", "Moderate", "Concerning", "Severe"];
+    // handles to level index
     const toLevelIndex = (value) => {
       const text = String(value ?? "").trim();
       if (!text) return -1;
@@ -375,6 +398,7 @@ function buildScriptPdfDoc(item, versionObj) {
     y += 20;
   };
 
+  // handles draw severity
   const drawSeverity = () => {
     const rawSeverity = Number(get(fields, ["sp", "current_ill_history", "pain"], 0));
     const severity = Number.isFinite(rawSeverity)
@@ -422,6 +446,7 @@ function buildScriptPdfDoc(item, versionObj) {
     y += concernRowH + 8;
   };
 
+  // handles draw hpi diagram
   const drawHpiDiagram = (options = {}) => {
     if (!hpiDiagramDataUrl) return;
     const {
@@ -439,6 +464,7 @@ function buildScriptPdfDoc(item, versionObj) {
     const markers = (Array.isArray(rawMarkers) ? rawMarkers : [rawMarkers])
       .map((m) => ({ x: Number(m?.x), y: Number(m?.y) }))
       .filter((m) => Number.isFinite(m.x) && Number.isFinite(m.y));
+    // handles draw heart marker
     const drawHeartMarker = (cx, cy, size = 12) => {
       const radius = size * 0.28;
       const lobeY = cy - size * 0.18;
@@ -490,6 +516,7 @@ function buildScriptPdfDoc(item, versionObj) {
     }
   };
 
+  // handles draw items to include table
   const drawItemsToIncludeTable = () => {
     const labelHeight = 14;
     const topRowHeight = 19;
@@ -532,6 +559,7 @@ function buildScriptPdfDoc(item, versionObj) {
     y += 8;
   };
 
+  // handles draw report release timing table
   const drawReportReleaseTimingTable = () => {
     const topPadding = 16;
     const horizontalInset = 18;
@@ -565,6 +593,7 @@ function buildScriptPdfDoc(item, versionObj) {
     y += 8;
   };
 
+  // handles draw cover page
   const drawCoverPage = () => {
     const textBlockWidth = pageWidth - MARGIN.left - MARGIN.right;
     const logoX = MARGIN.left;
@@ -573,8 +602,10 @@ function buildScriptPdfDoc(item, versionObj) {
     const logoH = (536 / 1503) * logoW;
     const titleY = logoY + logoH + 34;
     const icd10Code = enteredIcd10Code || getIcd10Code(diagnosis);
+    // handles normalize whitespace
     const normalizeWhitespace = (text = "") => String(text).trim().replace(/\s+/g, " ");
     const demographicLabel = normalizeWhitespace(get(fields, ["admin", "patient_demographic"], "")) || "Unknown";
+    // handles format cover patient name
     const formatCoverPatientName = (name = "") => {
       const clean = normalizeWhitespace(name);
       if (!clean) return "UNKNOWN PATIENT";
@@ -588,6 +619,7 @@ function buildScriptPdfDoc(item, versionObj) {
     const diagnosisNoCode = normalizeWhitespace(
       String(diagnosis || "").replace(/\b[A-TV-Z][0-9][0-9AB](?:\.[0-9A-TV-Z]{1,4})?\b/i, "")
     );
+    // handles cover diagnosis line
     const coverDiagnosisLine = (() => {
       if (icd10Code && diagnosisNoCode) return `${icd10Code} ${diagnosisNoCode}`.toUpperCase();
       if (icd10Code) return icd10Code.toUpperCase();
@@ -613,6 +645,7 @@ function buildScriptPdfDoc(item, versionObj) {
 
   };
 
+  // handles start part
   const startPart = (title, partPages) => {
     doc.addPage();
     partPages.push({ title, page: doc.getNumberOfPages() });
@@ -621,6 +654,7 @@ function buildScriptPdfDoc(item, versionObj) {
     drawPartHeading(title);
   };
 
+  // handles write contents page
   const writeContentsPage = (partPages) => {
     doc.setPage(2);
     const centerX = pageWidth / 2;
@@ -648,6 +682,7 @@ function buildScriptPdfDoc(item, versionObj) {
     });
   };
 
+  // handles add page numbers
   const addPageNumbers = () => {
     const totalPages = doc.getNumberOfPages();
     for (let p = 3; p <= totalPages; p++) {
@@ -709,6 +744,7 @@ function buildScriptPdfDoc(item, versionObj) {
   const tempReading = get(fields, ["patient", "vitals", "temp", "reading"], "");
   const tempUnit = get(fields, ["patient", "vitals", "temp", "unit"], "");
   const includeDoorNoteVitalsRaw = get(fields, ["patient", "vitals_included_on_door_note"], true);
+  // handles include door note vitals
   const includeDoorNoteVitals = (() => {
     if (includeDoorNoteVitalsRaw === false) return false;
     if (typeof includeDoorNoteVitalsRaw === "number") return includeDoorNoteVitalsRaw !== 0;
@@ -1078,6 +1114,7 @@ function buildScriptPdfDoc(item, versionObj) {
     labelSize: 12,
     valueSize: 12,
   };
+  // handles quote entries
   const quoteEntries = (value) =>
     normalizeTextEntries(value).map((entry) => `"${String(entry || "").replace(/^"+|"+$/g, "").trim()}"`);
   drawListField(
@@ -1111,17 +1148,20 @@ function buildScriptPdfDoc(item, versionObj) {
   return doc;
 }
 
+// handles download script pdf
 export function downloadScriptPdf(item, versionObj) {
   const doc = buildScriptPdfDoc(item, versionObj);
   const safeName = buildScriptPdfFileName(item);
   doc.save(safeName);
 }
 
+// handles get script pdf url
 export function getScriptPdfUrl(item, versionObj) {
   const doc = buildScriptPdfDoc(item, versionObj);
   return doc.output("bloburl");
 }
 
+// handles print script pdf
 export function printScriptPdf(item, versionObj) {
   const doc = buildScriptPdfDoc(item, versionObj);
   const safeName = buildScriptPdfFileName(item);
@@ -1138,12 +1178,14 @@ export function printScriptPdf(item, versionObj) {
   }
 }
 
+// handles build script pdf file name
 function buildScriptPdfFileName(item) {
   const id = sanitizeFilePart(item?.id || "script");
   const title = sanitizeFilePart(item?.title || "");
   return title ? `${id}-${title}.pdf` : `${id}.pdf`;
 }
 
+// handles sanitize file part
 function sanitizeFilePart(value) {
   return String(value || "")
     .trim()
@@ -1151,6 +1193,7 @@ function sanitizeFilePart(value) {
     .replace(/^_+|_+$/g, "");
 }
 
+// handles download resource pdf
 export function downloadResourcePdf(item, resourceName) {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -1192,11 +1235,13 @@ export function downloadResourcePdf(item, resourceName) {
   doc.save(safeName);
 }
 
+// handles build medication card pdf file name
 function buildMedicationCardPdfFileName(fields = {}) {
   const name = sanitizeFilePart(get(fields, ["patient", "name"], ""));
   return name ? `medication-card-${name}.pdf` : "medication-card.pdf";
 }
 
+// handles normalize medication row
 function normalizeMedicationRow(entry) {
   if (!entry || typeof entry !== "object") return null;
   return {
@@ -1212,6 +1257,7 @@ function normalizeMedicationRow(entry) {
   };
 }
 
+// handles normalize non prescription row
 function normalizeNonPrescriptionRow(entry) {
   if (typeof entry === "string") {
     const text = pad(entry);
@@ -1235,12 +1281,14 @@ function normalizeNonPrescriptionRow(entry) {
   };
 }
 
+// handles normalize medication rows
 function normalizeMedicationRows(rawValue) {
   return (Array.isArray(rawValue) ? rawValue : [rawValue])
     .map(normalizeMedicationRow)
     .filter((row) => row && (row.name || row.brand || row.dose || row.frequency || row.startDate));
 }
 
+// handles normalize non prescription rows
 function normalizeNonPrescriptionRows(rawValue) {
   return (Array.isArray(rawValue) ? rawValue : [rawValue])
     .map(normalizeNonPrescriptionRow)
@@ -1292,6 +1340,7 @@ export async function downloadMedicationCardPdf(item, versionObj, resourceName =
   const rowPaddingY = 5;
   const lineHeight = 12;
 
+  // handles draw table header
   const drawTableHeader = () => {
     let x = tableX;
     doc.setFont("helvetica", "bold");
@@ -1305,6 +1354,7 @@ export async function downloadMedicationCardPdf(item, versionObj, resourceName =
     y += 20;
   };
 
+  // handles ensure row space
   const ensureRowSpace = (height) => {
     if (y + height > pageBottom) {
       doc.addPage();
@@ -1313,6 +1363,7 @@ export async function downloadMedicationCardPdf(item, versionObj, resourceName =
     }
   };
 
+  // handles draw medication table
   const drawMedicationTable = (title, rows, emptyText) => {
     ensureRowSpace(24);
     doc.setFont("helvetica", "bold");
@@ -1375,17 +1426,20 @@ export async function downloadMedicationCardPdf(item, versionObj, resourceName =
   doc.save(safeName);
 }
 
+// handles build lab data card pdf file name
 function buildLabDataCardPdfFileName(fields = {}) {
   const name = sanitizeFilePart(get(fields, ["patient", "name"], ""));
   return name ? `lab-data-card-${name}.pdf` : "lab-data-card.pdf";
 }
 
+// handles to finite number
 function toFiniteNumber(value) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+// handles classify range
 function classifyRange(value, low, high) {
   if (!Number.isFinite(value)) return "";
   if (Number.isFinite(low) && value < low) return "Low";
@@ -1393,6 +1447,7 @@ function classifyRange(value, low, high) {
   return "Normal";
 }
 
+// handles to text lines
 function toTextLines(value) {
   if (Array.isArray(value)) {
     return value
@@ -1412,6 +1467,7 @@ function toTextLines(value) {
     .filter(Boolean);
 }
 
+// handles build derived vital rows
 function buildDerivedVitalRows(fields = {}) {
   const vitals = get(fields, ["patient", "vitals"], {}) || {};
   const heartRate = toFiniteNumber(vitals?.heart_rate);
@@ -1466,6 +1522,7 @@ function buildDerivedVitalRows(fields = {}) {
   ];
 }
 
+// handles build derived lab notes
 function buildDerivedLabNotes(fields = {}) {
   const notes = [
     get(fields, ["admin", "chief_concern"], ""),
@@ -1481,6 +1538,7 @@ function buildDerivedLabNotes(fields = {}) {
   return Array.from(new Set(notes));
 }
 
+// handles download lab data card pdf
 export function downloadLabDataCardPdf(item, versionObj, resourceName = "Lab Data Card") {
   const fields = versionObj?.fields || item?.versions?.[0]?.fields || item?.fields || {};
   const patientName = pad(get(fields, ["patient", "name"], "")) || "Patient";
@@ -1500,6 +1558,7 @@ export function downloadLabDataCardPdf(item, versionObj, resourceName = "Lab Dat
   const lineHeight = 12;
   const rowPaddingY = 5;
 
+  // handles draw table header
   const drawTableHeader = () => {
     let x = tableX;
     doc.setFont("helvetica", "bold");
@@ -1513,6 +1572,7 @@ export function downloadLabDataCardPdf(item, versionObj, resourceName = "Lab Dat
     y += 20;
   };
 
+  // handles ensure row space
   const ensureRowSpace = (height) => {
     if (y + height > pageBottom) {
       doc.addPage();
@@ -1583,6 +1643,7 @@ export function downloadLabDataCardPdf(item, versionObj, resourceName = "Lab Dat
   doc.save(safeName);
 }
 
+// handles build door note pdf file name
 function buildDoorNotePdfFileName(fields = {}) {
   const name = sanitizeFilePart(get(fields, ["patient", "name"], ""));
   const reason = sanitizeFilePart(get(fields, ["admin", "reson_for_visit"], get(fields, ["patient", "visit_reason"], "")));
@@ -1592,6 +1653,7 @@ function buildDoorNotePdfFileName(fields = {}) {
   return "door-note.pdf";
 }
 
+// handles create door note pdf file
 export function createDoorNotePdfFile(script = {}, fileName = "") {
   const fields = script?.fields && typeof script.fields === "object" ? script.fields : (script || {});
   const doc = new jsPDF({ unit: "pt", format: "letter" });
@@ -1606,6 +1668,7 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
   const lineHeight = 13;
   let y = top;
 
+  // handles ensure space
   const ensureSpace = (space = 20) => {
     if (y + space > bottom) {
       doc.addPage();
@@ -1613,6 +1676,7 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
     }
   };
 
+  // handles draw title
   const drawTitle = (text) => {
     ensureSpace(24);
     doc.setFont("helvetica", "bold");
@@ -1622,6 +1686,7 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
     y += 22;
   };
 
+  // handles draw section
   const drawSection = (text) => {
     ensureSpace(18);
     doc.setFont("helvetica", "bold");
@@ -1631,6 +1696,7 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
     y += 16;
   };
 
+  // handles draw field
   const drawField = (label, value) => {
     const clean = value === undefined || value === null ? "" : String(value).trim();
     const valueText = clean || "None";
@@ -1655,6 +1721,7 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
     y += Math.max(lineHeight, wrapped.length * lineHeight) + 6;
   };
 
+  // handles draw list field
   const drawListField = (label, entries) => {
     const lines = (entries || []).map((entry) => String(entry || "").trim()).filter(Boolean);
     const finalLines = lines.length ? lines : ["None"];
@@ -1679,6 +1746,7 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
     y += Math.max(lineHeight, wrapped.length * lineHeight) + 6;
   };
 
+  // handles draw heart marker
   const drawHeartMarker = (cx, cy, size = 12) => {
     const radius = size * 0.28;
     const lobeY = cy - size * 0.18;
@@ -1698,6 +1766,7 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
     );
   };
 
+  // handles draw symptom diagram
   const drawSymptomDiagram = () => {
     ensureSpace(24);
     doc.setFont("helvetica", "bold");
@@ -1748,8 +1817,8 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
   const doorTempPair = Number.isFinite(doorTempReading) && doorTempReading > 0
     ? (
       doorIsFahrenheit
-        ? `${doorTempReading.toFixed(1)}° F / ${(((doorTempReading - 32) * 5) / 9).toFixed(1)}° C`
-        : `${doorTempReading.toFixed(1)}° C / ${((doorTempReading * 9) / 5 + 32).toFixed(1)}° F`
+        ? `${doorTempReading.toFixed(1)}ï¿½ F / ${(((doorTempReading - 32) * 5) / 9).toFixed(1)}ï¿½ C`
+        : `${doorTempReading.toFixed(1)}ï¿½ C / ${((doorTempReading * 9) / 5 + 32).toFixed(1)}ï¿½ F`
     )
     : "";
 
@@ -1762,6 +1831,7 @@ export function createDoorNotePdfFile(script = {}, fileName = "") {
     doorTempPair || "None",
   ];
   const includeDoorNoteVitalsRaw = get(fields, ["patient", "vitals_included_on_door_note"], true);
+  // handles include door note vitals
   const includeDoorNoteVitals = (() => {
     if (includeDoorNoteVitalsRaw === false) return false;
     if (typeof includeDoorNoteVitalsRaw === "number") return includeDoorNoteVitalsRaw !== 0;

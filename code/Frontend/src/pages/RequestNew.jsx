@@ -8,7 +8,9 @@ import { buildScriptFromForm } from "../utils/scriptFormat";
 import { collapseDoorNoteArtifacts, dedupeArtifacts } from "../utils/artifacts";
 import hpiDiagram from "../assets/hpi-diagram.png";
 
+// handles empty text row
 const emptyTextRow = () => ({ text: "" });
+// handles empty prescription row
 const emptyPrescriptionRow = () => ({
   generic_name: "",
   brand_name: "",
@@ -18,6 +20,7 @@ const emptyPrescriptionRow = () => ({
   frequency: "",
   reason: "",
 });
+// handles empty non prescription row
 const emptyNonPrescriptionRow = () => ({
   generic_name: "",
   brand_name: "",
@@ -27,12 +30,14 @@ const emptyNonPrescriptionRow = () => ({
   frequency: "",
   reason: "",
 });
+// handles empty allergy row
 const emptyAllergyRow = () => ({
   allergen: "",
   reaction: "",
   severity: "",
   notes: "",
 });
+// handles empty obstetric gynecologic
 const emptyObstetricGynecologic = () => ({
   menstrual_history: "",
   lmp: "",
@@ -42,12 +47,14 @@ const emptyObstetricGynecologic = () => ({
   pregnancy_births_explanation: "",
 });
 
+// handles empty family row
 const emptyFamilyRow = () => ({
   family_member: "",
   age_text: "",
   details: "",
 });
 
+// handles format medication entry
 const formatMedicationEntry = (entry) => {
   if (typeof entry === "string") return String(entry || "").trim();
   if (!entry || typeof entry !== "object") return "";
@@ -73,6 +80,7 @@ const formatMedicationEntry = (entry) => {
     .trim();
 };
 
+// handles format allergy entry
 const formatAllergyEntry = (entry) => {
   if (typeof entry === "string") return String(entry || "").trim();
   if (!entry || typeof entry !== "object") return "";
@@ -91,6 +99,7 @@ const formatAllergyEntry = (entry) => {
     .trim();
 };
 
+// handles extract text list
 const extractTextList = (value) => {
   if (Array.isArray(value)) {
     return value
@@ -128,6 +137,7 @@ const extractTextList = (value) => {
   return text ? [text] : [];
 };
 
+// handles to bulleted text
 const toBulletedText = (value) => {
   const entries = extractTextList(value);
   return entries.length ? entries.map((entry) => `- ${entry}`).join("\n") : "";
@@ -248,14 +258,17 @@ const familyMemberOptions = [
   "Other",
 ];
 
+// handles to multiline text
 const toMultilineText = (value) => extractTextList(value).join("\n");
 
+// handles build symptom review payload
 const buildSymptomReviewPayload = (symptomReview = {}) =>
   reviewOfSystemsFields.reduce((acc, [key]) => {
     acc[key] = toMultilineText(symptomReview?.[key]);
     return acc;
   }, {});
 
+// handles build script request payload
 const buildScriptRequestPayload = (form = {}, draftScript = null, artifacts = []) => {
   const now = new Date().toISOString();
   const selectedCaseType = normalizeCaseType(form.admin?.case_type) || "Standardized";
@@ -301,6 +314,7 @@ const buildScriptRequestPayload = (form = {}, draftScript = null, artifacts = []
   };
 };
 
+// handles format family history entry
 const formatFamilyHistoryEntry = (entry) => {
   if (!entry || typeof entry !== "object") return "";
   const member = String(entry.family_member || "").trim();
@@ -313,8 +327,10 @@ const formatFamilyHistoryEntry = (entry) => {
   ].filter(Boolean).join(" - ").trim();
 };
 
+// handles clone value
 const cloneValue = (value) => JSON.parse(JSON.stringify(value));
 
+// handles merge deep
 const mergeDeep = (baseValue, sourceValue) => {
   if (Array.isArray(sourceValue)) {
     return sourceValue.map((entry) =>
@@ -333,6 +349,7 @@ const mergeDeep = (baseValue, sourceValue) => {
   return sourceValue;
 };
 
+// handles first non empty string
 const firstNonEmptyString = (...values) => {
   for (const value of values) {
     const text = String(value ?? "").trim();
@@ -341,8 +358,10 @@ const firstNonEmptyString = (...values) => {
   return "";
 };
 
+// handles has text
 const hasText = (value) => String(value ?? "").trim().length > 0;
 
+// handles first defined boolean
 const firstDefinedBoolean = (...values) => {
   for (const value of values) {
     if (value === undefined || value === null || value === "") continue;
@@ -355,6 +374,7 @@ const firstDefinedBoolean = (...values) => {
   return false;
 };
 
+// handles normalize case type
 const normalizeCaseType = (...values) => {
   for (const value of values) {
     const text = String(value || "").trim().toLowerCase();
@@ -365,6 +385,7 @@ const normalizeCaseType = (...values) => {
   return "";
 };
 
+// handles normalize character attribute level
 const normalizeCharacterAttributeLevel = (value) => {
   const text = String(value ?? "").trim();
   if (!text) return "";
@@ -377,11 +398,13 @@ const normalizeCharacterAttributeLevel = (value) => {
   return "";
 };
 
+// handles split multiline entries
 const splitMultilineEntries = (value) => String(value || "")
   .split(/\r?\n/)
   .map((line) => line.trim())
   .filter(Boolean);
 
+// handles normalize medication rows for form
 const normalizeMedicationRowsForForm = (value, rowFactory, options = {}) => {
   const { ensureAtLeastOne = true } = options;
   const rawRows = Array.isArray(value)
@@ -442,6 +465,7 @@ const normalizeMedicationRowsForForm = (value, rowFactory, options = {}) => {
   return ensureAtLeastOne ? [rowFactory()] : [];
 };
 
+// handles normalize allergy rows for form
 const normalizeAllergyRowsForForm = (value, options = {}) => {
   const { ensureAtLeastOne = true } = options;
   const rawRows = Array.isArray(value)
@@ -482,6 +506,7 @@ const normalizeAllergyRowsForForm = (value, options = {}) => {
   return ensureAtLeastOne ? [emptyAllergyRow()] : [];
 };
 
+// handles normalize family history rows for form
 const normalizeFamilyHistoryRowsForForm = (value, options = {}) => {
   const { ensureAtLeastOne = true } = options;
   const rawRows = Array.isArray(value)
@@ -532,6 +557,7 @@ const normalizeFamilyHistoryRowsForForm = (value, options = {}) => {
   return ensureAtLeastOne ? [emptyFamilyRow()] : [];
 };
 
+// handles to number or empty
 const toNumberOrEmpty = (value) => {
   if (value === 0 || value === "0") return 0;
   if (value === undefined || value === null || value === "") return "";
@@ -539,6 +565,7 @@ const toNumberOrEmpty = (value) => {
   return Number.isFinite(parsed) ? parsed : "";
 };
 
+// handles normalize obstetric gynecologic for form
 const normalizeObstetricGynecologicForForm = (value, legacyValue = "") => {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return {
@@ -559,6 +586,7 @@ const normalizeObstetricGynecologicForForm = (value, legacyValue = "") => {
   };
 };
 
+// handles normalize social history for form
 const normalizeSocialHistoryForForm = (value) => {
   const source = value && typeof value === "object" ? value : {};
   const sexHistory = source.sex_history && typeof source.sex_history === "object"
@@ -598,10 +626,12 @@ const normalizeSocialHistoryForForm = (value) => {
   };
 };
 
+// handles unique artifacts
 const uniqueArtifacts = (artifacts = []) => {
   return collapseDoorNoteArtifacts(dedupeArtifacts(artifacts));
 };
 
+// handles get request artifacts
 const getRequestArtifacts = (requestItem) => {
   const raw = requestItem?.raw || requestItem || {};
   const fromRequest = Array.isArray(raw.artifacts) ? raw.artifacts : [];
@@ -609,6 +639,7 @@ const getRequestArtifacts = (requestItem) => {
   return uniqueArtifacts([...fromRequest, ...fromDraft]);
 };
 
+// handles get request draft versions
 const getRequestDraftVersions = (requestItem) => {
   const raw = requestItem?.raw || requestItem || {};
   const direct = raw?.draft_versions;
@@ -619,6 +650,88 @@ const getRequestDraftVersions = (requestItem) => {
   return [];
 };
 
+// handles resolve request version fields
+const resolveRequestVersionFields = (requestItem, versionKey = "request-draft") => {
+  const raw = requestItem?.raw || requestItem || {};
+  const normalizedVersionKey = String(versionKey || "request-draft").trim().toLowerCase();
+  if (!normalizedVersionKey || normalizedVersionKey === "request-draft" || normalizedVersionKey === "draft") {
+    if (raw.draft_script && typeof raw.draft_script === "object") return raw.draft_script;
+    if (raw.patient && raw.admin && typeof raw === "object") return raw;
+    return null;
+  }
+  const targetVersion = normalizedVersionKey.startsWith("saved:")
+    ? normalizedVersionKey.slice("saved:".length)
+    : normalizedVersionKey;
+  const savedVersions = getRequestDraftVersions(raw);
+  const selected = savedVersions.find(
+    (entry) => String(entry?.version || "").trim().toLowerCase() === targetVersion
+  );
+  const fields =
+    selected?.fields
+    || selected?.document
+    || selected?.draft_script
+    || selected?.payload
+    || selected?.data
+    || (
+      selected?.patient && selected?.admin
+        ? selected
+        : null
+    );
+  return fields && typeof fields === "object" ? fields : null;
+};
+
+// handles get current document version entry
+const getCurrentDocumentVersionEntry = (item) => {
+  const versions = Array.isArray(item?.versions) ? item.versions : [];
+  if (!versions.length) return null;
+  return (
+    versions.find((entry) => String(entry?.version || "").trim().toLowerCase() === "current")
+    || versions[0]
+    || null
+  );
+};
+
+// handles resolve document version fields
+const resolveDocumentVersionFields = (documentItem, versionKey = "current") => {
+  const raw = documentItem?.raw || documentItem || {};
+  const normalizedVersionKey = String(versionKey || "current").trim().toLowerCase();
+  const versions = Array.isArray(raw?.versions)
+    ? raw.versions
+    : (Array.isArray(documentItem?.versions) ? documentItem.versions : []);
+
+  if (normalizedVersionKey && normalizedVersionKey !== "current") {
+    const selected = versions.find(
+      (entry) => String(entry?.version || entry?.version_number || "").trim().toLowerCase() === normalizedVersionKey
+    );
+    const selectedFields =
+      selected?.fields
+      || selected?.document
+      || selected?.draft_script
+      || (
+        selected?.patient && selected?.admin
+          ? selected
+          : null
+      );
+    if (selectedFields && typeof selectedFields === "object") return selectedFields;
+  }
+
+  const currentEntry = getCurrentDocumentVersionEntry(raw) || getCurrentDocumentVersionEntry(documentItem);
+  const currentFields =
+    currentEntry?.fields
+    || currentEntry?.document
+    || currentEntry?.draft_script
+    || (
+      currentEntry?.patient && currentEntry?.admin
+        ? currentEntry
+        : null
+    );
+  if (currentFields && typeof currentFields === "object") return currentFields;
+  if (raw?.patient && raw?.admin) return raw;
+  if (documentItem?.patient && documentItem?.admin) return documentItem;
+  return null;
+};
+
+// handles build prefill form from request
 const buildPrefillFormFromRequest = (initialForm, requestItem) => {
   const raw = requestItem?.raw || requestItem || {};
   const draftScript =
@@ -794,6 +907,7 @@ const buildPrefillFormFromRequest = (initialForm, requestItem) => {
   return next;
 };
 
+// handles build form from script fields
 const buildFormFromScriptFields = (initialForm, scriptFields) => {
   if (!scriptFields || typeof scriptFields !== "object") {
     return cloneValue(initialForm);
@@ -841,7 +955,8 @@ const buildFormFromScriptFields = (initialForm, scriptFields) => {
   };
 };
 
-const RequestNew = () => {
+// handles request new
+const RequestNew = ({ mode = "request" }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const {
@@ -849,6 +964,8 @@ const RequestNew = () => {
     updateRequest,
     getRequestById,
     refreshRequests,
+    getById,
+    fetchById,
   } = useStore();
   const toast = useToast();
   const [attachments, setAttachments] = useState([]);
@@ -1050,18 +1167,49 @@ const RequestNew = () => {
   const initialSnapshotRef = useRef(JSON.stringify(initialForm));
   const prefillRequestRef = useRef(null);
   const appliedPrefillRequestIdRef = useRef("");
+  const appliedCloneKeyRef = useRef("");
+  const isCloneMode = String(mode || "").trim().toLowerCase() === "clone";
+  const searchParams = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search]
+  );
   const stateRequest = useMemo(() => {
     const candidate = location.state?.request;
     return candidate && typeof candidate === "object" ? candidate : null;
   }, [location.state]);
+  const stateDocument = useMemo(() => {
+    const candidate = location.state?.document || location.state?.item;
+    return candidate && typeof candidate === "object" ? candidate : null;
+  }, [location.state]);
+  const cloneSource = useMemo(() => {
+    const fromQuery = String(searchParams.get("clone_source") || "").trim().toLowerCase();
+    const fromState = String(location.state?.cloneSource || "").trim().toLowerCase();
+    return fromQuery || fromState || "";
+  }, [location.state, searchParams]);
+  const cloneSourceId = useMemo(() => {
+    const fromQuery = String(searchParams.get("source_id") || "").trim();
+    const fromState = String(location.state?.sourceId || "").trim();
+    if (fromQuery || fromState) return fromQuery || fromState;
+    if (cloneSource === "request") return String(stateRequest?.id || "").trim();
+    if (cloneSource === "document") return String(stateDocument?.id || stateDocument?._id || "").trim();
+    return "";
+  }, [cloneSource, location.state, searchParams, stateDocument, stateRequest]);
+  const cloneVersionKey = useMemo(() => {
+    const fromQuery = String(searchParams.get("version") || "").trim();
+    const fromState = String(location.state?.versionKey || "").trim();
+    if (fromQuery || fromState) return fromQuery || fromState;
+    return cloneSource === "document" ? "current" : "request-draft";
+  }, [cloneSource, location.state, searchParams]);
   const requestId = useMemo(() => {
-    const idFromQuery = new URLSearchParams(location.search).get("requestId");
+    const idFromQuery = searchParams.get("requestId");
     const idFromState = stateRequest?.id || location.state?.requestId;
     return String(idFromQuery || idFromState || "").trim();
-  }, [location.search, location.state, stateRequest]);
-  const isPrefillMode = Boolean(requestId || stateRequest);
+  }, [location.state, searchParams, stateRequest]);
+  const isPrefillMode = !isCloneMode && Boolean(requestId || stateRequest);
   const [prefillRequest, setPrefillRequest] = useState(null);
   const [prefillLoading, setPrefillLoading] = useState(false);
+  const [cloneLoading, setCloneLoading] = useState(false);
+  const [cloneSourceLabel, setCloneSourceLabel] = useState("");
   const [formVersionOptions, setFormVersionOptions] = useState([]);
   const [selectedFormVersionKey, setSelectedFormVersionKey] = useState("request-draft");
   const [formVersionsLoading, setFormVersionsLoading] = useState(false);
@@ -1104,6 +1252,7 @@ const RequestNew = () => {
     setFormVersionOptions([]);
     setSelectedFormVersionKey("request-draft");
 
+    // handles load request
     const loadRequest = async () => {
       setPrefillLoading(true);
       try {
@@ -1151,6 +1300,124 @@ const RequestNew = () => {
   }, [getRequestById, isPrefillMode, refreshRequests, requestId, stateRequest, toast]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    if (!isCloneMode) {
+      setCloneLoading(false);
+      setCloneSourceLabel("");
+      appliedCloneKeyRef.current = "";
+      return undefined;
+    }
+
+    const normalizedSource = String(cloneSource || "").trim().toLowerCase();
+    const normalizedSourceId = String(cloneSourceId || "").trim();
+    const normalizedVersionKey = String(cloneVersionKey || "").trim();
+    if (!normalizedSource || !normalizedSourceId) {
+      setCloneLoading(false);
+      setCloneSourceLabel("");
+      appliedCloneKeyRef.current = "";
+      return undefined;
+    }
+    const cloneKey = `${normalizedSource}:${normalizedSourceId}:${normalizedVersionKey}`;
+    if (appliedCloneKeyRef.current === cloneKey) return undefined;
+
+    // handles load clone source
+    const loadCloneSource = async () => {
+      setCloneLoading(true);
+      setCloneSourceLabel("");
+      try {
+        let nextForm = cloneValue(initialForm);
+        let nextLabel = "";
+
+        if (normalizedSource === "request") {
+          let sourceRequest = stateRequest;
+          if (
+            sourceRequest
+            && normalizedSourceId
+            && String(sourceRequest?.id || "").trim() !== normalizedSourceId
+          ) {
+            sourceRequest = null;
+          }
+          if (!sourceRequest && normalizedSourceId && typeof getRequestById === "function") {
+            sourceRequest = getRequestById(normalizedSourceId);
+          }
+          if (!sourceRequest && normalizedSourceId && typeof refreshRequests === "function") {
+            const refreshed = await refreshRequests();
+            sourceRequest = Array.isArray(refreshed)
+              ? refreshed.find((entry) => String(entry?.id || "").trim() === normalizedSourceId) || null
+              : null;
+          }
+          if (!sourceRequest) {
+            throw new Error(`Request ${normalizedSourceId || "source"} was not found.`);
+          }
+          const versionFields = resolveRequestVersionFields(sourceRequest, normalizedVersionKey || "request-draft");
+          nextForm = versionFields
+            ? buildFormFromScriptFields(initialForm, versionFields)
+            : buildPrefillFormFromRequest(initialForm, sourceRequest);
+          nextLabel = `Cloned from request ${sourceRequest.id || normalizedSourceId || ""} (${normalizedVersionKey || "request-draft"})`;
+        } else if (normalizedSource === "document") {
+          let sourceDocument = stateDocument;
+          const stateDocumentId = String(sourceDocument?.id || sourceDocument?._id || "").trim();
+          if (sourceDocument && normalizedSourceId && stateDocumentId !== normalizedSourceId) {
+            sourceDocument = null;
+          }
+          if (!sourceDocument && normalizedSourceId && typeof getById === "function") {
+            sourceDocument = getById(normalizedSourceId);
+          }
+          if (!sourceDocument && normalizedSourceId && typeof fetchById === "function") {
+            sourceDocument = await fetchById(normalizedSourceId);
+          }
+          if (!sourceDocument && normalizedSourceId) {
+            const { api } = await import("../api/client");
+            sourceDocument = await api.getDocument(normalizedSourceId);
+          }
+          if (!sourceDocument) {
+            throw new Error(`Script ${normalizedSourceId || "source"} was not found.`);
+          }
+          const versionFields = resolveDocumentVersionFields(sourceDocument, normalizedVersionKey || "current");
+          nextForm = buildFormFromScriptFields(initialForm, versionFields || sourceDocument);
+          const sourceDocId = String(sourceDocument?.id || sourceDocument?._id || normalizedSourceId || "").trim();
+          nextLabel = `Cloned from script ${sourceDocId} (${normalizedVersionKey || "current"})`;
+        } else {
+          throw new Error("Clone source is missing or invalid.");
+        }
+
+        if (cancelled) return;
+        setForm(nextForm);
+        setAttachments([]);
+        initialSnapshotRef.current = JSON.stringify(nextForm);
+        appliedCloneKeyRef.current = cloneKey;
+        setCloneSourceLabel(nextLabel);
+      } catch (err) {
+        if (cancelled) return;
+        const message = String(err?.message || "").trim() || "Failed to load clone source.";
+        toast.show(message, { type: "error" });
+      } finally {
+        if (!cancelled) {
+          setCloneLoading(false);
+        }
+      }
+    };
+
+    void loadCloneSource();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    cloneSource,
+    cloneSourceId,
+    cloneVersionKey,
+    fetchById,
+    getById,
+    getRequestById,
+    isCloneMode,
+    refreshRequests,
+    stateDocument,
+    stateRequest,
+    toast,
+  ]);
+
+  useEffect(() => {
     if (!isPrefillMode || !prefillRequest) return;
     const activePrefillId = String(requestId || prefillRequest?.id || "").trim();
     if (activePrefillId && appliedPrefillRequestIdRef.current === activePrefillId) return;
@@ -1172,6 +1439,7 @@ const RequestNew = () => {
       return undefined;
     }
 
+    // handles load form versions
     const loadFormVersions = async () => {
       const requestDraftForm = buildPrefillFormFromRequest(initialForm, prefillRequest);
       const options = [
@@ -1182,6 +1450,7 @@ const RequestNew = () => {
         },
       ];
 
+      // handles push option
       const pushOption = (key, label, fields) => {
         if (!fields || typeof fields !== "object") return;
         if (options.some((entry) => entry.key === key)) return;
@@ -1262,6 +1531,7 @@ const RequestNew = () => {
   );
   const shouldWarnOnLeave = hasUnsavedChanges && !submitting && !bypassNavigationRef.current;
 
+  // handles on select form version
   const onSelectFormVersion = (valueOrEvent) => {
     const rawValue =
       typeof valueOrEvent === "string" ? valueOrEvent : valueOrEvent?.target?.value;
@@ -1295,6 +1565,7 @@ const RequestNew = () => {
 
   useEffect(() => {
     if (!shouldWarnOnLeave) return;
+    // handles on document click capture
     const onDocumentClickCapture = (event) => {
       if (event.defaultPrevented) return;
       if (event.button !== 0) return;
@@ -1319,6 +1590,7 @@ const RequestNew = () => {
     return () => document.removeEventListener("click", onDocumentClickCapture, true);
   }, [shouldWarnOnLeave]);
 
+  // handles set deep
   function setDeep(obj, path, value) {
     const copy = JSON.parse(JSON.stringify(obj));
     let cur = copy;
@@ -1331,9 +1603,13 @@ const RequestNew = () => {
     return copy;
   }
 
+  // handles set field
   const setField = (path, value) => setForm((prev) => setDeep(prev, path, value));
+  // handles set number field
   const setNumberField = (path, value) => setForm((prev) => setDeep(prev, path, value === "" ? "" : Number(value)));
+  // handles get field
   const getField = (path) => path.reduce((acc, k) => (acc ? acc[k] : undefined), form);
+  // handles get list
   const getList = (path, fallbackFactory) => {
     const current = getField(path);
     if (Array.isArray(current) && current.length) return current;
@@ -1343,15 +1619,18 @@ const RequestNew = () => {
     }
     return [fallbackFactory()];
   };
+  // handles add list row
   const addListRow = (path, newRowFactory) => {
     const current = getList(path, newRowFactory);
     setField(path, [...current, newRowFactory()]);
   };
+  // handles remove list row
   const removeListRow = (path, index, fallbackFactory) => {
     const current = getList(path, fallbackFactory);
     const next = current.filter((_, idx) => idx !== index);
     setField(path, next.length ? next : [fallbackFactory()]);
   };
+  // handles update list row text
   const updateListRowText = (path, index, value, fallbackFactory) => {
     const current = getList(path, fallbackFactory);
     const next = current.map((entry, idx) => (
@@ -1361,6 +1640,7 @@ const RequestNew = () => {
     ));
     setField(path, next);
   };
+  // handles update list row field
   const updateListRowField = (path, index, key, value, fallbackFactory) => {
     const current = getList(path, fallbackFactory);
     const next = current.map((entry, idx) => (
@@ -1370,6 +1650,7 @@ const RequestNew = () => {
     ));
     setField(path, next);
   };
+  // handles update family history row
   const updateFamilyHistoryRow = (index, key, value) => {
     const current = getList(["med_hist", "family_hist"], emptyFamilyRow);
     const next = current.map((entry, idx) => (
@@ -1380,13 +1661,16 @@ const RequestNew = () => {
     setField(["med_hist", "family_hist"], next);
   };
 
+  // handles path to key
   const pathToKey = (path) => (Array.isArray(path) ? path.join(".") : String(path || ""));
+  // handles coerce inline value
   const coerceInlineValue = (value, type) => {
     if (type !== "number") return value;
     if (value === "") return "";
     const next = Number(value);
     return Number.isNaN(next) ? "" : next;
   };
+  // handles begin inline edit
   const beginInlineEdit = ({ key, path, paths, type = "text", value }) => {
     if (submitting) return;
     const editKey = String(key || pathToKey(path || paths?.[0]) || "").trim();
@@ -1400,7 +1684,9 @@ const RequestNew = () => {
       value: raw === undefined || raw === null ? "" : String(raw),
     });
   };
+  // handles cancel inline edit
   const cancelInlineEdit = () => setInlineEdit(null);
+  // handles save inline edit
   const saveInlineEdit = () => {
     if (!inlineEdit) return;
     const nextValue = coerceInlineValue(inlineEdit.value, inlineEdit.type);
@@ -1502,6 +1788,7 @@ const RequestNew = () => {
   const textAreaClass = "w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-gray-400";
   const sectionLabelClass = "text-sm font-semibold text-gray-800";
 
+  // handles add attachments
   const addAttachments = (files) => {
     const next = [];
     const errors = [];
@@ -1528,12 +1815,14 @@ const RequestNew = () => {
     }
   };
 
+  // handles on files selected
   const onFilesSelected = (event) => {
     const files = Array.from(event.target.files || []);
     if (files.length) addAttachments(files);
     event.target.value = "";
   };
 
+  // handles remove attachment
   const removeAttachment = (index) => {
     setAttachments((prev) => prev.filter((_, idx) => idx !== index));
   };
@@ -1568,6 +1857,7 @@ const RequestNew = () => {
     .map((file) => String(file?.name || "").trim())
     .filter(Boolean);
 
+  // handles place diagram heart
   const placeDiagramHeart = (event) => {
     const target = diagramImageRef.current || event.currentTarget;
     const rect = target.getBoundingClientRect();
@@ -1580,15 +1870,18 @@ const RequestNew = () => {
     setField(["sp", "current_ill_history", "symptom_diagram"], next);
   };
 
+  // handles clear diagram heart
   const clearDiagramHeart = () => {
     setField(["sp", "current_ill_history", "symptom_diagram"], []);
   };
 
+  // handles remove last diagram heart
   const removeLastDiagramHeart = () => {
     if (!diagramMarkers.length) return;
     setField(["sp", "current_ill_history", "symptom_diagram"], diagramMarkers.slice(0, -1));
   };
 
+  // handles upload attachments
   const uploadAttachments = async (draftScript = null) => {
     const filesToUpload = [...attachments];
     if (draftScript) {
@@ -1614,6 +1907,7 @@ const RequestNew = () => {
     return uploaded;
   };
 
+  // handles save prefill request version
   const savePrefillRequestVersion = async (script, artifacts, options = {}) => {
     const requestItem = prefillRequestRef.current;
     if (!requestItem) {
@@ -1721,6 +2015,7 @@ const RequestNew = () => {
     return savedVersionId;
   };
 
+  // handles execute prefill save version
   const executePrefillSaveVersion = async (mode = "new", targetVersion = "") => {
     bypassNavigationRef.current = false;
     setSubmitting(true);
@@ -1762,6 +2057,7 @@ const RequestNew = () => {
     }
   };
 
+  // handles on confirm save version
   const onConfirmSaveVersion = async () => {
     const mode = saveVersionMode === "overwrite" ? "overwrite" : "new";
     if (mode === "overwrite" && !overwriteVersionTarget) {
@@ -1772,6 +2068,7 @@ const RequestNew = () => {
     await executePrefillSaveVersion(mode, overwriteVersionTarget);
   };
 
+  // handles delete prefill version
   const deletePrefillVersion = async (versionId) => {
     const targetVersionId = String(versionId || "").trim();
     if (!targetVersionId) {
@@ -1881,6 +2178,7 @@ const RequestNew = () => {
     }
   };
 
+  // handles on submit
   const onSubmit = async (e) => {
     e.preventDefault();
     if (document.activeElement instanceof HTMLElement) {
@@ -1914,11 +2212,11 @@ const RequestNew = () => {
         throw new Error("Request submission is not configured");
       }
       await createRequest(requestPayload);
-      toast.show("Request submitted", { type: "success" });
+      toast.show(isCloneMode ? "Cloned script created" : "Request submitted", { type: "success" });
       initialSnapshotRef.current = JSON.stringify(form);
       setAttachments([]);
       bypassNavigationRef.current = true;
-      navigate("/dashboard");
+      navigate(isCloneMode ? "/requests" : "/dashboard");
     } catch (err) {
       bypassNavigationRef.current = false;
       try {
@@ -1936,6 +2234,7 @@ const RequestNew = () => {
     }
   };
 
+  // handles on form key down
   const onFormKeyDown = (event) => {
     if (event.key !== "Enter") return;
     const tag = event.target?.tagName?.toLowerCase?.() || "";
@@ -1943,17 +2242,23 @@ const RequestNew = () => {
     event.preventDefault();
   };
 
+  // handles toggle top view mode
   const toggleTopViewMode = () => {
     setInlineEdit(null);
     setIsPreviewMode((prev) => !prev);
   };
 
+  // handles handle backtrack
   const handleBacktrack = () => {
     if (shouldWarnOnLeave) {
       const ok = window.confirm("You have unsaved changes. Leave this page?");
       if (!ok) return;
     }
-    navigate(isPrefillMode ? "/requests" : "/dashboard");
+    const fromPath = String(location.state?.from || "").trim();
+    const fallbackPath = isPrefillMode
+      ? "/requests"
+      : (isCloneMode ? (cloneSource === "document" ? "/forms-search" : "/requests") : "/dashboard");
+    navigate(fromPath || fallbackPath);
   };
 
   return (
@@ -1969,11 +2274,17 @@ const RequestNew = () => {
           </button>
         </div>
         <div className="text-center space-y-1">
-          <h2 className="text-2xl font-semibold">{isPrefillMode ? "Edit Request Form" : "Script Request"}</h2>
+          <h2 className="text-2xl font-semibold">
+            {isCloneMode ? "Clone Script" : (isPrefillMode ? "Edit Request Form" : "Script Request")}
+          </h2>
           <p className="text-sm text-gray-600">
-            {isPrefillMode
-              ? "Editing a submitted request. Submitting saves a new request version."
-              : "Single-column request form for standardized patient scripts."}
+            {isCloneMode
+              ? "Create a new request from cloned script data."
+              : (
+                isPrefillMode
+                  ? "Editing a submitted request. Submitting saves a new request version."
+                  : "Single-column request form for standardized patient scripts."
+              )}
           </p>
         </div>
 
@@ -2056,6 +2367,18 @@ const RequestNew = () => {
                 {deletingVersionId ? "Deleting..." : "Delete"}
               </button>
             </div>
+          </div>
+        ) : null}
+
+        {isCloneMode ? (
+          <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+            {cloneLoading
+              ? `Loading clone source ${cloneSourceId || "..."}...`
+              : (
+                cloneSourceLabel
+                  ? `${cloneSourceLabel} loaded. Submitting creates a new request.`
+                  : "Clone mode is active. You can edit fields before creating a new request."
+              )}
           </div>
         ) : null}
 
@@ -3459,10 +3782,18 @@ const RequestNew = () => {
             ) : null}
 
 	          <div className="flex flex-wrap gap-3">
-	          <button type="submit" disabled={submitting || (isPrefillMode && (prefillLoading || !prefillRequest))} className="rounded-full bg-emerald-600 text-white px-5 py-2 text-sm font-semibold hover:bg-emerald-700 disabled:opacity-70">
+	          <button
+              type="submit"
+              disabled={
+                submitting
+                || (isPrefillMode && (prefillLoading || !prefillRequest))
+                || (isCloneMode && cloneLoading)
+              }
+              className="rounded-full bg-emerald-600 text-white px-5 py-2 text-sm font-semibold hover:bg-emerald-700 disabled:opacity-70"
+            >
 	            {submitting
-	              ? (isPrefillMode ? "Saving..." : "Submitting...")
-	              : (isPrefillMode ? "Save Version" : "Submit")}
+	              ? (isPrefillMode ? "Saving..." : (isCloneMode ? "Creating..." : "Submitting..."))
+	              : (isPrefillMode ? "Save Version" : (isCloneMode ? "Create Cloned Script" : "Submit"))}
 	          </button>
 		          <button
 		            type="button"

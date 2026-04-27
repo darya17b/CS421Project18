@@ -18,6 +18,11 @@ import { ToastProvider } from "./components/Toast";
 import RequireAuth from "./components/RequireAuth";
 import { isOktaConfigured, oktaAuth } from "./oktaConfig";
 
+/* Defines routes, wraps app in storeprovider, toastprovider,browserrouter
+applies layout as shared cell for nested pages. Switches authentication 
+behavior based on okta config, enabling okta security wrapper and callback 
+route when configured. Enforces admin route access through requireauth
+*/
 const AppRoutes = () => (
   <Routes>
     <Route path="/" element={<Layout />}>
@@ -60,6 +65,14 @@ const AppRoutes = () => (
         element={
           <RequireAuth oktaEnabled={isOktaConfigured} requiredRole="admin" redirectTo="/create-script">
             <RequestNew />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="clone-new"
+        element={
+          <RequireAuth oktaEnabled={isOktaConfigured} requiredRole="admin" redirectTo="/create-script">
+            <RequestNew mode="clone" />
           </RequireAuth>
         }
       />
@@ -115,7 +128,9 @@ const AppRoutes = () => (
   </Routes>
 );
 
+// handles app
 const App = () => {
+  // handles restore original uri
   const restoreOriginalUri = async (_okta, originalUri) => {
     const next = toRelativeUrl(String(originalUri || "/dashboard"), window.location.origin);
     window.location.replace(next);

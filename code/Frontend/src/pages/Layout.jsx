@@ -5,10 +5,12 @@ import { isOktaConfigured, oktaAuth } from "../oktaConfig";
 const lockupImage = "/images/wsu-com-lockup.png";
 const FULL_NAME = "Washington State University Elson S. Floyd College of Medicine";
 
+// handles layout
 const Layout = () => {
   const navigate = useNavigate();
   const toast = useToast();
 
+  // handles handle logout
   const handleLogout = async () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");

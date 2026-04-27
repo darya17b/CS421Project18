@@ -1,7 +1,10 @@
+// handles is valid date
 const isValidDate = (date) => date instanceof Date && !Number.isNaN(date.getTime());
 
+// handles to date only
 const toDateOnly = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
+// handles parse dob date
 export const parseDobDate = (value) => {
   if (value instanceof Date) {
     return isValidDate(value) ? toDateOnly(value) : null;
@@ -66,6 +69,7 @@ export const getAgeFromDob = (dobValue, asOfValue = new Date()) => {
   return age >= 0 ? age : null;
 };
 
+// handles format dob with age
 export const formatDobWithAge = (dobValue) => {
   const dobText = String(dobValue || "").trim();
   if (!dobText) return "";
@@ -73,6 +77,7 @@ export const formatDobWithAge = (dobValue) => {
   return age === null ? dobText : `${dobText}, ${age}`;
 };
 
+// handles format title with dob age
 export const formatTitleWithDobAge = (titleValue, dobValue) => {
   const titleText = String(titleValue || "").trim();
   if (!titleText) return "";

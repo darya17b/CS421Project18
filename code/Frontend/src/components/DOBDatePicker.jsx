@@ -3,6 +3,7 @@ import { DayPicker } from "react-day-picker";
 import { addMonths, format, isValid, parseISO } from "date-fns";
 import "react-day-picker/dist/style.css";
 
+// parses a date string into a valid date object when possible
 const parseDateValue = (value) => {
   const str = String(value || "").trim();
   if (!str) return undefined;
@@ -14,9 +15,12 @@ const parseDateValue = (value) => {
   return isValid(fallback) ? fallback : undefined;
 };
 
+// formats a date object for backend friendly storage
 const formatDateValue = (date) => (date && isValid(date) ? format(date, "yyyy-MM-dd") : "");
+// formats a date object for the input display text
 const formatDisplayValue = (date) => (date && isValid(date) ? format(date, "MM/dd/yyyy") : "");
 
+// parses manual input text into a valid date object
 const parseManualInput = (text) => {
   const raw = String(text || "").trim();
   if (!raw) return undefined;
@@ -47,6 +51,7 @@ const parseManualInput = (text) => {
   return isValid(fallback) ? fallback : undefined;
 };
 
+// renders a dob picker with text input and calendar controls
 const DOBDatePicker = ({ value, onChange, className = "" }) => {
   const selectedDate = useMemo(() => parseDateValue(value), [value]);
   const [isOpen, setIsOpen] = useState(false);
@@ -57,6 +62,7 @@ const DOBDatePicker = ({ value, onChange, className = "" }) => {
 
   useEffect(() => {
     if (!isOpen) return;
+    // closes the calendar when clicking outside the picker
     const onPointerDown = (event) => {
       if (!rootRef.current?.contains(event.target)) {
         setIsOpen(false);
@@ -78,11 +84,13 @@ const DOBDatePicker = ({ value, onChange, className = "" }) => {
     setYearInput(format(month, "yyyy"));
   }, [month]);
 
+  // applies a selected day and closes the calendar
   const handleDaySelect = (date) => {
     onChange(formatDateValue(date));
     setIsOpen(false);
   };
 
+  // updates the month view when the year input changes
   const handleYearInputChange = (nextYear) => {
     const digits = nextYear.replace(/\D/g, "").slice(0, 4);
     setYearInput(digits);
@@ -94,6 +102,7 @@ const DOBDatePicker = ({ value, onChange, className = "" }) => {
     }
   };
 
+  // validates and commits typed input when editing is finished
   const commitManualInput = () => {
     const parsed = parseManualInput(inputValue);
     if (!String(inputValue || "").trim()) {
@@ -110,6 +119,7 @@ const DOBDatePicker = ({ value, onChange, className = "" }) => {
     setInputValue(formatDisplayValue(parsed));
   };
 
+  // updates input state and syncs valid typed dates immediately
   const handleInputChange = (nextValue) => {
     setInputValue(nextValue);
     const parsed = parseManualInput(nextValue);
