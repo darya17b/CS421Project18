@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
-import { isOktaConfigured, oktaAuth } from "../oktaConfig";
+import { clearSession, useSession } from "../auth/session";
 
 const lockupImage = "/images/wsu-com-lockup.png";
 const FULL_NAME = "Washington State University Elson S. Floyd College of Medicine";
@@ -11,25 +11,12 @@ const Layout = () => {
   const toast = useToast();
 
   // handles handle logout
-  const handleLogout = async () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("role");
-
-    if (isOktaConfigured && oktaAuth) {
-      try {
-        await oktaAuth.signOut({
-          postLogoutRedirectUri: `${window.location.origin}/login`,
-        });
-        return;
-      } catch {
-      }
-    }
-
+  const handleLogout = () => {
+    clearSession();
     navigate("/login");
   };
 
-  const user = localStorage.getItem("user");
+  const session = useSession();
 
   return (
     <>
@@ -55,7 +42,12 @@ const Layout = () => {
               <button onClick={() => toast.show('No notifications yet.', { type: 'info' })} className="hover:text-[#981e32] px-3 py-1 rounded-full border border-transparent hover:border-[#981e32]">
                 Notification
               </button>
-              {user ? (
+              {session?.role === "admin" ? (
+                <Link to="/admin/requests" className="hover:text-[#981e32] px-3 py-1 rounded-full border border-transparent hover:border-[#981e32]">
+                  Access Requests
+                </Link>
+              ) : null}
+              {session ? (
                 <>
                   <button onClick={handleLogout} className="px-3 py-1 rounded-full border border-transparent hover:border-[#981e32]">Logout</button>
                 </>

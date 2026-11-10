@@ -178,3 +178,10 @@ thumb
 sketch
 
 # End of https://www.toptal.com/developers/gitignore/api/go,react,node
+
+### Project ###
+# Local SQLite auth database (contains password hashes and setup tokens)
+*.db
+
+# Personal editor settings
+.vscode/

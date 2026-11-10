@@ -3810,7 +3810,7 @@ const RequestNew = ({ mode = "request" }) => {
                 document.activeElement.blur();
               }
               const script = buildScriptFromForm(form);
-              const { downloadScriptPdf } = await import("../utils/pdf");
+              const { downloadScriptPdf } = await import("../pdf/script");
               const item = {
                 id: `draft-${Date.now()}`,
                 title: script?.patient?.name || "Draft Script",
@@ -3820,7 +3820,7 @@ const RequestNew = ({ mode = "request" }) => {
                 summary: script?.admin?.summory_of_story || "",
                 versions: [{ version: "draft", notes: "Draft", fields: script }],
               };
-              downloadScriptPdf(item, item.versions[0]);
+              await downloadScriptPdf(item, item.versions[0]);
             }}
             >
               Download PDF

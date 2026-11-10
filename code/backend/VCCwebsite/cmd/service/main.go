@@ -15,6 +15,15 @@ import (
 )
 
 func main() {
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET must be set")
+	}
+	authMiddleware, err := auth.NewAuthMiddleware(jwtSecret)
+	if err != nil {
+		log.Fatalf("Failed to initialize auth middleware: %v", err)
+	}
+
 	mux := http.NewServeMux()
 
 	dbPath := os.Getenv("AUTH_DB_PATH")
@@ -58,28 +67,19 @@ func main() {
 		log.Printf("MongoDB unavailable; continuing in optional mode. Set REQUIRE_MONGO=true to fail fast (%s)", db.MongoConfigHint())
 	}
 
-	var authMiddleware *auth.AuthMiddleware
-	jwtSecret := os.Getenv("JWT_SECRET")
+	protect := authMiddleware.Middleware
 
-	if jwtSecret != "" {
-		log.Println("✓ JWT authentication enabled")
-		authMiddleware, err = auth.NewAuthMiddleware(jwtSecret)
-		if err != nil {
-			log.Fatalf("Failed to initialize auth middleware: %v", err)
-		}
-	} else {
-		log.Println("JWT authentication disabled (set JWT_SECRET to enable)")
+	appURL := os.Getenv("APP_URL")
+	if appURL == "" {
+		appURL = "http://localhost:8080"
 	}
+	mailer := auth.LogMailer{}
 
-	protect := func(h http.Handler) http.Handler {
-		if authMiddleware != nil {
-			return authMiddleware.Middleware(h)
-		}
-		return h
-	}
-
-	mux.HandleFunc("/api/login", handler.Login(authMiddleware, jwtSecret))
-	mux.HandleFunc("/api/health", handler.Health(mongoClient, authMiddleware))
+	mux.HandleFunc("/api/auth/login", handler.Login(authMiddleware))
+	mux.HandleFunc("/api/auth/setup-password", handler.SetupPassword())
+	mux.HandleFunc("/api/access-requests", handler.AccessRequests(mailer))
+	mux.HandleFunc("/api/health", handler.Health(mongoClient))
+	handler.RegisterAdminRoutes(mux, authMiddleware, mailer, appURL)
 
 	mux.Handle("/api/script-request", protect(api.ScriptRequestHandler(mongoClient)))
 	mux.Handle("/api/document/versions", protect(api.DocumentHandler(mongoClient)))

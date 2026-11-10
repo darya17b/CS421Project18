@@ -4,6 +4,7 @@ import FormsListRow from "./FormsListRow";
 import Modal from "../components/Modal";
 import { useStore } from "../store";
 import { useToast } from "../components/Toast";
+import { useSession } from "../auth/session";
 import { downloadResourcePdf, downloadMedicationCardPdf, downloadLabDataCardPdf } from "../utils/pdf";
 import {
   collapseDoorNoteArtifacts,
@@ -155,7 +156,7 @@ const FormsSearch = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
+  const isAdmin = useSession()?.role === "admin";
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [current, setCurrent] = useState(null);
   const [results, setResults] = useState(null);

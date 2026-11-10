@@ -3,24 +3,19 @@ package handler
 import (
 	"VCCwebsite/internal/auth"
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
-	"time"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
-func Login(authMiddleware *auth.AuthMiddleware, jwtSecret string) http.HandlerFunc {
+func Login(authMiddleware *auth.AuthMiddleware) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if authMiddleware == nil {
-			http.Error(w, "auth not configured", http.StatusNotImplemented)
-			return
-		}
 		var req struct {
-			Username string `json:"username"`
+			Email    string `json:"email"`
 			Password string `json:"password"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -28,23 +23,20 @@ func Login(authMiddleware *auth.AuthMiddleware, jwtSecret string) http.HandlerFu
 			return
 		}
 
-		id, hash, role, err := auth.GetUserByUsername(req.Username)
+		userID, role, err := auth.Authenticate(req.Email, req.Password)
+		if errors.Is(err, auth.ErrInvalidCredentials) {
+			http.Error(w, auth.ErrInvalidCredentials.Error(), http.StatusUnauthorized)
+			return
+		}
 		if err != nil {
-			http.Error(w, "invalid credentials", http.StatusUnauthorized)
+			log.Printf("login: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
 
-		if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)); err != nil {
-			http.Error(w, "invalid credentials", http.StatusUnauthorized)
-			return
-		}
-
-		claims := &auth.Claims{
-			Subject: req.Username,
-			Custom:  map[string]interface{}{"id": id},
-		}
-		token, err := auth.GenerateToken(jwtSecret, claims, role, 24*time.Hour)
+		token, err := authMiddleware.IssueToken(userID, role)
 		if err != nil {
+			log.Printf("issue token: %v", err)
 			http.Error(w, "could not generate token", http.StatusInternalServerError)
 			return
 		}

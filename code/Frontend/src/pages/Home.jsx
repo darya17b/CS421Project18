@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
+import { useSession } from "../auth/session";
 
 // handles landing sections
 export const LandingSections = () => {
-  const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
+  const isAdmin = useSession()?.role === "admin";
   return (
     <section className="w-full">
       <div className="flex flex-col gap-6">

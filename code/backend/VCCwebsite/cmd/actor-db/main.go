@@ -1,7 +1,7 @@
 package main
 
 import (
-	"VCCwebsite/internal/actordb"
+	"VCCwebsite/internal/actorDB"
 	"context"
 	"log"
 	"os"
@@ -22,7 +22,7 @@ func main() {
 
 	schemaPath := os.Getenv("ACTOR_SCHEMA_PATH")
 	if schemaPath == "" {
-		schemaPath = "./internal/db/actor_schema.sql"
+		schemaPath = "./internal/actorDB/actor_schema.sql"
 	}
 
 	if err := actordb.EnsureSchema(ctx, db, schemaPath); err != nil {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useStore } from "../store";
 import { useToast } from "../components/Toast";
+import { useSession } from "../auth/session";
 import { formatTitleWithDobAge } from "../utils/patientAge";
 import { collapseDoorNoteArtifacts, dedupeArtifacts } from "../utils/artifacts";
 
@@ -208,11 +209,8 @@ const Requests = () => {
   const [deletingId, setDeletingId] = useState("");
   const [publishVersionMap, setPublishVersionMap] = useState({});
   // handles is admin
-  const isAdmin = (() => {
-    if (typeof window === "undefined") return true;
-    const role = localStorage.getItem("role");
-    return role === "admin" || !role;
-  })();
+  const role = useSession()?.role;
+  const isAdmin = role === "admin" || !role;
 
   useEffect(() => {
     if (typeof refreshRequests === "function") {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { downloadScriptPdf, getScriptPdfUrl } from "../utils/pdf";
+import { downloadScriptPdf, previewScriptPdf } from "../pdf/script";
 import { formatTitleWithDobAge } from "../utils/patientAge";
 
 // handles pick first text
@@ -63,20 +63,15 @@ const FormsListRow = ({ item, onArtifacts, onPropose, onDelete, onSendBackToRequ
 
   // handles handle download
   const handleDownload = () => {
-    try {
-      downloadScriptPdf(item, currentVersion || undefined);
-    } catch {
-     
-    }
+    downloadScriptPdf(item, currentVersion || undefined).catch((err) => {
+      console.warn("Failed to download script PDF", err);
+    });
   };
   // handles handle preview
   const handlePreview = () => {
-    try {
-      const url = getScriptPdfUrl(item, currentVersion || undefined);
-      window.open(url, "_blank", "noopener");
-    } catch {
-    
-    }
+    previewScriptPdf(item, currentVersion || undefined).catch((err) => {
+      console.warn("Failed to preview script PDF", err);
+    });
   };
 
   useEffect(() => {

@@ -1,0 +1,41 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /code/Frontend
+    schedule:
+      interval: cron
+      cronjob: "0 9 1,15 * *"  # 09:00 UTC on the 1st and 15th of each month (~biweekly)
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /code/backend/VCCwebsite
+    schedule:
+      interval: cron
+      cronjob: "0 9 1,15 * *"  # 09:00 UTC on the 1st and 15th of each month (~biweekly)
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: cron
+      cronjob: "0 9 1,15 * *"  # 09:00 UTC on the 1st and 15th of each month (~biweekly)
+    commit-message:
+      prefix: "chore"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: cron
+      cronjob: "0 9 1,15 * *"  # 09:00 UTC on the 1st and 15th of each month (~biweekly)
+    commit-message:
+      prefix: "chore"
