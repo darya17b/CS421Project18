@@ -3,7 +3,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
-import { downloadScriptPdf, downloadResourcePdf, downloadMedicationCardPdf, downloadLabDataCardPdf, getScriptPdfUrl } from "../utils/pdf";
+import { downloadResourcePdf, downloadMedicationCardPdf, downloadLabDataCardPdf } from "../utils/pdf";
+import { downloadScriptPdf, previewScriptPdf } from "../pdf/script";
+import ScriptPdfMenu from "../components/ScriptPdfMenu";
 import {
   collapseDoorNoteArtifacts,
   getArtifactBadge,
@@ -500,7 +502,7 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
   const isAdmin = (() => {
     if (typeof window === "undefined") return false;
     const role = (localStorage.getItem("role") || "").trim().toLowerCase();
-    return role === "admin" || role === "";
+    return role === "admin";
   })();
   const useMock = import.meta.env.VITE_USE_MOCK === "true";
   const item = requestInlineOnly ? null : (getById ? getById(id) : null);
@@ -840,30 +842,18 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
     }
   };
 
-  // handles print script pdf
-  const printScriptPdf = () => {
-    const pdfUrl = getScriptPdfUrl(activeItem, current);
-    const printWindow = window.open(pdfUrl, "_blank");
-    if (!printWindow) {
-      toast.show("Pop-up blocked. Please allow pop-ups to print.", { type: "error" });
-      return;
-    }
+  // handles preview script pdf
+  const handlePreviewPdf = (audience) => {
+    previewScriptPdf(activeItem, current, audience).catch((err) => {
+      toast.show(err?.message || "Failed to generate PDF.", { type: "error" });
+    });
+  };
 
-    // handles trigger print
-    const triggerPrint = () => {
-      try {
-        printWindow.focus();
-        printWindow.print();
-      } catch {
-        // Some browsers block immediate print on PDF tabs; user can print manually.
-      }
-    };
-
-    if (printWindow.document?.readyState === "complete") {
-      setTimeout(triggerPrint, 150);
-    } else {
-      printWindow.onload = () => setTimeout(triggerPrint, 150);
-    }
+  // handles download script pdf
+  const handleDownloadPdf = (audience) => {
+    downloadScriptPdf(activeItem, current, audience).catch((err) => {
+      toast.show(err?.message || "Failed to generate PDF.", { type: "error" });
+    });
   };
 
   // handles open artifact
@@ -1627,8 +1617,8 @@ const ScriptDetail = ({ requestInlineOnly = false }) => {
           </button>
         ) : null}
         <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => setArtifactsOpen(true)}>Resources</button>
-        <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={printScriptPdf}>Print</button>
-        <button className="rounded border px-3 py-1 hover:bg-gray-50" onClick={() => downloadScriptPdf(activeItem, current)}>Download PDF</button>
+        <ScriptPdfMenu label="Preview PDF" className="rounded border px-3 py-1 group-hover:bg-gray-50" onSelect={handlePreviewPdf} />
+        <ScriptPdfMenu label="Download PDF" className="rounded border px-3 py-1 group-hover:bg-gray-50" onSelect={handleDownloadPdf} />
       </div>
     </div>
   );

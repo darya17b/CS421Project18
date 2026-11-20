@@ -17,7 +17,7 @@ Write-Host "Starting backend services in a new PowerShell window..."
 Start-Process powershell -ArgumentList @(
   '-NoExit',
   '-Command',
-  "cd '$repoRoot'; docker compose $composeArgs"
+  "cd '$repoRoot'; docker compose -f Docker/docker-compose.yml $composeArgs"
 )
 
 Write-Host "Starting frontend dev server in a new PowerShell window..."

@@ -1,0 +1,60 @@
+# Keeps the project (and volume) names the same as when this file lived at the repo root.
+name: vcc-script-management
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    restart: unless-stopped
+    networks:
+      - app_network
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-secret}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-vccwebsite}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile
+    container_name: backend
+    restart: unless-stopped
+    networks:
+      - app_network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      MONGO_URI: mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-secret}@mongodb:27017/${MONGO_DB:-vccwebsite}?authSource=admin
+      PORT: ${PORT:-8080}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      # Base URL used in emailed set-password links
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      # Enables JWT auth on /api/*; set in .env (not committed)
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      STATIC_PATH: /app/static
+      ACTOR_DB_PATH: /app/data/actor.db
+      ACTOR_SCHEMA_PATH: /app/internal/actorDB/actor_schema.sql
+      # Okta OAuth Configuration (disabled; kept for reference. The full working
+      # version is at git tag "okta-reference".)
+      # OKTA_ISSUER: ${OKTA_ISSUER:-https://login.wsu.edu/oauth2/default}
+      # OKTA_CLIENT_ID: ${OKTA_CLIENT_ID:-0oa19yes4cwMmJvwk2p8}
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - actor_db:/app/data
+
+volumes:
+  mongo_data:
+  actor_db:
+
+networks:
+  app_network:
+    driver: bridge

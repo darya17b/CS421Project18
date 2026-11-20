@@ -4,6 +4,7 @@ import FormsListRow from "./FormsListRow";
 import Modal from "../components/Modal";
 import { useStore } from "../store";
 import { useToast } from "../components/Toast";
+import { useSession } from "../auth/session";
 import { downloadResourcePdf, downloadMedicationCardPdf, downloadLabDataCardPdf } from "../utils/pdf";
 import {
   collapseDoorNoteArtifacts,
@@ -15,6 +16,7 @@ import {
   isLabDataCardName,
 } from "../utils/artifacts";
 import { buildScriptFromForm } from "../utils/scriptFormat";
+import { downloadJson } from "../utils/scriptJson";
 
 const reviewOfSystemsFields = [
   "general",
@@ -155,7 +157,7 @@ const FormsSearch = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const isAdmin = typeof window !== "undefined" && localStorage.getItem("role") === "admin";
+  const isAdmin = useSession()?.role === "admin";
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [current, setCurrent] = useState(null);
   const [results, setResults] = useState(null);
@@ -440,6 +442,31 @@ const FormsSearch = () => {
     return bestMatch;
   };
 
+  const onDownloadTemplate = () => 
+  {
+    downloadJson(buildScriptFromForm({}), "script.json");
+  };
+
+  const onExport = async (item) => 
+  {
+    try {
+      let fields = getCurrentVersionEntry(item)?.fields || null;
+      if (!fields) {
+        const { api } = await import("../api/client");
+        const doc = await api.getDocument(item.id);
+        fields = getCurrentVersionEntry(doc)?.fields || doc || null;
+      }
+      if (!fields || typeof fields !== "object") {
+        throw new Error("Script data could not be loaded.");
+      }
+      const name = String(fields.admin?.diagnosis || fields.admin?.reson_for_visit || item.id || "script")
+        .trim()
+        .replace(/[\\/:*?"<>|]+/g, "");
+      downloadJson(buildScriptFromForm(fields), `${name || "script"}.json`);
+   } catch (err) {
+      toast.show(err?.message || "Export failed", { type: "error" });
+    }
+  };
   const visible = (results || items).filter((it) => !it.draftOf);
   const visibleWithPublishMeta = useMemo(
     () =>
@@ -524,19 +551,34 @@ const FormsSearch = () => {
               onDelete={isAdmin ? onDelete : null}
               onSendBackToRequests={isAdmin ? onSendBackToRequests : null}
               onClone={isAdmin ? onClone : null}
+              onExport={isAdmin ? onExport: null}
             />
           ))}
         </div>
       )}
 
       {isAdmin ? (
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-2">
           <Link
             to="/request-new"
             className="inline-flex items-center justify-center rounded-md border border-[#981e32] px-4 py-2 text-sm font-semibold text-[#981e32] hover:bg-[#981e32] hover:text-white"
           >
             Add Script
           </Link>
+          <button
+            type="button"
+            onClick={onDownloadTemplate}
+            className="inline-flex items-center justify-center rounded-md border border-[#981e32] px-4 py-2 text-sm font-semibold text-[#981e32] hover:bg-[#981e32] hover:text-white"
+          >
+            Download template JSON
+          </button>
+
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded-md border border-[#981e32] px-4 py-2 text-sm font-semibold text-[#981e32] hover:bg-[#981e32] hover:text-white"
+          >
+            Import Script as JSON
+          </button>
         </div>
       ) : null}
 

@@ -126,7 +126,8 @@ button {
 }
 
 .list-row__buttons button:hover,
-.list-row__buttons a:hover {
+.list-row__buttons a:hover,
+.list-row__buttons .script-pdf-menu:hover > button {
   background: #151515;
   color: #fff;
 }

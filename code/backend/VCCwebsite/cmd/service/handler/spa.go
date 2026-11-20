@@ -12,6 +12,11 @@ type SPAHandler struct {
 }
 
 func (h SPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// The set-password URL carries a one-time token; keep it out of Referer
+	// headers from the very first request the page makes.
+	if r.URL.Path == "/set-password" {
+		w.Header().Set("Referrer-Policy", "no-referrer")
+	}
 	path := filepath.Join(h.StaticPath, r.URL.Path)
 	fi, err := os.Stat(path)
 	if os.IsNotExist(err) || fi.IsDir() {

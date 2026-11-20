@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { getToken, useSession } from "../auth/session";
 
 const COLLAPSED_COUNT = 6;
 const PAGE_SIZE = 18;
@@ -79,14 +80,10 @@ const ActorDatabase = () => {
   const [deleteFeedback, setDeleteFeedback] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
 
-  const isAdmin = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return (localStorage.getItem("role") || "").toLowerCase() === "admin";
-  }, []);
+  const isAdmin = useSession()?.role === "admin";
 
   const authHeaders = useCallback(() => {
-    if (typeof window === "undefined") return {};
-    const token = localStorage.getItem("token");
+    const token = getToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
 

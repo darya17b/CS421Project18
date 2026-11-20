@@ -1,0 +1,40 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: code/Frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: code/Frontend/package-lock.json
+      - run: npm ci
+      - name: Lint
+        # TODO: existing code has lint errors; remove continue-on-error once fixed
+        run: npm run lint
+        continue-on-error: true
+      - run: npm run build
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: code/backend/VCCwebsite
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: code/backend/VCCwebsite/go.mod
+          cache-dependency-path: code/backend/VCCwebsite/go.sum
+      - run: go build ./...
+      - run: go vet ./...

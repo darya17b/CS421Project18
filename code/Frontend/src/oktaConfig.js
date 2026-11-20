@@ -1,3 +1,7 @@
+// Okta support is disabled. This file is no longer imported anywhere and is kept
+// for reference only. The full working Okta integration is at git tag
+// "okta-reference" (see README, "Okta (disabled)").
+
 import { OktaAuth } from "@okta/okta-auth-js";
 
 // handles normalize callback path
